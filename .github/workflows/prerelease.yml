@@ -1,6 +1,13 @@
 name: Publish experimental pre-release
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'package.json'
+      - '.github/workflows/prerelease.yml'
   workflow_dispatch:
     inputs:
       publish_marketplace:
@@ -40,6 +47,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            echo 'Pre-release v0.1.0 already exists; not recreating it.'
+            exit 0
+          fi
           gh release create v0.1.0 scarp-0.1.0.vsix \
             --target "$GITHUB_SHA" \
             --title "Scarp Compiler & Runner v0.1.0 (pre-release)" \

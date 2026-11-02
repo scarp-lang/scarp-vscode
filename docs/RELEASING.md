@@ -6,7 +6,7 @@
 
 1. Complete CI type checking, linting, unit tests and VSIX packaging.
 2. Validate run/check against a pinned real Scarp compiler pre-release.
-3. Run the manual **Publish experimental pre-release** GitHub Actions workflow from main. It must create only a GitHub Release marked Pre-release, with a VSIX attached.
+3. The first merge to main automatically triggers the **Publish experimental pre-release** workflow. It independently tests, packages, and creates a GitHub Release marked Pre-release, with a VSIX attached. The workflow can also be run manually.
 4. Marketplace publication additionally requires a secure VS_MARKETPLACE_PAT repository secret and explicit opt-in. Always use the --pre-release vsce flag.
 5. Open VSX publication is deferred until the correct publisher namespace and instructions are supplied.
 6. Do not inflate deployments, PR counts or commits artificially.
