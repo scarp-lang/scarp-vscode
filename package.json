@@ -1,0 +1,163 @@
+{
+  "name": "scarp",
+  "displayName": "Scarp Compiler & Runner",
+  "description": "Official VS Code extension for compiling, building, and running Scarp programs.",
+  "publisher": "ScarpLang",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scarp-lang/scarp-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/scarp-lang/scarp-vscode/issues"
+  },
+  "homepage": "https://github.com/scarp-lang/scarp-vscode#readme",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "scarp",
+    "srp",
+    "compiler",
+    "runner",
+    "language"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/src/extension.js",
+  "activationEvents": [
+    "onLanguage:scarp"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "scarp",
+        "aliases": [
+          "Scarp"
+        ],
+        "extensions": [
+          ".srp"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "scarp.runFile",
+        "title": "Scarp: Run Current File",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.checkFile",
+        "title": "Scarp: Check Current File",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.showVersion",
+        "title": "Scarp: Show Compiler Version",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.stopProgram",
+        "title": "Scarp: Stop Running Program",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.showOutput",
+        "title": "Scarp: Show Compiler Output",
+        "category": "Scarp"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "scarp.runFile",
+          "when": "resourceExtname == .srp",
+          "group": "navigation@1"
+        },
+        {
+          "command": "scarp.checkFile",
+          "when": "resourceExtname == .srp",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Scarp",
+      "properties": {
+        "scarp.compilerPath": {
+          "type": "string",
+          "default": "scarp",
+          "scope": "machine",
+          "description": "Absolute path to the official Scarp executable, or scarp when it is on PATH."
+        },
+        "scarp.checkTimeoutMs": {
+          "type": "integer",
+          "default": 30000,
+          "minimum": 1000,
+          "maximum": 300000,
+          "description": "Timeout for non-interactive compiler checks and version detection (milliseconds)."
+        },
+        "scarp.maxSteps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-steps execution budget for run/check."
+        },
+        "scarp.maxPrints": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-prints execution budget for run/check."
+        },
+        "scarp.maxCalls": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-calls budget for run/check."
+        },
+        "scarp.maxCallDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-call-depth budget for run/check."
+        },
+        "scarp.maxLiveSlots": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-live-slots budget for run/check."
+        },
+        "scarp.maxCaptureBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-capture-bytes budget for run/check."
+        },
+        "scarp.maxVectorBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-vector-bytes budget for run/check."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "vscode:prepublish": "npm run build",
+    "package:pre": "vsce package --pre-release --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.3.0",
+    "eslint": "^9.25.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.30.0"
+  }
+}
