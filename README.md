@@ -75,3 +75,9 @@ For release policy and testing see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/
 ## License
 
 MIT (extension). The separate Scarp compiler is Apache-2.0 licensed.
+
+## Visual Studio Marketplace pre-release
+
+The Marketplace publisher is `ScarpLang`, and the extension identifier is `ScarpLang.scarp`. The first Marketplace release must be marked **Pre-release**; a stable release is not allowed until Scarp itself releases a verified stable compiler.
+
+Publishing from GitHub Actions uses the Marketplace's **Trusted Publishing** policy for `scarp-lang/scarp-vscode` and `.github/workflows/prerelease.yml`. It requires no persistent PAT. Marketplace publication is explicitly opt-in through the manual workflow input, never automatic on a normal commit. Follow the [release instructions](docs/RELEASING.md).
