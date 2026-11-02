@@ -58,6 +58,7 @@ Use Node.js 22+, npm and VS Code 1.96+.
 npm install
 npm run check
 npm run package:pre
+npm run test:integration
 ~~~
 
 For release policy and testing see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/RELEASING.md](docs/RELEASING.md).
@@ -81,3 +82,5 @@ MIT (extension). The separate Scarp compiler is Apache-2.0 licensed.
 The Marketplace publisher is `ScarpLang`, and the extension identifier is `ScarpLang.scarp`. The first Marketplace release must be marked **Pre-release**; a stable release is not allowed until Scarp itself releases a verified stable compiler.
 
 Publishing from GitHub Actions uses the Marketplace's **Trusted Publishing** policy for `scarp-lang/scarp-vscode` and `.github/workflows/prerelease.yml`. It requires no persistent PAT. Marketplace publication is explicitly opt-in through the manual workflow input, never automatic on a normal commit. Follow the [release instructions](docs/RELEASING.md).
+
+The Extension Host integration tests run an actual copy of VS Code and need the `SCARP_TEST_BINARY` environment variable set to the absolute path of a compatible official Scarp executable. In Linux CI, this is built from the pinned compiler tag and launched under `xvfb-run`. These development tests do not publish a new extension version.

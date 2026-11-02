@@ -121,9 +121,13 @@ function stop(): void {
   running.clear();
   vscode.window.showInformationMessage(count ? 'Stopped ' + count + ' Scarp terminal(s).' : 'No Scarp program is running.');
 }
-function safe(action: () => Promise<void>): void {
-  void action().catch(error => vscode.window.showErrorMessage(
-    error instanceof Error ? error.message : String(error)));
+async function safe(action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    // Keep command completion awaitable for callers and Extension Host tests.
+    void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+  }
 }
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Scarp');

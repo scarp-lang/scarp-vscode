@@ -1,13 +1,6 @@
 name: Publish experimental pre-release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'test/**'
-      - 'package.json'
-      - '.github/workflows/prerelease.yml'
   workflow_dispatch:
     inputs:
       publish_marketplace:
