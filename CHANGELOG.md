@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — main branch development
+
+- Add automated VS Code Extension Host integration checks against a real pinned Scarp compiler.
+- Make commands awaitable for reliable editor integration verification.
+- Disable automatic GitHub pre-release workflow triggers on routine pushes to main; releases require an explicit manual dispatch.
+
 ## v0.1.0 — experimental pre-release (2026-11-02)
 
 - Initial TypeScript extension for Scarp .srp files.

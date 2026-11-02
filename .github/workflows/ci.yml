@@ -52,3 +52,25 @@ jobs:
           compiler/target/release/scarp check test/fixtures/hello.srp
           output="$(compiler/target/release/scarp run test/fixtures/hello.srp)"
           test "$output" = "Hello from Scarp!"
+
+  editor-integration:
+    name: VS Code Extension Host (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.5-alpha.2
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - name: Build pinned Scarp compiler
+        run: cargo build --locked --release --manifest-path compiler/Cargo.toml
+      - name: Exercise VS Code Extension Host with official compiler
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
