@@ -1,0 +1,54 @@
+name: Extension verification
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Package pre-release VSIX
+        run: npm run package:pre
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: scarp-vscode-0.1.0-pre-vsix
+          path: "*.vsix"
+          if-no-files-found: error
+
+  compiler-smoke:
+    name: Pinned official Scarp CLI smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.5-alpha.2
+          path: compiler
+      - name: Build official pinned compiler
+        run: cargo build --locked --release --manifest-path compiler/Cargo.toml
+      - name: Check and run a real Scarp program
+        shell: bash
+        run: |
+          compiler/target/release/scarp --version
+          compiler/target/release/scarp check test/fixtures/hello.srp
+          output="$(compiler/target/release/scarp run test/fixtures/hello.srp)"
+          test "$output" = "Hello from Scarp!"
