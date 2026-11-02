@@ -11,13 +11,14 @@ on:
   workflow_dispatch:
     inputs:
       publish_marketplace:
-        description: "Also publish to Visual Studio Marketplace as pre-release (requires VS_MARKETPLACE_PAT)"
+        description: "Publish the experimental version to Visual Studio Marketplace using OIDC Trusted Publishing"
         required: true
         type: boolean
         default: false
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -56,10 +57,6 @@ jobs:
             --title "Scarp Compiler & Runner v0.1.0 (pre-release)" \
             --notes "Experimental Scarp compiler integration. Run and check supported; native compile/build are not supported by this compiler version." \
             --prerelease
-      - name: Optional Marketplace pre-release
-        if: inputs.publish_marketplace
-        env:
-          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
-        run: |
-          test -n "$VSCE_PAT" || { echo "VS_MARKETPLACE_PAT secret is missing"; exit 1; }
-          npx vsce publish --pre-release --no-dependencies -p "$VSCE_PAT"
+      - name: Publish Marketplace pre-release with Trusted Publishing
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_marketplace
+        run: npx vsce publish --pre-release --no-dependencies --oidc
