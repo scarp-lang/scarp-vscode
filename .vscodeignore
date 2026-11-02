@@ -1,0 +1,14 @@
+**/*.ts
+**/*.map
+test/**
+dist/test/**
+.github/**
+.vscode/**
+docs/**
+site/**
+node_modules/**
+tsconfig.json
+eslint.config.mjs
+package-lock.json
+CONTRIBUTING.md
+.gitignore
