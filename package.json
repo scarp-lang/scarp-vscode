@@ -1,7 +1,7 @@
 {
   "name": "scarp",
   "displayName": "Scarp Compiler & Runner",
-  "description": "Official VS Code extension for compiling, building, and running Scarp programs.",
+  "description": "Official experimental VS Code extension for running and checking Scarp programs with the Scarp compiler.",
   "publisher": "ScarpLang",
   "version": "0.1.0",
   "private": false,
