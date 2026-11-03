@@ -3,6 +3,8 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
@@ -28,7 +30,8 @@ export async function run(): Promise<void> {
 
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
-    'scarp.stopProgram', 'scarp.showOutput']) {
+    'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject',
+    'scarp.verifyProject', 'scarp.launchProject']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -63,6 +66,53 @@ export async function run(): Promise<void> {
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
   await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
   try {
+    // End-to-end integration with the official alpha.4 Scarp project workflow.
+    const projectParent = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-project-'));
+    const projectPath = path.join(projectParent, 'project with spaces');
+    const projectUri = vscode.Uri.file(projectPath);
+    try {
+      await promisify(execFile)(binary, ['create', '--', projectPath], { timeout: 10000 });
+      const manifest = await fs.readFile(path.join(projectPath, 'Scarp.project'), 'utf8');
+      assert.match(manifest, /scarp-project: 1/);
+      const entryUri = vscode.Uri.file(path.join(projectPath, 'src', 'main.srp'));
+      const entryDocument = await vscode.workspace.openTextDocument(entryUri);
+      await vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+      assert.equal(vscode.languages.getDiagnostics(entryUri).length, 0,
+        'Valid Scarp project must pass static verification');
+      const projectTerminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          disposable.dispose();
+          reject(new Error('Scarp project launch did not open a terminal'));
+        }, 10000);
+        const disposable = vscode.window.onDidOpenTerminal(terminal => {
+          if (!terminal.name.startsWith('Scarp Project:')) { return; }
+          clearTimeout(timer);
+          disposable.dispose();
+          resolve(terminal);
+        });
+      });
+      await vscode.commands.executeCommand('scarp.launchProject', projectUri);
+      const projectTerminal = await projectTerminalOpened;
+      assert.equal(projectTerminal.name, 'Scarp Project: project with spaces');
+      await vscode.commands.executeCommand('scarp.stopProgram');
+      await waitFor(() => vscode.window.terminals.includes(projectTerminal) ? undefined : true,
+        'Stop command must terminate the project terminal');
+
+      const broken = new vscode.WorkspaceEdit();
+      broken.replace(entryUri, new vscode.Range(
+        0, 0, 0, entryDocument.lineAt(0).text.length
+      ), 'print("missing semicolon")');
+      assert.ok(await vscode.workspace.applyEdit(broken));
+      assert.ok(await entryDocument.save());
+      await vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+      assert.ok(vscode.languages.getDiagnostics(entryUri).some(
+        diagnostic => diagnostic.source === 'Scarp'
+          && diagnostic.severity === vscode.DiagnosticSeverity.Error
+      ), 'Invalid Scarp project entrypoint must report real compiler Problems');
+    } finally {
+      await fs.rm(projectParent, { recursive: true, force: true });
+    }
+
     const invalidUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/invalid.srp'));
     const invalid = await vscode.workspace.openTextDocument(invalidUri);
     assert.equal(invalid.languageId, 'scarp');

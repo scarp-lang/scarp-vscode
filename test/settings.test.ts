@@ -11,3 +11,8 @@ test('rejects invalid budgets', () => {
     assert.throws(() => budgetArguments({ maxSteps: value } as BudgetSettings));
   }
 });
+
+test('passes the official alpha.4 text budget through the compiler argv', () => {
+  assert.deepEqual(budgetArguments({ maxTextBytes: 2048 } as BudgetSettings),
+    ['--max-text-bytes', '2048']);
+});

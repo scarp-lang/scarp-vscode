@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.3
+          ref: v0.0.5-alpha.4
           path: compiler
       - name: Build official pinned compiler
         run: cargo build --locked --release --manifest-path compiler/Cargo.toml
@@ -70,6 +70,12 @@ jobs:
           compiler/target/release/scarp check test/fixtures/hello.srp
           output="$(compiler/target/release/scarp run test/fixtures/hello.srp)"
           test "$output" = "Hello from Scarp!"
+          project_parent="$(mktemp -d)"
+          trap 'rm -rf "$project_parent"' EXIT
+          compiler/target/release/scarp create -- "$project_parent/my project"
+          compiler/target/release/scarp verify --diagnostic-format=json -- "$project_parent/my project"
+          project_output="$(compiler/target/release/scarp launch -- "$project_parent/my project")"
+          test "$project_output" = "Hello from Scarp!"
 
   editor-integration:
     name: VS Code Extension Host (Linux)
@@ -80,7 +86,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.3
+          ref: v0.0.5-alpha.4
           path: compiler
       - uses: actions/setup-node@v4
         with:
