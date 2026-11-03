@@ -150,7 +150,10 @@ function declaration(source: string, tokens: readonly Token[], startIndex: numbe
   if (pure) { return undefined; }
   if (keyword === 'bind' || (keyword === 'var' && !exported)) {
     const name = tokens[i + 1];
-    if (name?.type !== 'identifier') { return undefined; }
+    if (name?.type !== 'identifier' ||
+        (tokens[i + 2]?.text !== '=' && tokens[i + 2]?.text !== ':')) {
+      return undefined;
+    }
     const last = statementEnd(tokens, i + 2);
     if (last < 0) { return undefined; }
     const decl = source.slice(name.end, tokens[last].start).trim();
