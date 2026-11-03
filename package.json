@@ -3,7 +3,7 @@
   "displayName": "Scarp Compiler & Runner",
   "description": "Official experimental VS Code extension for running and checking Scarp programs with the Scarp compiler.",
   "publisher": "ScarpLang",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "license": "MIT",
   "repository": {
@@ -56,7 +56,7 @@
       },
       {
         "command": "scarp.checkFile",
-        "title": "Scarp: Check Current File",
+        "title": "Scarp: Verify Current File",
         "category": "Scarp"
       },
       {

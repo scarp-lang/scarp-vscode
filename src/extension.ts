@@ -38,6 +38,23 @@ async function validateCompiler(): Promise<{ binary: string; version: string }> 
   if (!version) { throw new Error('Invalid Scarp --version response from ' + binary); }
   return { binary, version };
 }
+/**
+ * Probe a compiler capability instead of guessing from its version string.
+ * Alpha.3 introduces a non-executing verify route. Older releases use check,
+ * which may evaluate code; we document this important distinction.
+ */
+async function supportsStaticVerify(binary: string): Promise<boolean> {
+  try {
+    const result = await executeProcess(binary, ['verify', '--help'], {
+      timeoutMs: 5000,
+      maxOutputBytes: 32768
+    });
+    return result.exitCode === 0 && /Usage:\s*scarp verify\b/.test(result.stdout);
+  } catch {
+    return false;
+  }
+}
+
 async function showProblems(
   doc: vscode.TextDocument, stderr: string, collection: vscode.DiagnosticCollection
 ): Promise<number> {
@@ -54,10 +71,19 @@ async function showProblems(
     const line = Math.min(entry.line - 1, Math.max(source.lineCount - 1, 0));
     const text = source.lineAt(line).text;
     const column = Math.min(utf16OffsetForScalarColumn(text, entry.column), text.length);
-    const range = new vscode.Range(line, column, line, Math.min(column + 1, text.length));
+    const endLine = Math.min((entry.endLine ?? entry.line) - 1, Math.max(source.lineCount - 1, 0));
+    const endText = source.lineAt(endLine).text;
+    const endColumn = entry.endColumn === undefined
+      ? Math.min(column + 1, text.length)
+      : Math.min(utf16OffsetForScalarColumn(endText, entry.endColumn), endText.length);
+    const end = endLine > line || (endLine === line && endColumn > column)
+      ? new vscode.Position(endLine, endColumn)
+      : new vscode.Position(line, Math.min(column + 1, text.length));
+    const range = new vscode.Range(new vscode.Position(line, column), end);
     const severity = entry.severity === 'warning'
       ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
-    const diagnostic = new vscode.Diagnostic(range, entry.message, severity);
+    const diagnostic = new vscode.Diagnostic(range,
+      entry.help ? entry.message + '\nHelp: ' + entry.help : entry.message, severity);
     diagnostic.source = 'Scarp';
     if (entry.code) { diagnostic.code = entry.code; }
     const key = uri.toString();
@@ -77,9 +103,14 @@ async function check(doc: vscode.TextDocument, output: vscode.OutputChannel,
   try {
     await ensureSaved(doc);
     const { binary, version } = await validateCompiler();
+    const staticVerify = await supportsStaticVerify(binary);
     output.clear();
-    output.appendLine('Scarp ' + version + ' — check ' + filename);
-    const result = await executeProcess(binary, ['check', ...budgets(), '--', filename], {
+    output.appendLine('Scarp ' + version + (staticVerify
+      ? ' — static verify ' : ' — legacy evaluating check ') + filename);
+    const argumentsForCheck = staticVerify
+      ? ['verify', '--diagnostic-format=json', '--', filename]
+      : ['check', ...budgets(), '--', filename];
+    const result = await executeProcess(binary, argumentsForCheck, {
       cwd: path.dirname(filename),
       timeoutMs: config().get<number>('checkTimeoutMs', 30000),
       maxOutputBytes: 1024 * 1024
@@ -87,7 +118,10 @@ async function check(doc: vscode.TextDocument, output: vscode.OutputChannel,
     output.append(result.stdout);
     output.append(result.stderr);
     const count = await showProblems(doc, result.stderr, diagnostics);
-    if (result.exitCode === 0) { vscode.window.showInformationMessage('Scarp check passed.'); }
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage(staticVerify
+        ? 'Scarp static verification passed.' : 'Scarp legacy check passed.');
+    }
     else {
       output.show(true);
       vscode.window.showErrorMessage('Scarp check exited ' + String(result.exitCode)
