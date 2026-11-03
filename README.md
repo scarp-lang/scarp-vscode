@@ -77,10 +77,12 @@ For release policy and testing see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/
 
 MIT (extension). The separate Scarp compiler is Apache-2.0 licensed.
 
-## Visual Studio Marketplace pre-release
+## Marketplace and Open VSX pre-releases
 
-The Marketplace publisher is `ScarpLang`, and the extension identifier is `ScarpLang.scarp`. The first Marketplace release must be marked **Pre-release**; a stable release is not allowed until Scarp itself releases a verified stable compiler.
+The official publisher and extension identifier are `ScarpLang.scarp` on both Visual Studio Marketplace and Open VSX. Only verified **pre-release** builds are permitted until Scarp's compiler publishes its first stable release.
 
-Publishing from GitHub Actions uses the Marketplace's **Trusted Publishing** policy for `scarp-lang/scarp-vscode` and `.github/workflows/prerelease.yml`. It requires no persistent PAT. Marketplace publication is explicitly opt-in through the manual workflow input, never automatic on a normal commit. Follow the [release instructions](docs/RELEASING.md).
+The [publishing workflow](.github/workflows/prerelease.yml) supports both registries. Publishing a reviewed **GitHub pre-release** automatically publishes the same verified VSIX to both registries; normal commits and stable releases never trigger registry publishing. Alternatively, maintainers can manually run the workflow from `main` and explicitly select either or both publishing targets.
+
+Marketplace authentication uses its GitHub OIDC Trusted Publisher policy for `scarp-lang/scarp-vscode` and workflow `prerelease.yml` (no Marketplace PAT). Open VSX initially uses a scoped publishing token in the `OVSX_PAT` GitHub Actions secret; it can switch to Trusted Publishing once the first version is active. See the [release instructions](docs/RELEASING.md) for setup, exact version/tag requirements, and release guards.
 
 The Extension Host integration tests run an actual copy of VS Code and need the `SCARP_TEST_BINARY` environment variable set to the absolute path of a compatible official Scarp executable. In Linux CI, this is built from the pinned compiler tag and launched under `xvfb-run`. These development tests do not publish a new extension version.
