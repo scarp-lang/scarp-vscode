@@ -6,6 +6,7 @@ import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
+import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -184,6 +185,147 @@ async function check(
     if (checks.get(filename) === work) { checks.delete(filename); }
   }
 }
+/** Never assume project support from a version string or from the old evaluating check. */
+async function validateProjectCompiler(): Promise<{ binary: string; version: string }> {
+  const compiler = await validateCompiler();
+  const result = await executeProcess(compiler.binary, ['diagnose', '--json'], {
+    timeoutMs: 5000, maxOutputBytes: 65536
+  });
+  if (result.exitCode !== 0 || !hasProjectWorkflow(result.stdout)) {
+    throw new Error(
+      'Project commands require the official Scarp v0.0.5-alpha.4+ compiler with project_workflow support. '
+      + 'Update the compiler or adjust scarp.compilerPath.'
+    );
+  }
+  return compiler;
+}
+
+/** Select only an explicit workspace root, never search for parent manifests. */
+async function projectDirectory(provided?: vscode.Uri): Promise<vscode.Uri | undefined> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before using Scarp project commands.');
+  }
+  let uri = provided;
+  if (!uri) {
+    const folder = await vscode.window.showWorkspaceFolderPick({
+      placeHolder: 'Select the Scarp project folder containing Scarp.project'
+    });
+    uri = folder?.uri;
+  }
+  if (!uri) { return undefined; }
+  if (uri.scheme !== 'file') {
+    throw new Error('Scarp projects require a local filesystem directory.');
+  }
+  let directory: vscode.FileStat;
+  try { directory = await vscode.workspace.fs.stat(uri); }
+  catch { throw new Error('Selected Scarp project directory does not exist.'); }
+  if ((directory.type & vscode.FileType.Directory) === 0) {
+    throw new Error('Select a Scarp project directory, not an individual file.');
+  }
+  const manifest = vscode.Uri.joinPath(uri, 'Scarp.project');
+  try {
+    const stat = await vscode.workspace.fs.stat(manifest);
+    if ((stat.type & vscode.FileType.File) === 0) { throw new Error('invalid'); }
+  } catch {
+    throw new Error('The selected folder has no Scarp.project file. '
+      + 'Open an existing Scarp project root or create a project first.');
+  }
+  return uri;
+}
+
+async function verifyProject(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel,
+  diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>
+): Promise<void> {
+  const directory = await projectDirectory(explicit);
+  if (!directory) { return; }
+  const manifest = vscode.Uri.joinPath(directory, 'Scarp.project');
+  const doc = await vscode.workspace.openTextDocument(manifest);
+  if (doc.isDirty) { throw new Error('Save Scarp.project before project verification.'); }
+  const { binary, version } = await validateProjectCompiler();
+  output.clear();
+  output.appendLine('Scarp ' + version + ' — static verify project ' + directory.fsPath);
+  const result = await executeProcess(binary, projectArgv('verify', directory.fsPath), {
+    cwd: directory.fsPath,
+    timeoutMs: config().get<number>('checkTimeoutMs', 30000),
+    maxOutputBytes: 1024 * 1024
+  });
+  if (result.stdout) { output.append(result.stdout); }
+  if (result.stderr) { output.append(result.stderr); }
+  const count = await showProblems(doc, result.stderr, diagnostics, owners, doc.version);
+  if (result.exitCode === 0) {
+    vscode.window.showInformationMessage('Scarp project static verification passed.');
+  } else {
+    output.show(true);
+    vscode.window.showErrorMessage('Scarp project verification failed (exit '
+      + String(result.exitCode) + ', ' + String(count ?? 0) + ' located diagnostic(s)). '
+      + 'See Scarp output for manifest or unlocated errors.');
+  }
+}
+
+async function launchProject(explicit: vscode.Uri | undefined,
+  output: vscode.OutputChannel): Promise<void> {
+  const directory = await projectDirectory(explicit);
+  if (!directory) { return; }
+  const key = directory.fsPath;
+  if (running.has(key)) {
+    running.get(key)?.show();
+    throw new Error('Scarp is already running this project. Stop it before relaunching.');
+  }
+  const { binary, version } = await validateProjectCompiler();
+  const terminal = vscode.window.createTerminal({
+    name: 'Scarp Project: ' + path.basename(key),
+    shellPath: binary,
+    shellArgs: projectArgv('launch', key, budgets()),
+    cwd: key
+  });
+  running.set(key, terminal);
+  output.appendLine('Scarp ' + version + ' — launch project ' + key);
+  terminal.show();
+}
+
+async function createProject(output: vscode.OutputChannel): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before creating a Scarp project.');
+  }
+  const parent = await vscode.window.showWorkspaceFolderPick({
+    placeHolder: 'Select an existing workspace folder as the parent of the NEW Scarp project'
+  });
+  if (!parent) { return; }
+  if (parent.uri.scheme !== 'file') {
+    throw new Error('Scarp project creation requires a local workspace folder.');
+  }
+  const name = await vscode.window.showInputBox({
+    title: 'Create Scarp Project',
+    prompt: 'Name for a new subfolder (existing destinations are never overwritten)',
+    placeHolder: 'hello-world',
+    validateInput: text => validProjectName(text) ? undefined
+      : 'Use one folder name (1–96 UTF-8 bytes), without separators, colons or control characters.'
+  });
+  if (name === undefined) { return; }
+  if (!validProjectName(name)) { throw new Error('Invalid Scarp project folder name.'); }
+  const destination = path.join(parent.uri.fsPath, name);
+  const { binary, version } = await validateProjectCompiler();
+  const result = await executeProcess(binary, projectArgv('create', destination), {
+    cwd: parent.uri.fsPath, timeoutMs: 30000, maxOutputBytes: 65536
+  });
+  if (result.stdout) { output.append(result.stdout); }
+  if (result.stderr) { output.append(result.stderr); }
+  if (result.exitCode !== 0) {
+    output.show(true);
+    throw new Error('Scarp project creation failed. The compiler will not overwrite '
+      + 'an existing directory. See Scarp output.');
+  }
+  output.appendLine('Created Scarp ' + version + ' project ' + destination);
+  const choice = await vscode.window.showInformationMessage(
+    'Created Scarp project ' + name + '.', 'Open Project'
+  );
+  if (choice === 'Open Project') {
+    await vscode.commands.executeCommand('vscode.openFolder',
+      vscode.Uri.file(destination), { forceNewWindow: true });
+  }
+}
+
 async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Promise<void> {
   const filename = doc.uri.fsPath;
   if (running.has(filename)) {
@@ -279,6 +421,12 @@ export function activate(context: vscode.ExtensionContext): void {
         verifiedVersions.clear();
       }
     }),
+    vscode.commands.registerCommand('scarp.createProject',
+      (): Promise<void> => safe(async () => createProject(output))),
+    vscode.commands.registerCommand('scarp.verifyProject',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => verifyProject(uri, output, diagnostics, owners))),
+    vscode.commands.registerCommand('scarp.launchProject',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
     vscode.commands.registerCommand('scarp.checkFile', (): Promise<void> => safe(async () => check(selectedFile(), output, diagnostics, owners))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
