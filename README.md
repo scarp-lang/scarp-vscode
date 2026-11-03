@@ -15,6 +15,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - Preserve file paths with spaces by passing process arguments directly, without invoking a shell.
 - Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
+- **Optional verify on save:** debounce rapid saves, use static-only verification where supported, and quietly refresh Problems without opening a terminal or displaying popups.
 
 **Syntax highlighting:** The v0.1.2 grammar is editor-only and never executes code. It follows Scarp compiler v0.0.5-alpha.3 token spelling, not Python/Rust conventions. Color choices are supplied by your VS Code theme. Strings and comments do not mistakenly color embedded keywords.
 
@@ -41,6 +42,7 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 | --- | --- |
 | scarp.compilerPath | Full path to executable, or scarp on PATH |
 | scarp.checkTimeoutMs | Timeout for checking (default: 30000 milliseconds) |
+| scarp.verifyOnSave | Opt in to non-executing verification after saving a `.srp` file; **off by default** |
 | scarp.maxSteps, scarp.maxPrints | Optional execution limits |
 | scarp.maxCallDepth, scarp.maxCalls | Optional call limits |
 | scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes | Optional memory/resource limits |
@@ -55,7 +57,9 @@ Unspecified limits use compiler defaults.
 - Only one terminal session per file; terminal output is not duplicated into Problems.
 - With older Scarp compilers, `Scarp: Verify Current File` falls back to the legacy `check` command, which may evaluate program statements. For non-executing verification, install Scarp v0.0.5-alpha.3 or a newer compiler exposing `verify --help`.
 - Runtime budget settings apply to execution and the legacy evaluating `check`; they do not apply to static `verify`.
-- Unsaved document changes are saved first.
+- **Verify on save safety:** disabled by default; only works in trusted workspaces, with saved local `.srp` files, and on compilers supporting non-executing `verify` (v0.0.5-alpha.3+). Older compilers are skipped, never silently executed.
+- Save events are coalesced for 300 ms per file and serialized. Errors update Problems and the Scarp Output channel without intrusive notifications; manual **Verify Current File** retains its existing behavior.
+- Unsaved document changes are saved first when invoking manual commands.
 - Native build, native compilation, code completion, AI coding, and debugging are out of scope.
 
 ## Contributing and testing
