@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: "22"
 
-      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-audit --no-fund
       - run: npm run check
 
       - name: Validate version and release tag
