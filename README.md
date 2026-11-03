@@ -16,12 +16,15 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
 - **Optional verify on save:** debounce rapid saves, use static-only verification where supported, and quietly refresh Problems without opening a terminal or displaying popups.
+- **Outline / Go to Symbol in Editor:** show top-level Scarp `funcra` and `pure funcra` functions, `bind` / `var` declarations, `pub` exports, and `import ... as ...` aliases, without executing or compiling the file.
 
 **Syntax highlighting:** The v0.1.2 grammar is editor-only and never executes code. It follows Scarp compiler v0.0.5-alpha.3 token spelling, not Python/Rust conventions. Color choices are supplied by your VS Code theme. Strings and comments do not mistakenly color embedded keywords.
 
+**Outline navigation** is intentionally limited to file-scope declarations. It uses a tolerant editor scanner; definitive syntax and semantics remain the official compiler's responsibility. Local variables are not shown in the Outline. No compiler installation or workspace trust is needed to navigate a document.
+
 **Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.3 there is no compile or build command. No fictional implementation is provided.
 
-The current **published** pre-release is [v0.1.2](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.2); the repository is preparing **v0.1.3** in development (not published). Its release workflow succeeded on both registries; registry indexing may update separately. [Read v0.1.2 release notes](docs/releases/v0.1.2.md).
+The latest **published** pre-release is [v0.1.2](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.2). Development on `main` is preparing **v0.1.3** (not yet published). The v0.1.2 publishing workflow succeeded for both registries. [Read the v0.1.2 release notes](docs/releases/v0.1.2.md).
 
 ## Install and run
 
