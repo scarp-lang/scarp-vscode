@@ -23,7 +23,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 1. Install Scarp from [official compiler releases](https://github.com/scarp-lang/scarp/releases).
 2. Run **scarp --version** in the workspace environment, or set **scarp.compilerPath** to the executable file (Windows example: C:\tools\scarp\scarp.exe).
 3. Install a verified pre-release VSIX when available, or open the repository in a VS Code Extension Development Host.
-4. Open a .srp file in a trusted workspace, then use Run or Check in the Command Palette.
+4. Open a .srp file in a trusted workspace, then use Run or Verify in the Command Palette.
 
 ~~~scarp
 print("Hello from Scarp!");
@@ -87,6 +87,6 @@ The official publisher and extension identifier are `ScarpLang.scarp` on both Vi
 
 The [publishing workflow](.github/workflows/prerelease.yml) supports both registries. Publishing a reviewed **GitHub pre-release** automatically publishes the same verified VSIX to both registries; normal commits and stable releases never trigger registry publishing. Alternatively, maintainers can manually run the workflow from `main` and explicitly select either or both publishing targets.
 
-Marketplace authentication uses its GitHub OIDC Trusted Publisher policy for `scarp-lang/scarp-vscode` and workflow `prerelease.yml` (no Marketplace PAT). Open VSX initially uses a scoped publishing token in the `OVSX_PAT` GitHub Actions secret; it can switch to Trusted Publishing once the first version is active. See the [release instructions](docs/RELEASING.md) for setup, exact version/tag requirements, and release guards.
+Marketplace authentication uses its GitHub OIDC Trusted Publisher policy for `scarp-lang/scarp-vscode` and workflow `prerelease.yml` (no Marketplace PAT). Open VSX has a verified `ScarpLang` namespace and the published `v0.1.1` pre-release. The current workflow still uses a scoped publishing token in the `OVSX_PAT` Actions secret. Tokenless Open VSX Trusted Publishing is eligible, but requires namespace-owner registration and a reviewed workflow migration before the secret can be removed. See the [release instructions](docs/RELEASING.md) for setup, exact version/tag requirements, and release guards.
 
 The Extension Host integration tests run an actual copy of VS Code and need the `SCARP_TEST_BINARY` environment variable set to the absolute path of a compatible official Scarp executable. In Linux CI, this is built from the pinned compiler tag and launched under `xvfb-run`. These development tests do not publish a new extension version.
