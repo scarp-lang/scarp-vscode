@@ -5,7 +5,8 @@ export const BUDGET_SETTINGS = [
   ['maxCalls', '--max-calls'],
   ['maxLiveSlots', '--max-live-slots'],
   ['maxCaptureBytes', '--max-capture-bytes'],
-  ['maxVectorBytes', '--max-vector-bytes']
+  ['maxVectorBytes', '--max-vector-bytes'],
+  ['maxTextBytes', '--max-text-bytes']
 ] as const;
 
 export type BudgetSettings = Record<(typeof BUDGET_SETTINGS)[number][0], number | undefined>;
