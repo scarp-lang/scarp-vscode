@@ -139,6 +139,12 @@
           "type": "integer",
           "minimum": 0,
           "description": "Optional --max-vector-bytes budget for run/check."
+        },
+        "scarp.verifyOnSave": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Automatically run non-executing Scarp static verification after saving a .srp file in a trusted workspace. Requires a compiler exposing 'scarp verify' (v0.0.5-alpha.3+). Never runs the older evaluating check on save."
         }
       }
     },
