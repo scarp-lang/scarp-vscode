@@ -17,12 +17,13 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
 - **Optional verify on save:** debounce rapid saves, use static-only verification where supported, and quietly refresh Problems without opening a terminal or displaying popups.
 - **Outline / Go to Symbol in Editor:** show top-level Scarp `funcra` and `pure funcra` functions, `bind` / `var` declarations, `pub` exports, and `import ... as ...` aliases, without executing or compiling the file.
+- **Scarp projects (compiler alpha.4+):** `Scarp: Create Project` creates a fresh `Scarp.project` and `src/main.srp` using the official compiler. `Scarp: Verify Project` checks the chosen project statically, and `Scarp: Launch Project` runs its declared entrypoint in an integrated terminal.
 
 **Syntax highlighting:** The v0.1.2 grammar is editor-only and never executes code. It follows Scarp compiler v0.0.5-alpha.3 token spelling, not Python/Rust conventions. Color choices are supplied by your VS Code theme. Strings and comments do not mistakenly color embedded keywords.
 
 **Outline navigation** is intentionally limited to file-scope declarations. It uses a tolerant editor scanner; definitive syntax and semantics remain the official compiler's responsibility. Local variables are not shown in the Outline. No compiler installation or workspace trust is needed to navigate a document.
 
-**Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.3 there is no compile or build command. No fictional implementation is provided.
+**Not yet supported:** native executable compilation, project builds that emit executables, package registries or dependency management. Scarp compiler v0.0.5-alpha.4 supports interpreter-backed project creation, static verification and launching only. No fictional implementation is provided.
 
 The latest **published** pre-release is [v0.1.2](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.2). Development on `main` is preparing **v0.1.3** (not yet published). The v0.1.2 publishing workflow succeeded for both registries. [Read the v0.1.2 release notes](docs/releases/v0.1.2.md).
 
@@ -46,6 +47,10 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 | scarp.compilerPath | Full path to executable, or scarp on PATH |
 | scarp.checkTimeoutMs | Timeout for checking (default: 30000 milliseconds) |
 | scarp.verifyOnSave | Opt in to non-executing verification after saving a `.srp` file; **off by default** |
+
+**Project commands:** Open the project folder containing `Scarp.project` in VS Code, then choose **Scarp: Verify Project** or **Scarp: Launch Project** from the Command Palette. In multi-root workspaces, select the explicit project folder. The extension does not search parent directories for a manifest. **Scarp: Create Project** asks for the parent workspace folder and a new directory name; the compiler refuses to overwrite any existing path. Project commands are available only when `scarp diagnose --json` reports `project_workflow: true` (official v0.0.5-alpha.4+). A missing compiler or an older release produces an explanatory error, not a simulated result.
+
+These commands run the real interpreter and static compiler, **not** native executable generation. `verify` never uses run budgets or executes normal runtime statements; `launch` uses the configured run budgets. Project diagnostics with source locations are added to Problems. Manifest errors without source locations remain visible in the Scarp Output channel.
 | scarp.maxSteps, scarp.maxPrints | Optional execution limits |
 | scarp.maxCallDepth, scarp.maxCalls | Optional call limits |
 | scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes | Optional memory/resource limits |
