@@ -37,7 +37,7 @@
 - Problems diagnostics, Output channel, resource limit settings and Stop command.
 - Automated unit tests, planned real-compiler CI and experimental VSIX packaging.
 
-The changelog does not imply that a release or deployment has occurred.
+GitHub v0.1.2 is an experimental pre-release, published with verified Visual Studio Marketplace and Open VSX upload steps; it is not a stable extension.
 
 Marketplace pre-release: https://marketplace.visualstudio.com/items?itemName=ScarpLang.scarp
 
