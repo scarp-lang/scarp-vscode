@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — main branch development
+## Unreleased — main branch development\n\n- Keep experimental-only release protection and dual-registry publishing for approved GitHub pre-releases.\n\n## v0.1.1 — experimental pre-release (2026-11-03)\n\n- Use static-only `scarp verify` when supported by the installed compiler; older versions retain the legacy evaluating `check` fallback.\n- Parse compiler schema-v1 JSON diagnostic coordinates, code, optional help, and source ranges into Problems.\n- Add integration coverage proving a statically valid expression is not executed during verification.\n- Update CI and the release smoke test to the released Scarp compiler v0.0.5-alpha.3.
 
 - Add automated VS Code Extension Host integration checks against a real pinned Scarp compiler.
 - Make commands awaitable for reliable editor integration verification.
