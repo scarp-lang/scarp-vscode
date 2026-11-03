@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.3 development
 
+- Add VS Code Outline and **Go to Symbol in Editor** for file-scope Scarp functions, public exports, bindings, mutable variables and aliased imports.
+- Provide an error-tolerant Scarp token scanner that ignores fake declarations in comments/strings, tracks function body ranges, and avoids compiler execution.
+- Cover document symbol extraction with unit tests and the real VS Code Extension Host.
 - Add opt-in `scarp.verifyOnSave` (default **false**) with safe, non-executing compiler verification after saving local `.srp` documents in trusted workspaces.
 - Debounce rapid saves per file, serialize overlapping checks, deduplicate manual-save checks, and skip stale document revisions.
 - Keep automatic diagnostics quiet in Problems/Output instead of showing popups or launching terminals.
