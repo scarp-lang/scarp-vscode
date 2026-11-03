@@ -1,55 +1,160 @@
 name: Publish experimental pre-release
 
+# Publishing a GitHub pre-release is the approval gate. Normal pushes never publish.
+# workflow_dispatch retains optional, explicitly approved manual publishing.
 on:
   workflow_dispatch:
     inputs:
       publish_marketplace:
-        description: "Publish the experimental version to Visual Studio Marketplace using OIDC Trusted Publishing"
+        description: "Also publish to Visual Studio Marketplace (OIDC)"
         required: true
         type: boolean
         default: false
+      publish_openvsx:
+        description: "Also publish to Open VSX (OVSX_PAT secret)"
+        required: true
+        type: boolean
+        default: false
+  release:
+    types: [published]
 
 permissions:
   contents: write
   id-token: write
 
+concurrency:
+  group: scarp-vscode-registry-publishing
+  cancel-in-progress: false
+
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main'
+    # NEVER publish for a stable release, a normal push or a non-main manual run.
+    if: >-
+      (github.event_name == 'release' && github.event.release.prerelease == true) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
           ref: v0.0.5-alpha.2
           path: compiler
+
       - name: Smoke-test pinned official compiler
         shell: bash
         run: |
+          set -euo pipefail
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           compiler/target/release/scarp check test/fixtures/hello.srp
           output="$(compiler/target/release/scarp run test/fixtures/hello.srp)"
           test "$output" = "Hello from Scarp!"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install --no-audit --no-fund
+
+      - run: npm ci --no-audit --no-fund
       - run: npm run check
-      - run: npm run package:pre
-      - name: Create GitHub pre-release
+
+      - name: Validate version and release tag
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISHED_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VS Code extensions require numeric major.minor.patch versions." >&2
+            exit 1
+          fi
+          tag="v$version"
+          if [[ "$EVENT_NAME" == "release" && "$PUBLISHED_TAG" != "$tag" ]]; then
+            echo "Refusing to publish: GitHub release tag $PUBLISHED_TAG does not match package version $tag." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "vsix=scarp-$version.vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Build verified pre-release package
+        run: npm run package:pre
+
+      - name: Ensure approved GitHub pre-release has the VSIX
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VSIX: ${{ steps.release.outputs.vsix }}
         run: |
-          if gh release view v0.1.0 >/dev/null 2>&1; then
-            echo 'Pre-release v0.1.0 already exists; not recreating it.'
-            exit 0
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              if [[ "$(gh release view "$TAG" --json isPrerelease --jq '.isPrerelease')" != "true" ]]; then
+                echo "Existing GitHub release $TAG is stable. Refusing to publish." >&2
+                exit 1
+              fi
+            else
+              gh release create "$TAG" "$VSIX" \
+                --target "$GITHUB_SHA" \
+                --title "Scarp Compiler & Runner $TAG (pre-release)" \
+                --notes "Experimental Scarp compiler integration; verified against the pinned compiler. Native compile/build remain unsupported." \
+                --prerelease
+            fi
           fi
-          gh release create v0.1.0 scarp-0.1.0.vsix \
-            --target "$GITHUB_SHA" \
-            --title "Scarp Compiler & Runner v0.1.0 (pre-release)" \
-            --notes "Experimental Scarp compiler integration. Run and check supported; native compile/build are not supported by this compiler version." \
-            --prerelease
-      - name: Publish Marketplace pre-release with Trusted Publishing
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_marketplace
-        run: npx vsce publish --pre-release --no-dependencies --oidc
+
+          # Use the exact asset attached to GitHub Release for both registries.
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fqx "$VSIX"; then
+            mkdir -p release-package
+            gh release download "$TAG" --pattern "$VSIX" --dir release-package
+            cp "release-package/$VSIX" "$VSIX"
+          else
+            gh release upload "$TAG" "$VSIX"
+          fi
+
+      - name: Verify release VSIX identity and pre-release marker
+        shell: bash
+        env:
+          VSIX: ${{ steps.release.outputs.vsix }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          unzip -p "$VSIX" extension/package.json | node -e '
+            const fs = require("node:fs");
+            const p = JSON.parse(fs.readFileSync(0, "utf8"));
+            if (p.publisher !== "ScarpLang" || p.name !== "scarp" ||
+                p.version !== process.env.VERSION) {
+              console.error("VSIX publisher/name/version does not match this release.");
+              process.exit(1);
+            }
+          '
+          unzip -p "$VSIX" extension.vsixmanifest |
+            grep -Fq 'Microsoft.VisualStudio.Code.PreRelease'
+
+      - name: Verify Open VSX secret exists before publishing
+        if: github.event_name == 'release' || inputs.publish_openvsx
+        shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [[ -z "${OVSX_PAT:-}" ]]; then
+            echo "Add OVSX_PAT in Settings > Secrets and variables > Actions before publishing." >&2
+            exit 1
+          fi
+
+      - name: Publish Visual Studio Marketplace pre-release (Trusted Publishing)
+        if: github.event_name == 'release' || inputs.publish_marketplace
+        env:
+          VSIX: ${{ steps.release.outputs.vsix }}
+        run: npx vsce publish --pre-release --packagePath "$VSIX" --oidc
+
+      - name: Publish Open VSX pre-release (scoped token)
+        if: github.event_name == 'release' || inputs.publish_openvsx
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VSIX: ${{ steps.release.outputs.vsix }}
+        run: npx --yes ovsx@1.3.0 publish "$VSIX"
