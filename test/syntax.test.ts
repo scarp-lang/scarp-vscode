@@ -41,7 +41,7 @@ function hasScope(parts: readonly Highlighted[], fragment: string, scope: string
 test('published VS Code contribution registers the actual Scarp grammar file', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.equal(packageJson.publisher, 'ScarpLang');
-  assert.equal(packageJson.version, '0.1.2');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   const [contribution] = packageJson.contributes.grammars;
   assert.deepEqual(contribution, {
     language: 'scarp', scopeName: 'source.scarp',

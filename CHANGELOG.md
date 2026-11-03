@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased — main branch development
+## Unreleased — v0.1.3 development
 
+- Add opt-in `scarp.verifyOnSave` (default **false**) with safe, non-executing compiler verification after saving local `.srp` documents in trusted workspaces.
+- Debounce rapid saves per file, serialize overlapping checks, deduplicate manual-save checks, and skip stale document revisions.
+- Keep automatic diagnostics quiet in Problems/Output instead of showing popups or launching terminals.
+- Never automatically run the legacy evaluating `check` command on older compiler versions.
+- Add scheduler unit tests and real VS Code Extension Host coverage against the official pinned compiler.
 - Keep release publishing gated to approved experimental versions.
 
 ## v0.1.2 — experimental pre-release (2026-11-03)
