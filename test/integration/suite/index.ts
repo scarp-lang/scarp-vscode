@@ -1,5 +1,7 @@
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
+import * as os from 'node:os';
+import * as fs from 'node:fs/promises';
 import * as vscode from 'vscode';
 
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
@@ -31,6 +33,7 @@ export async function run(): Promise<void> {
 
   const settings = vscode.workspace.getConfiguration('scarp');
   const previous = settings.inspect<string>('compilerPath')?.globalValue;
+  const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
   await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
   try {
     const invalidUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/invalid.srp'));
@@ -99,8 +102,38 @@ export async function run(): Promise<void> {
     await waitFor(() => vscode.window.terminals.includes(terminal) ? undefined : true,
       'Stop command did not close the Scarp terminal');
 
+    // Verify on save is opt-in; use a temporary document rather than
+    // modifying the checked-in fixtures, and exercise the real compiler.
+    assert.equal(settings.get<boolean>('verifyOnSave', false), false,
+      'Automatic verification must be disabled by default');
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-save-'));
+    const autoUri = vscode.Uri.file(path.join(tempDir, 'auto-invalid.srp'));
+    try {
+      await fs.writeFile(autoUri.fsPath, 'print("ok");\n');
+      const autoDocument = await vscode.workspace.openTextDocument(autoUri);
+      assert.equal(autoDocument.languageId, 'scarp');
+      await vscode.window.showTextDocument(autoDocument);
+      await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
+      const terminalsBeforeSave = vscode.window.terminals.length;
+      const autoEdit = new vscode.WorkspaceEdit();
+      autoEdit.replace(autoUri, new vscode.Range(0, 0, 0, autoDocument.lineAt(0).text.length),
+        'print("missing semicolon")');
+      assert.ok(await vscode.workspace.applyEdit(autoEdit));
+      assert.ok(await autoDocument.save(), 'Temporary source should save successfully');
+      await waitFor(() => vscode.languages.getDiagnostics(autoUri).some(
+        diagnostic => diagnostic.source === 'Scarp' &&
+          diagnostic.severity === vscode.DiagnosticSeverity.Error) ? true : undefined,
+      'Verify on save did not report a real Scarp compiler diagnostic');
+      assert.equal(vscode.window.terminals.length, terminalsBeforeSave,
+        'Static verify on save must not launch a Scarp run terminal');
+      await settings.update('verifyOnSave', false, vscode.ConfigurationTarget.Global);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+
     console.log('Scarp Extension Host integration checks passed');
   } finally {
+    await settings.update('verifyOnSave', previousVerifyOnSave, vscode.ConfigurationTarget.Global);
     await settings.update('compilerPath', previous, vscode.ConfigurationTarget.Global);
   }
 }
