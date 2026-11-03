@@ -2,6 +2,7 @@ import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
 import * as vscode from 'vscode';
 
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
@@ -126,6 +127,40 @@ export async function run(): Promise<void> {
       'Verify on save did not report a real Scarp compiler diagnostic');
       assert.equal(vscode.window.terminals.length, terminalsBeforeSave,
         'Static verify on save must not launch a Scarp run terminal');
+
+      // Simulate an older compiler with no static verification. Its
+      // evaluating check command would create a marker if invoked.
+      const legacyBinary = path.join(tempDir, 'legacy-scarp');
+      const probe = path.join(tempDir, 'version-probed');
+      const executed = path.join(tempDir, 'legacy-check-executed');
+      const legacyScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const args = process.argv.slice(2);',
+        'if (args[0] === "--version") {',
+        '  fs.writeFileSync(' + JSON.stringify(probe) + ', "probed");',
+        '  console.log("scarp 0.0.4"); process.exit(0);',
+        '}',
+        'if (args[0] === "verify") { process.exit(2); }',
+        'if (args[0] === "check") {',
+        '  fs.writeFileSync(' + JSON.stringify(executed) + ', "executed");',
+        '  process.exit(0);',
+        '}',
+        'process.exit(2);'
+      ].join('\\n');
+      await fs.writeFile(legacyBinary, legacyScript, { mode: 0o755 });
+      await fs.chmod(legacyBinary, 0o755);
+      await settings.update('compilerPath', legacyBinary, vscode.ConfigurationTarget.Global);
+      const legacyEdit = new vscode.WorkspaceEdit();
+      legacyEdit.insert(autoUri, new vscode.Position(0, 0), '// another save\\n');
+      assert.ok(await vscode.workspace.applyEdit(legacyEdit));
+      assert.ok(await autoDocument.save(), 'Legacy source save should succeed');
+      await waitFor(() => fsSync.existsSync(probe) ? true : undefined,
+        'Automatic save verification did not probe the legacy compiler');
+      // The probe completes after --version, so leave enough time for --help.
+      await new Promise(resolve => setTimeout(resolve, 250));
+      assert.equal(fsSync.existsSync(executed), false,
+        'On-save checks must never execute the legacy evaluating check route');
       await settings.update('verifyOnSave', false, vscode.ConfigurationTarget.Global);
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
