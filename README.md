@@ -21,7 +21,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 **Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.3 there is no compile or build command. No fictional implementation is provided.
 
-The current official pre-release is [v0.1.2](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.2). Its release workflow succeeded on both registries; registry indexing may update separately. [Read v0.1.2 release notes](docs/releases/v0.1.2.md).
+The current **published** pre-release is [v0.1.2](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.2); the repository is preparing **v0.1.3** in development (not published). Its release workflow succeeded on both registries; registry indexing may update separately. [Read v0.1.2 release notes](docs/releases/v0.1.2.md).
 
 ## Install and run
 
