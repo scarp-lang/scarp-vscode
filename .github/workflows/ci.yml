@@ -9,10 +9,10 @@ on:
 permissions:
   contents: read
 
-# A newer commit to the same branch supersedes outdated checks. For in-repo
-# PRs the push and pull_request runs share a key, avoiding duplicate matrices.
+# Cancel superseded commits within each event type, but never cancel a PR
+# check with a push check for the same SHA (required checks must stay green).
 concurrency:
-  group: scarp-vscode-ci-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  group: scarp-vscode-ci-${{ github.event_name }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
