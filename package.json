@@ -1,9 +1,9 @@
 {
   "name": "scarp",
   "displayName": "Scarp Compiler & Runner",
-  "description": "Official experimental VS Code extension for running and checking Scarp programs with the Scarp compiler.",
+  "description": "Official experimental VS Code extension for Scarp with syntax highlighting, static verification, and compiler-backed execution.",
   "publisher": "ScarpLang",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "license": "MIT",
   "repository": {
@@ -141,7 +141,14 @@
           "description": "Optional --max-vector-bytes budget for run/check."
         }
       }
-    }
+    },
+    "grammars": [
+      {
+        "language": "scarp",
+        "scopeName": "source.scarp",
+        "path": "./syntaxes/scarp.tmLanguage.json"
+      }
+    ]
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -160,6 +167,8 @@
     "eslint": "^9.25.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.30.0",
-    "@vscode/test-electron": "^3.1.0"
+    "@vscode/test-electron": "^3.1.0",
+    "vscode-textmate": "^9.2.0",
+    "vscode-oniguruma": "^2.0.1"
   }
 }

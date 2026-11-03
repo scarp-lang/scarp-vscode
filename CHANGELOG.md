@@ -2,6 +2,16 @@
 
 ## Unreleased — main branch development
 
+- Keep release publishing gated to approved experimental versions.
+
+## v0.1.2 — experimental pre-release (2026-11-03)
+
+- Introduce native Scarp syntax highlighting via a TextMate grammar based on the released Scarp v0.0.5-alpha.3 lexer/parser.
+- Highlight `funcra` function declarations, `bind`/`var` declarations, control flow, built-in output calls, primitives, numbers, strings, escapes, operators and line comments.
+- Add real TextMate/Oniguruma tokenization tests, with coverage for strings containing comment markers, multiline recovery and longest operators.
+- Include the grammar inside the verified pre-release VSIX, with CI and publish-time package content checks.
+- Ship the earlier merged independent per-file Problems lifecycle and stale-diagnostics fixes.
+
 - Preserve independent Scarp Problems across multiple source verifications.
 - Clear stale diagnostics when a source is edited without deleting unrelated file errors.
 - Discard verification results if the source changed during compilation.

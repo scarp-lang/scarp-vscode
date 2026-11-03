@@ -33,6 +33,7 @@ jobs:
           set -euo pipefail
           vsix="scarp-$(node -p "require('./package.json').version").vsix"
           test -f "$vsix"
+          unzip -Z1 "$vsix" | grep -Fx 'extension/syntaxes/scarp.tmLanguage.json'
           if unzip -Z1 "$vsix" | grep -E '^extension/(release-requests|compiler|test|\.github)/'; then
             echo "Refusing VSIX containing internal workflow or test files." >&2
             exit 1
@@ -40,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:
-          name: scarp-vscode-0.1.1-pre-vsix
+          name: scarp-vscode-0.1.2-pre-vsix
           path: "*.vsix"
           if-no-files-found: error
 

@@ -25,7 +25,7 @@ Publishing requires an explicit human release action; routine pushes and pull re
 
 **A. Create/publish a GitHub pre-release in the Releases UI (both registries).**
 
-1. Update and verify `package.json` version (e.g. `0.1.2`), commit and review changes, and verify compatibility against the official compiler.
+1. Update and verify `package.json` version (e.g. `0.1.3`), commit and review changes, and verify compatibility against the official compiler.
 2. Run CI and confirm that type checking, linting, unit tests, extension-host tests, compiler smoke tests, and package creation pass.
 3. Create a GitHub Release marked **This is a pre-release**, using tag `v<package.json version>` at the reviewed commit.
 4. The `release: published` event in `.github/workflows/prerelease.yml` builds and verifies the VSIX, attaches it to the GitHub release if missing, and **automatically publishes the same VSIX to both registries**. If the release already has a VSIX, the job downloads and validates that asset for both uploads.
