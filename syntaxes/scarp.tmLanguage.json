@@ -1,0 +1,162 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Scarp",
+  "scopeName": "source.scarp",
+  "fileTypes": [
+    "srp"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#function-declarations"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#control"
+    },
+    {
+      "include": "#logic"
+    },
+    {
+      "include": "#literals"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#calls"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.scarp",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.scarp",
+          "begin": "\"",
+          "end": "\"|(?=$)",
+          "patterns": [
+            {
+              "name": "constant.character.escape.scarp",
+              "match": "\\\\(?:\\\\|\"|n|t|r)"
+            },
+            {
+              "name": "invalid.illegal.escape.scarp",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "function-declarations": {
+      "patterns": [
+        {
+          "match": "\\b(funcra)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.scarp"
+            },
+            "3": {
+              "name": "entity.name.function.definition.scarp"
+            }
+          }
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "storage.modifier.scarp",
+          "match": "\\b(?:bind|var|pub|pure|import)\\b"
+        }
+      ]
+    },
+    "control": {
+      "patterns": [
+        {
+          "name": "keyword.control.scarp",
+          "match": "\\b(?:if|elif|else|while|repeat|as|return|break|continue)\\b"
+        }
+      ]
+    },
+    "logic": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.scarp",
+          "match": "\\b(?:and|or|not)\\b"
+        }
+      ]
+    },
+    "literals": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.scarp",
+          "match": "\\b(?:true|false)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.scarp",
+          "match": "\\b(?:integer|float|boolean|string|unit|vector|tile)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.scarp",
+          "match": "\\b(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.scarp",
+          "match": "\\b(?:print|println|write|eprint|ewrite)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "name": "entity.name.function.call.scarp",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.scarp",
+          "match": ">>>=|>>=|<<=|>>>|>>|<<|->|==|!=|<=|>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|[+\\-*/%&|^~=<>(){}\\[\\]:;,.]"
+        }
+      ]
+    }
+  }
+}
