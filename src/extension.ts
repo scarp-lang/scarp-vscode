@@ -5,6 +5,7 @@ import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
+import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -234,7 +235,28 @@ export function activate(context: vscode.ExtensionContext): void {
       output.appendLine('Scarp verify on save failed: ' + message);
     }
   );
-  context.subscriptions.push(output, diagnostics, saveVerifier,
+  const kinds: Record<ScarpSymbolKind, vscode.SymbolKind> = {
+    function: vscode.SymbolKind.Function,
+    constant: vscode.SymbolKind.Constant,
+    variable: vscode.SymbolKind.Variable,
+    import: vscode.SymbolKind.Namespace
+  };
+  const navigation = vscode.languages.registerDocumentSymbolProvider(
+    { language: 'scarp' },
+    {
+      provideDocumentSymbols(document, token): vscode.DocumentSymbol[] {
+        if (token.isCancellationRequested) { return []; }
+        return scanScarpSymbols(document.getText()).map(item => new vscode.DocumentSymbol(
+          item.name, item.detail, kinds[item.kind],
+          new vscode.Range(document.positionAt(item.start), document.positionAt(item.end)),
+          new vscode.Range(document.positionAt(item.selectionStart),
+            document.positionAt(item.selectionEnd))
+        ));
+      }
+    },
+    { label: 'Scarp declarations' }
+  );
+  context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
     vscode.workspace.onDidSaveTextDocument(doc => {
       if (!vscode.workspace.isTrusted || doc.uri.scheme !== 'file' ||
           doc.languageId !== 'scarp' ||
