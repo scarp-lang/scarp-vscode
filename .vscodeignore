@@ -15,3 +15,6 @@ CONTRIBUTING.md
 
 # Never bundle the pinned compiler checkout used by the release workflow.
 compiler/**
+
+# One-time release approvals are repository metadata, not extension files.
+release-requests/**
