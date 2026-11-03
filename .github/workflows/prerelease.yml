@@ -97,6 +97,17 @@ jobs:
       - name: Build verified pre-release package
         run: npm run package:pre
 
+      - name: Check VSIX excludes internal repository metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          vsix="scarp-$(node -p "require('./package.json').version").vsix"
+          test -f "$vsix"
+          if unzip -Z1 "$vsix" | grep -E '^extension/(release-requests|compiler|test|\.github)/'; then
+            echo "Refusing VSIX containing internal workflow or test files." >&2
+            exit 1
+          fi
+
       - name: Ensure approved GitHub pre-release has the VSIX
         shell: bash
         env:
