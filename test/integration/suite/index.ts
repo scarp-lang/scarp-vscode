@@ -32,6 +32,32 @@ export async function run(): Promise<void> {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
+  // Exercise the actual VS Code Outline and "Go to Symbol in Editor" API.
+  // Navigation is local and does not require a compiler, file access or trust.
+  const symbolDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp',
+    content: [
+      'import "modules/linear.srp" as linear;',
+      'pub bind base = 4;',
+      'pub pure funcra compute(value: integer) -> integer',
+      'needs value > 0;',
+      '{',
+      '  bind inside = value;',
+      '  return inside;',
+      '}',
+      'print("funcra ghost() -> unit {}");'
+    ].join('\n')
+  });
+  const outline = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+    'vscode.executeDocumentSymbolProvider', symbolDoc.uri);
+  assert.ok(outline, 'Scarp Outline provider must return document symbols');
+  assert.deepEqual(outline.map(symbol => symbol.name), ['linear', 'base', 'compute']);
+  assert.deepEqual(outline.map(symbol => symbol.kind), [
+    vscode.SymbolKind.Namespace, vscode.SymbolKind.Constant, vscode.SymbolKind.Function
+  ]);
+  assert.equal(outline[2].selectionRange.start.line, 2);
+  assert.equal(outline[2].range.end.line, 7);
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previous = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
