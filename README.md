@@ -11,7 +11,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - **Scarp: Verify Current File:** use the compiler's non-executing `verify` command when supported (Scarp v0.0.5-alpha.3+), including source-span JSON diagnostics in Problems. Older compilers fall back to the legacy evaluating `check` command.
 - **Scarp: Show Compiler Version:** verify the executable.
 - **Scarp: Stop Running Program:** stop extension-owned terminal sessions.
-- Configure executable path, check timeout and seven documented CLI resource budgets.
+- Configure executable path, check timeout and eight documented CLI resource budgets.
 - Preserve file paths with spaces by passing process arguments directly, without invoking a shell.
 - Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
@@ -53,7 +53,7 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 These commands run the real interpreter and static compiler, **not** native executable generation. `verify` never uses run budgets or executes normal runtime statements; `launch` uses the configured run budgets. Project diagnostics with source locations are added to Problems. Manifest errors without source locations remain visible in the Scarp Output channel.
 | scarp.maxSteps, scarp.maxPrints | Optional execution limits |
 | scarp.maxCallDepth, scarp.maxCalls | Optional call limits |
-| scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes | Optional memory/resource limits |
+| scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes, scarp.maxTextBytes | Optional memory/resource limits |
 
 Unspecified limits use compiler defaults.
 
