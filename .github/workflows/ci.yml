@@ -29,7 +29,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:
-          name: scarp-vscode-0.1.0-pre-vsix
+          name: scarp-vscode-0.1.1-pre-vsix
           path: "*.vsix"
           if-no-files-found: error
 
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.2
+          ref: v0.0.5-alpha.3
           path: compiler
       - name: Build official pinned compiler
         run: cargo build --locked --release --manifest-path compiler/Cargo.toml
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.2
+          ref: v0.0.5-alpha.3
           path: compiler
       - uses: actions/setup-node@v4
         with:
