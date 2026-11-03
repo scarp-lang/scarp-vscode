@@ -2,6 +2,10 @@
 
 ## Unreleased — v0.1.3 development
 
+- Integrate the newly released Scarp compiler **v0.0.5-alpha.4** project workflow: create, static verify and launch an explicit `Scarp.project` directory without shell interpolation.
+- Gate new project actions on the real `scarp diagnose --json` `project_workflow` capability instead of guessing from a version string.
+- Add safe project naming and explicit root selection; use a real interpreter terminal for project launch and compiler-backed Problems for static project errors.
+- Upgrade compiler smoke tests, cross-platform extension-host integration and prerelease compatibility checks to published alpha.4.
 - Add VS Code Outline and **Go to Symbol in Editor** for file-scope Scarp functions, public exports, bindings, mutable variables and aliased imports.
 - Provide an error-tolerant Scarp token scanner that ignores fake declarations in comments/strings, tracks function body ranges, and avoids compiler execution.
 - Cover document symbol extraction with unit tests and the real VS Code Extension Host.
