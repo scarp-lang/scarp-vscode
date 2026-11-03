@@ -1,6 +1,6 @@
 name: Publish experimental pre-release
 
-# Publishing a GitHub pre-release is the approval gate. Normal pushes never publish.
+# GitHub pre-release approval or one exact authorized release-marker push is required.
 # workflow_dispatch retains optional, explicitly approved manual publishing.
 on:
   workflow_dispatch:
