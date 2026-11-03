@@ -29,7 +29,7 @@ Publishing requires an explicit human release action; routine pushes and pull re
 4. **GitHub Actions releases created using the default `GITHUB_TOKEN` do not trigger a second `release: published` workflow run.** Therefore, the manual workflow also performs the selected registry publishing directly.
 5. Do not use this path to republish an unchanged version already present in a registry.
 
-The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The official compiler smoke test is pinned to `v0.0.5-alpha.2` until a reviewed compatibility update.
+The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The official compiler smoke test is pinned to `v0.0.5-alpha.3` until a reviewed compatibility update.
 
 **The PAT secret's existence cannot be verified by reading public repository files.** If `OVSX_PAT` is missing or empty, publishing fails before uploading to either registry.
 
