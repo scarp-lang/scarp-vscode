@@ -6,7 +6,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 ## Implemented
 
-- Recognize .srp files as Scarp.
+- Recognize .srp files as Scarp, with a real TextMate grammar for the current Scarp compiler's declarations, functions, types, control flow, strings, numeric literals, operators, and line comments.
 - **Scarp: Run Current File:** launch the official compiler in the integrated terminal with program input/output.
 - **Scarp: Verify Current File:** use the compiler's non-executing `verify` command when supported (Scarp v0.0.5-alpha.3+), including source-span JSON diagnostics in Problems. Older compilers fall back to the legacy evaluating `check` command.
 - **Scarp: Show Compiler Version:** verify the executable.
@@ -15,6 +15,8 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - Preserve file paths with spaces by passing process arguments directly, without invoking a shell.
 - Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
+
+**Syntax highlighting:** The v0.1.2 grammar is editor-only and never executes code. It follows Scarp compiler v0.0.5-alpha.3 token spelling, not Python/Rust conventions. Color choices are supplied by your VS Code theme. Strings and comments do not mistakenly color embedded keywords.
 
 **Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.3 there is no compile or build command. No fictional implementation is provided.
 
@@ -64,6 +66,8 @@ npm run check
 npm run package:pre
 npm run test:integration
 ~~~
+
+Syntax rules are covered by `test/syntax.test.ts` using the real TextMate/Oniguruma tokenizer, and the VSIX packaging gate asserts that `syntaxes/scarp.tmLanguage.json` is shipped.
 
 For release policy and testing see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/RELEASING.md](docs/RELEASING.md).
 
