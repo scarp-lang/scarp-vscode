@@ -132,6 +132,7 @@ export async function run(): Promise<void> {
       // evaluating check command would create a marker if invoked.
       const legacyBinary = path.join(tempDir, 'legacy-scarp');
       const probe = path.join(tempDir, 'version-probed');
+      const helpProbe = path.join(tempDir, 'static-verify-probed');
       const executed = path.join(tempDir, 'legacy-check-executed');
       const legacyScript = [
         '#!/usr/bin/env node',
@@ -141,7 +142,10 @@ export async function run(): Promise<void> {
         '  fs.writeFileSync(' + JSON.stringify(probe) + ', "probed");',
         '  console.log("scarp 0.0.4"); process.exit(0);',
         '}',
-        'if (args[0] === "verify") { process.exit(2); }',
+        'if (args[0] === "verify") {',
+        '  fs.writeFileSync(' + JSON.stringify(helpProbe) + ', "probed");',
+        '  process.exit(2);',
+        '}',
         'if (args[0] === "check") {',
         '  fs.writeFileSync(' + JSON.stringify(executed) + ', "executed");',
         '  process.exit(0);',
@@ -157,7 +161,9 @@ export async function run(): Promise<void> {
       assert.ok(await autoDocument.save(), 'Legacy source save should succeed');
       await waitFor(() => fsSync.existsSync(probe) ? true : undefined,
         'Automatic save verification did not probe the legacy compiler');
-      // The probe completes after --version, so leave enough time for --help.
+      await waitFor(() => fsSync.existsSync(helpProbe) ? true : undefined,
+        'Automatic save verification did not probe static capability');
+      // Allow a command spawned after capability detection to become visible.
       await new Promise(resolve => setTimeout(resolve, 250));
       assert.equal(fsSync.existsSync(executed), false,
         'On-save checks must never execute the legacy evaluating check route');
