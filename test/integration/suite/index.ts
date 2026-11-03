@@ -43,6 +43,15 @@ export async function run(): Promise<void> {
       d.severity === vscode.DiagnosticSeverity.Error),
       'Expected a real compiler error in the Problems collection');
 
+    // Current compiler's verify command must not execute this expression.
+    // Legacy evaluating check would report an arithmetic failure here.
+    const staticUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/static_only.srp'));
+    const staticOnly = await vscode.workspace.openTextDocument(staticUri);
+    await vscode.window.showTextDocument(staticOnly);
+    await vscode.commands.executeCommand('scarp.checkFile');
+    assert.equal(vscode.languages.getDiagnostics(staticUri).length, 0,
+      'Static-only verification must not evaluate the division expression');
+
     const helloUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/hello.srp'));
     const hello = await vscode.workspace.openTextDocument(helloUri);
     await vscode.window.showTextDocument(hello);
