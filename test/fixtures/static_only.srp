@@ -1,0 +1,2 @@
+// This must be statically valid but must never execute during verification.
+print(1 / 0);
