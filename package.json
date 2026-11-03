@@ -3,7 +3,7 @@
   "displayName": "Scarp Compiler & Runner",
   "description": "Official experimental VS Code extension for Scarp with syntax highlighting, static verification, and compiler-backed execution.",
   "publisher": "ScarpLang",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "license": "MIT",
   "repository": {
