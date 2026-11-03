@@ -3,10 +3,10 @@ import * as vscode from 'vscode';
 import { compilerVersion, executeProcess } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
+import { DiagnosticOwners } from './problemOwners';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Set<string>();
-const priorDiagnostics = new Set<string>();
 const config = () => vscode.workspace.getConfiguration('scarp');
 
 function budgets(): string[] {
@@ -55,11 +55,19 @@ async function supportsStaticVerify(binary: string): Promise<boolean> {
   }
 }
 
+function applyProblems(
+  collection: vscode.DiagnosticCollection, updates: ReadonlyMap<string, readonly vscode.Diagnostic[]>
+): void {
+  for (const [key, items] of updates) {
+    if (items.length) { collection.set(vscode.Uri.parse(key), [...items]); }
+    else { collection.delete(vscode.Uri.parse(key)); }
+  }
+}
+
 async function showProblems(
-  doc: vscode.TextDocument, stderr: string, collection: vscode.DiagnosticCollection
-): Promise<number> {
-  for (const uri of priorDiagnostics) { collection.delete(vscode.Uri.parse(uri)); }
-  priorDiagnostics.clear();
+  doc: vscode.TextDocument, stderr: string, collection: vscode.DiagnosticCollection,
+  owners: DiagnosticOwners<vscode.Diagnostic>, expectedVersion: number
+): Promise<number | undefined> {
   const groups = new Map<string, vscode.Diagnostic[]>();
   for (const entry of parseDiagnostics(stderr)) {
     const resolved = path.isAbsolute(entry.filename)
@@ -89,19 +97,20 @@ async function showProblems(
     const key = uri.toString();
     groups.set(key, [...(groups.get(key) ?? []), diagnostic]);
   }
-  for (const [key, items] of groups) {
-    collection.set(vscode.Uri.parse(key), items);
-    priorDiagnostics.add(key);
-  }
+  // The source may have changed while the external compiler was checking it.
+  // Never overwrite current Problems with diagnostics from a stale snapshot.
+  if (doc.version !== expectedVersion) { return undefined; }
+  applyProblems(collection, owners.replace(doc.uri.toString(), groups));
   return [...groups.values()].reduce((sum, items) => sum + items.length, 0);
 }
 async function check(doc: vscode.TextDocument, output: vscode.OutputChannel,
-  diagnostics: vscode.DiagnosticCollection): Promise<void> {
+  diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>): Promise<void> {
   const filename = doc.uri.fsPath;
   if (checks.has(filename)) { throw new Error('Scarp is already checking this file.'); }
   checks.add(filename);
   try {
     await ensureSaved(doc);
+    const expectedVersion = doc.version;
     const { binary, version } = await validateCompiler();
     const staticVerify = await supportsStaticVerify(binary);
     output.clear();
@@ -117,7 +126,11 @@ async function check(doc: vscode.TextDocument, output: vscode.OutputChannel,
     });
     output.append(result.stdout);
     output.append(result.stderr);
-    const count = await showProblems(doc, result.stderr, diagnostics);
+    const count = await showProblems(doc, result.stderr, diagnostics, owners, expectedVersion);
+    if (count === undefined) {
+      output.appendLine('Document changed during verification; outdated diagnostics discarded.');
+      return;
+    }
     if (result.exitCode === 0) {
       vscode.window.showInformationMessage(staticVerify
         ? 'Scarp static verification passed.' : 'Scarp legacy check passed.');
@@ -166,9 +179,14 @@ async function safe(action: () => Promise<void>): Promise<void> {
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Scarp');
   const diagnostics = vscode.languages.createDiagnosticCollection('scarp');
+  const owners = new DiagnosticOwners<vscode.Diagnostic>();
   context.subscriptions.push(output, diagnostics,
+    vscode.workspace.onDidChangeTextDocument(event => {
+      if (event.document.languageId !== 'scarp' || event.contentChanges.length === 0) { return; }
+      applyProblems(diagnostics, owners.invalidateChanged(event.document.uri.toString()));
+    }),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
-    vscode.commands.registerCommand('scarp.checkFile', () => safe(async () => check(selectedFile(), output, diagnostics))),
+    vscode.commands.registerCommand('scarp.checkFile', (): Promise<void> => safe(async () => check(selectedFile(), output, diagnostics, owners))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
       if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before invoking the compiler.'); }
       const { binary, version } = await validateCompiler();

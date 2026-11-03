@@ -56,8 +56,32 @@ export async function run(): Promise<void> {
     const hello = await vscode.workspace.openTextDocument(helloUri);
     await vscode.window.showTextDocument(hello);
     await vscode.commands.executeCommand('scarp.checkFile');
+    assert.ok(vscode.languages.getDiagnostics(invalidUri).length > 0,
+      'Checking a valid file must not erase an unrelated file diagnostic');
+
+    const otherUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/invalid_second.srp'));
+    const other = await vscode.workspace.openTextDocument(otherUri);
+    await vscode.window.showTextDocument(other);
+    await vscode.commands.executeCommand('scarp.checkFile');
+    assert.ok(vscode.languages.getDiagnostics(otherUri).some(d => d.source === 'Scarp'),
+      'Second invalid source should have compiler diagnostics');
+    assert.ok(vscode.languages.getDiagnostics(invalidUri).some(d => d.source === 'Scarp'),
+      'Second verification must preserve the first source diagnostics');
+
+    // A source edit invalidates only the corresponding verification's Problems.
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(invalidUri, new vscode.Position(0, 0), '// edited after verification\n');
+    assert.ok(await vscode.workspace.applyEdit(edit), 'Expected VS Code edit to succeed');
     assert.equal(vscode.languages.getDiagnostics(invalidUri).length, 0,
-      'Old diagnostics must be cleared after a successful check');
+      'Editing a source must clear its stale diagnostics');
+    assert.ok(vscode.languages.getDiagnostics(otherUri).length > 0,
+      'Editing one source must not erase other sources diagnostics');
+
+    // Restore the original test document in memory, without saving the fixture.
+    const undo = new vscode.WorkspaceEdit();
+    undo.delete(invalidUri, new vscode.Range(0, 0, 1, 0));
+    assert.ok(await vscode.workspace.applyEdit(undo), 'Expected in-memory test cleanup to succeed');
+    await vscode.window.showTextDocument(hello);
 
     const opened = new Promise<vscode.Terminal>((resolve, reject) => {
       const timer = setTimeout(() => { disposable.dispose(); reject(new Error('No Scarp terminal opened')); }, 6000);
