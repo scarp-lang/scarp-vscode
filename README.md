@@ -8,13 +8,13 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 - Recognize .srp files as Scarp.
 - **Scarp: Run Current File:** launch the official compiler in the integrated terminal with program input/output.
-- **Scarp: Check Current File:** use the official compiler's check command, show output and parse supported source diagnostics in Problems.
+- **Scarp: Verify Current File:** use the compiler's non-executing `verify` command when supported (Scarp v0.0.5-alpha.3+), including source-span JSON diagnostics in Problems. Older compilers fall back to the legacy evaluating `check` command.
 - **Scarp: Show Compiler Version:** verify the executable.
 - **Scarp: Stop Running Program:** stop extension-owned terminal sessions.
 - Configure executable path, check timeout and seven documented CLI resource budgets.
-- Preserve file paths with spaces by passing process arguments directly, without invoking a shell.
+- Preserve file paths with spaces by passing process arguments directly, without invoking a shell.\n- Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
 
-**Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.2 there is no compile or build command. No fictional implementation is provided.
+**Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.3 there is no compile or build command. No fictional implementation is provided.
 
 ## Install and run
 
@@ -46,7 +46,7 @@ Unspecified limits use compiler defaults.
 - The Scarp language is still alpha and can change. Compatibility must be verified against the real compiler.
 - Check can evaluate reachable code; it is not a static-only check.
 - Diagnostics use Scarp's current human-readable error location format. Other error text is shown in the Scarp Output channel.
-- Only one terminal session per file; terminal output is not duplicated into Problems.
+- Only one terminal session per file; terminal output is not duplicated into Problems.\n- With older Scarp compilers, `Scarp: Verify Current File` falls back to the legacy `check` command, which may evaluate program statements. For non-executing verification, install Scarp v0.0.5-alpha.3 or a newer compiler exposing `verify --help`.\n- Runtime budget settings apply to execution and the legacy evaluating `check`; they do not apply to static `verify`.
 - Unsaved document changes are saved first.
 - Native build, native compilation, code completion, AI coding, and debugging are out of scope.
 
