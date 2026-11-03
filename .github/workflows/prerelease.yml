@@ -17,7 +17,7 @@ on:
         default: false
   release:
     types: [published]
-  # Only the one-time reviewed v0.1.3 marker can authorize a push release.
+  # One specifically approved v0.1.3 release, never ordinary source pushes.
   push:
     branches: [main]
     paths:
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.3
+          ref: v0.0.5-alpha.4
           path: compiler
 
       - name: Smoke-test pinned official compiler
@@ -57,6 +57,12 @@ jobs:
           compiler/target/release/scarp check test/fixtures/hello.srp
           output="$(compiler/target/release/scarp run test/fixtures/hello.srp)"
           test "$output" = "Hello from Scarp!"
+          project_parent="$(mktemp -d)"
+          trap 'rm -rf "$project_parent"' EXIT
+          compiler/target/release/scarp create -- "$project_parent/my project"
+          compiler/target/release/scarp verify --diagnostic-format=json -- "$project_parent/my project"
+          project_output="$(compiler/target/release/scarp launch -- "$project_parent/my project")"
+          test "$project_output" = "Hello from Scarp!"
 
       - uses: actions/setup-node@v4
         with:
@@ -87,7 +93,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "vsix=scarp-$version.vsix" >> "$GITHUB_OUTPUT"
 
-      - name: Verify single-release approval for v0.1.3
+      - name: Verify explicit v0.1.3 release approval
         if: github.event_name == 'push'
         shell: bash
         run: |
