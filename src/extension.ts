@@ -4,9 +4,11 @@ import { compilerVersion, executeProcess } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
+import { DebouncedSerialTasks } from './saveVerification';
 
 const running = new Map<string, vscode.Terminal>();
-const checks = new Set<string>();
+const checks = new Map<string, Promise<void>>();
+const verifiedVersions = new Map<string, number>();
 const config = () => vscode.workspace.getConfiguration('scarp');
 
 function budgets(): string[] {
@@ -103,17 +105,43 @@ async function showProblems(
   applyProblems(collection, owners.replace(doc.uri.toString(), groups));
   return [...groups.values()].reduce((sum, items) => sum + items.length, 0);
 }
-async function check(doc: vscode.TextDocument, output: vscode.OutputChannel,
-  diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>): Promise<void> {
+type VerificationMode = 'manual' | 'save';
+
+async function check(
+  doc: vscode.TextDocument, output: vscode.OutputChannel,
+  diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>,
+  mode: VerificationMode = 'manual', requestedVersion?: number
+): Promise<void> {
   const filename = doc.uri.fsPath;
-  if (checks.has(filename)) { throw new Error('Scarp is already checking this file.'); }
-  checks.add(filename);
-  try {
-    await ensureSaved(doc);
+  if (mode === 'manual' && checks.has(filename)) {
+    throw new Error('Scarp is already checking this file.');
+  }
+  if (mode === 'save') {
+    // A manual check can trigger a save, and a new save can arrive during a
+    // compiler run. Serialize and only verify the newest saved document.
+    while (checks.has(filename)) {
+      try { await checks.get(filename); }
+      catch { /* The previous check is handled by its own caller. */ }
+    }
+    if (!vscode.workspace.isTrusted || doc.isDirty ||
+        doc.version !== requestedVersion ||
+        verifiedVersions.get(filename) === requestedVersion ||
+        !vscode.workspace.getConfiguration('scarp', doc.uri).get<boolean>('verifyOnSave', false)) {
+      return;
+    }
+  }
+
+  const work = (async () => {
+    if (mode === 'manual') { await ensureSaved(doc); }
     const expectedVersion = doc.version;
     const { binary, version } = await validateCompiler();
     const staticVerify = await supportsStaticVerify(binary);
-    output.clear();
+    if (mode === 'save' && !staticVerify) {
+      // Never run the older evaluating check automatically on an editor save.
+      output.appendLine('Scarp verify on save skipped: installed compiler does not support static verify.');
+      return;
+    }
+    if (mode === 'manual') { output.clear(); }
     output.appendLine('Scarp ' + version + (staticVerify
       ? ' — static verify ' : ' — legacy evaluating check ') + filename);
     const argumentsForCheck = staticVerify
@@ -121,26 +149,39 @@ async function check(doc: vscode.TextDocument, output: vscode.OutputChannel,
       : ['check', ...budgets(), '--', filename];
     const result = await executeProcess(binary, argumentsForCheck, {
       cwd: path.dirname(filename),
-      timeoutMs: config().get<number>('checkTimeoutMs', 30000),
+      timeoutMs: vscode.workspace.getConfiguration('scarp', doc.uri)
+        .get<number>('checkTimeoutMs', 30000),
       maxOutputBytes: 1024 * 1024
     });
-    output.append(result.stdout);
-    output.append(result.stderr);
+    if (result.stdout) { output.append(result.stdout); }
+    if (result.stderr) { output.append(result.stderr); }
     const count = await showProblems(doc, result.stderr, diagnostics, owners, expectedVersion);
     if (count === undefined) {
       output.appendLine('Document changed during verification; outdated diagnostics discarded.');
       return;
     }
+    verifiedVersions.set(filename, expectedVersion);
+    if (mode === 'save') {
+      output.appendLine(result.exitCode === 0
+        ? 'Scarp static verification on save passed.'
+        : 'Scarp static verification on save found ' + count + ' diagnostic(s).');
+      return;
+    }
     if (result.exitCode === 0) {
       vscode.window.showInformationMessage(staticVerify
         ? 'Scarp static verification passed.' : 'Scarp legacy check passed.');
-    }
-    else {
+    } else {
       output.show(true);
       vscode.window.showErrorMessage('Scarp check exited ' + String(result.exitCode)
         + '. ' + count + ' diagnostic(s); see Scarp output.');
     }
-  } finally { checks.delete(filename); }
+  })();
+  checks.set(filename, work);
+  try {
+    await work;
+  } finally {
+    if (checks.get(filename) === work) { checks.delete(filename); }
+  }
 }
 async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Promise<void> {
   const filename = doc.uri.fsPath;
@@ -180,10 +221,41 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Scarp');
   const diagnostics = vscode.languages.createDiagnosticCollection('scarp');
   const owners = new DiagnosticOwners<vscode.Diagnostic>();
-  context.subscriptions.push(output, diagnostics,
+  const saveVerifier = new DebouncedSerialTasks<{ doc: vscode.TextDocument; version: number }>(
+    300,
+    async (_key, request) => {
+      const doc = request.doc;
+      if (doc.isClosed || doc.uri.scheme !== 'file' ||
+          path.extname(doc.uri.fsPath).toLowerCase() !== '.srp') { return; }
+      await check(doc, output, diagnostics, owners, 'save', request.version);
+    },
+    error => {
+      const message = error instanceof Error ? error.message : String(error);
+      output.appendLine('Scarp verify on save failed: ' + message);
+    }
+  );
+  context.subscriptions.push(output, diagnostics, saveVerifier,
+    vscode.workspace.onDidSaveTextDocument(doc => {
+      if (!vscode.workspace.isTrusted || doc.uri.scheme !== 'file' ||
+          doc.languageId !== 'scarp' ||
+          path.extname(doc.uri.fsPath).toLowerCase() !== '.srp' ||
+          !vscode.workspace.getConfiguration('scarp', doc.uri)
+            .get<boolean>('verifyOnSave', false)) { return; }
+      saveVerifier.request(doc.uri.toString(), { doc, version: doc.version });
+    }),
     vscode.workspace.onDidChangeTextDocument(event => {
       if (event.document.languageId !== 'scarp' || event.contentChanges.length === 0) { return; }
+      verifiedVersions.delete(event.document.uri.fsPath);
       applyProblems(diagnostics, owners.invalidateChanged(event.document.uri.toString()));
+    }),
+    vscode.workspace.onDidCloseTextDocument(doc => {
+      verifiedVersions.delete(doc.uri.fsPath);
+    }),
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('scarp.compilerPath') ||
+          event.affectsConfiguration('scarp.verifyOnSave')) {
+        verifiedVersions.clear();
+      }
     }),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
     vscode.commands.registerCommand('scarp.checkFile', (): Promise<void> => safe(async () => check(selectedFile(), output, diagnostics, owners))),
