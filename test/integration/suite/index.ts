@@ -147,12 +147,12 @@ export async function run(): Promise<void> {
         '  process.exit(0);',
         '}',
         'process.exit(2);'
-      ].join('\\n');
+      ].join('\n');
       await fs.writeFile(legacyBinary, legacyScript, { mode: 0o755 });
       await fs.chmod(legacyBinary, 0o755);
       await settings.update('compilerPath', legacyBinary, vscode.ConfigurationTarget.Global);
       const legacyEdit = new vscode.WorkspaceEdit();
-      legacyEdit.insert(autoUri, new vscode.Position(0, 0), '// another save\\n');
+      legacyEdit.insert(autoUri, new vscode.Position(0, 0), '// another save\n');
       assert.ok(await vscode.workspace.applyEdit(legacyEdit));
       assert.ok(await autoDocument.save(), 'Legacy source save should succeed');
       await waitFor(() => fsSync.existsSync(probe) ? true : undefined,
