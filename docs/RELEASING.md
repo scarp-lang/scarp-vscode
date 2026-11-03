@@ -17,7 +17,7 @@
 5. Confirm the published version reports `publishedWithTrustedPublishing: true` in its Open VSX metadata. If registration isn't configured, keep the currently working PAT-based workflow instead of publishing with broken credentials.
 
 Because a trusted publisher is identified by GitHub repository/workflow identity, review any changes to `.github/workflows/prerelease.yml` carefully and keep main-branch protection enabled.
-- Existing releases v0.1.0 and v0.1.1 are experimental. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
+- Existing releases v0.1.0, v0.1.1, and v0.1.2 are experimental. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
 
 ## Publish an approved pre-release
 
