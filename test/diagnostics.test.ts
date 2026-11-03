@@ -53,7 +53,7 @@ test('accepts no-location JSON errors without inventing source locations', () =>
 });
 
 test('falls back to legacy text when compiler does not emit JSON', () => {
-  const legacy = 'warning[W0001]: legacy warning\\n --> file.srp:3:9\\n';
+  const legacy = 'warning[W0001]: legacy warning\n --> file.srp:3:9\n';
   const [result] = parseDiagnostics(legacy);
   assert.equal(result.filename, 'file.srp');
   assert.equal(result.line, 3);
