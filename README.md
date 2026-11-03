@@ -14,6 +14,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - Configure executable path, check timeout and seven documented CLI resource budgets.
 - Preserve file paths with spaces by passing process arguments directly, without invoking a shell.
 - Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
+- Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
 
 **Not yet supported:** native file compilation and project builds. As of Scarp compiler v0.0.5-alpha.3 there is no compile or build command. No fictional implementation is provided.
 
@@ -45,9 +46,10 @@ Unspecified limits use compiler defaults.
 ## Limitations
 
 - The Scarp language is still alpha and can change. Compatibility must be verified against the real compiler.
-- Check can evaluate reachable code; it is not a static-only check.
-- Diagnostics use Scarp's current human-readable error location format. Other error text is shown in the Scarp Output channel.
-- Only one terminal session per file; terminal output is not duplicated into Problems.\n- With older Scarp compilers, `Scarp: Verify Current File` falls back to the legacy `check` command, which may evaluate program statements. For non-executing verification, install Scarp v0.0.5-alpha.3 or a newer compiler exposing `verify --help`.
+- With older compilers, the legacy `check` command can evaluate reachable code; the newer `verify` command does not.
+- Diagnostics use schema-v1 JSON errors with newer compilers, or human-readable errors with older compilers. Unlocated errors are shown in the Scarp Output channel.
+- Only one terminal session per file; terminal output is not duplicated into Problems.
+- With older Scarp compilers, `Scarp: Verify Current File` falls back to the legacy `check` command, which may evaluate program statements. For non-executing verification, install Scarp v0.0.5-alpha.3 or a newer compiler exposing `verify --help`.
 - Runtime budget settings apply to execution and the legacy evaluating `check`; they do not apply to static `verify`.
 - Unsaved document changes are saved first.
 - Native build, native compilation, code completion, AI coding, and debugging are out of scope.
