@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — main branch development
+## Unreleased — v0.1.3 development
 
 - Add opt-in `scarp.verifyOnSave` (default **false**) with safe, non-executing compiler verification after saving local `.srp` documents in trusted workspaces.
 - Debounce rapid saves per file, serialize overlapping checks, deduplicate manual-save checks, and skip stale document revisions.
