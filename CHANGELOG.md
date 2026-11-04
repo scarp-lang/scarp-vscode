@@ -2,6 +2,10 @@
 
 ## Unreleased — v0.1.4 development
 
+- Reject project diagnostic results if a bounded local disk snapshot of `.srp` sources or `Scarp.project` changes during compiler verification, including edits from other processes, new files and deletions.
+- Fail closed for unmonitored symlinked directories and excessive project-tree sizes; keep unchanged and unrelated files from invalidating checks.
+- Add cross-platform disk snapshot unit tests and delayed external-disk-change VS Code Extension Host regression tests.
+
 - Clear completed project verification diagnostics when any local `.srp` or `Scarp.project` editor buffer changes, including previously clean files. Preserve independent verification owners and avoid clearing for unrelated sibling directories or Markdown edits.
 - Cover project-wide invalidation in unit tests and the real VS Code Extension Host.
 
