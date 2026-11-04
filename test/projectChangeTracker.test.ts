@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
 import { isWithinProject, ProjectChangeTracker } from '../src/projectChangeTracker';
+import { DiagnosticOwners } from '../src/problemOwners';
 
 const root = path.resolve('demo', 'scarp-project');
 const sibling = path.resolve('demo', 'scarp-project-other');
@@ -47,4 +48,35 @@ test('watch scopes snapshot edits from their own start, not earlier edits', () =
   watch.dispose();
   tracker.changed(source);
   assert.equal(watch.isCurrent(), true);
+});
+
+test('a clean source edit clears its completed project snapshot only once', () => {
+  const tracker = new ProjectChangeTracker();
+  tracker.completedVerification(root, 'manifest');
+  assert.deepEqual(tracker.changed(path.join(root, 'README.md')), []);
+  assert.deepEqual(tracker.changed(path.join(sibling, 'main.srp')), []);
+  assert.deepEqual(tracker.changed(source), ['manifest']);
+  assert.deepEqual(tracker.changed(source), []);
+});
+
+test('a project edit preserves independent verification owners and siblings', () => {
+  const tracker = new ProjectChangeTracker();
+  const diagnostics = new DiagnosticOwners<string>();
+  tracker.completedVerification(root, 'manifest-a');
+  tracker.completedVerification(sibling, 'manifest-b');
+  diagnostics.replace('manifest-a', new Map([['shared.srp', ['from project a']]]));
+  diagnostics.replace('manifest-b', new Map([['shared.srp', ['from project b']]]));
+  diagnostics.replace('standalone.srp', new Map([['standalone.srp', ['separate']]]));
+
+  const rootOwners = tracker.changed(path.join(root, 'src', 'previously-clean.srp'));
+  assert.deepEqual(rootOwners, ['manifest-a']);
+  for (const owner of rootOwners) {
+    assert.deepEqual([...diagnostics.replace(owner, new Map())], [
+      ['shared.srp', ['from project b']]
+    ]);
+  }
+  assert.deepEqual(tracker.changed(path.join(sibling, 'Scarp.project')), ['manifest-b']);
+  assert.deepEqual([...diagnostics.invalidateChanged('standalone.srp')], [
+    ['standalone.srp', []]
+  ]);
 });
