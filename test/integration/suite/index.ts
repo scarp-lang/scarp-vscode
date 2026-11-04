@@ -199,6 +199,29 @@ export async function run(): Promise<void> {
         assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
           diagnostic => diagnostic.message.includes('stale verification error')
         ), 'A manifest edit must suppress outdated compiler diagnostics');
+
+        // An external tool can create or rewrite source files without opening
+        // them in VS Code. The disk snapshot must reject that stale run too.
+        await fs.rm(started);
+        const diskCheck = vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+        await waitFor(() => fsSync.existsSync(started) ? true : undefined,
+          'Delayed external-disk verification did not start');
+        const externalUri = path.join(projectPath, 'src', 'added-externally.srp');
+        await fs.writeFile(externalUri, 'print("external source");\n');
+        await diskCheck;
+        assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
+          diagnostic => diagnostic.message.includes('stale verification error')
+        ), 'External disk creation must suppress outdated project diagnostics');
+
+        await fs.rm(started);
+        const rewriteCheck = vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+        await waitFor(() => fsSync.existsSync(started) ? true : undefined,
+          'Delayed external source rewrite verification did not start');
+        await fs.writeFile(externalUri, 'print("changed externally after snapshot");\n');
+        await rewriteCheck;
+        assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
+          diagnostic => diagnostic.message.includes('stale verification error')
+        ), 'External disk rewrites must suppress outdated project diagnostics');
       } finally {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
