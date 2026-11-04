@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.4
+          ref: v0.0.5-alpha.5
           path: compiler
       - name: Build official pinned compiler
         run: cargo build --locked --release --manifest-path compiler/Cargo.toml
@@ -75,6 +75,15 @@ jobs:
           trap 'rm -rf "$project_parent"' EXIT
           compiler/target/release/scarp create -- "$project_parent/my project"
           compiler/target/release/scarp verify --diagnostic-format=json -- "$project_parent/my project"
+          compiler/target/release/scarp inspect modules --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || !Array.isArray(graph.modules) ||
+                  graph.modules.length < 1) {
+                throw new Error("Scarp alpha.5 did not return a valid project module inventory.");
+              }
+            '
           project_output="$(compiler/target/release/scarp launch -- "$project_parent/my project")"
           test "$project_output" = "Hello from Scarp!"
 
@@ -87,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.4
+          ref: v0.0.5-alpha.5
           path: compiler
       - uses: actions/setup-node@v4
         with:
