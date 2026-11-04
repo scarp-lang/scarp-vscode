@@ -21,6 +21,7 @@ interface Session {
  */
 export class ProjectChangeTracker {
   private readonly sessions = new Set<Session>();
+  private readonly completed = new Map<string, string>();
 
   watch(root: string): { isCurrent: () => boolean; dispose: () => void } {
     const session: Session = { root: path.resolve(root), stale: false };
@@ -31,9 +32,29 @@ export class ProjectChangeTracker {
     };
   }
 
-  changed(filename: string): void {
+  /** Track the manifest owner of the last completed verification for a root. */
+  completedVerification(root: string, ownerUri: string): void {
+    this.completed.set(path.resolve(root), ownerUri);
+  }
+
+  /**
+   * Mark in-flight checks stale, and return finished verification owners whose
+   * previous Problems must be cleared. An edit to a clean module can change
+   * the meaning of errors in a different imported file.
+   */
+  changed(filename: string): string[] {
     for (const session of this.sessions) {
       if (isWithinProject(session.root, filename)) { session.stale = true; }
     }
+    const relevant = path.extname(filename).toLowerCase() === '.srp' ||
+      path.basename(filename) === 'Scarp.project';
+    if (!relevant) { return []; }
+    const owners: string[] = [];
+    for (const [root, owner] of this.completed) {
+      if (!isWithinProject(root, filename)) { continue; }
+      owners.push(owner);
+      this.completed.delete(root);
+    }
+    return owners;
   }
 }
