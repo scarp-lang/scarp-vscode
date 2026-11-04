@@ -124,6 +124,16 @@ export async function run(): Promise<void> {
       assert.ok(vscode.languages.getDiagnostics(entryUri).some(d => d.source === 'Scarp'),
         'Reverification must repopulate project Problems');
 
+      // Manual reconciliation uses the same bounded snapshot comparison as
+      // focus return. It must never execute source or modify the project.
+      await fs.writeFile(watchedExternal, 'print("modified outside VS Code");\n');
+      await vscode.commands.executeCommand('scarp.reconcileProjects');
+      await waitFor(() => vscode.languages.getDiagnostics(entryUri).length === 0
+        ? true : undefined, 'Manual reconciliation did not invalidate changed project Problems');
+      await vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+      assert.ok(vscode.languages.getDiagnostics(entryUri).some(d => d.source === 'Scarp'),
+        'Manual project re-verification must recover the compiler diagnostics');
+
       // Editing a previously clean file must clear old project-level Problems
       // even when the compiler error was located in a different source file.
       const cleanUri = vscode.Uri.file(path.join(projectPath, 'src', 'unrelated.srp'));
