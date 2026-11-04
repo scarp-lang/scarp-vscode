@@ -32,18 +32,37 @@ jobs:
       - run: npm run check
       - name: Package pre-release VSIX
         run: npm run package:pre
-      - name: Check VSIX excludes internal repository metadata
+      - name: Validate experimental VSIX contents and marker
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           set -euo pipefail
-          vsix="scarp-$(node -p "require('./package.json').version").vsix"
-          test -f "$vsix"
-          unzip -Z1 "$vsix" | grep -Fx 'extension/syntaxes/scarp.tmLanguage.json'
-          unzip -Z1 "$vsix" | grep -Fx 'extension/dist/src/extension.js'
-          unzip -Z1 "$vsix" | grep -Fx 'extension/language-configuration.json'
-          if unzip -Z1 "$vsix" | grep -E '^extension/(release-requests|compiler|test|\.github|\.vscode|site|docs|src|scripts|node_modules)/|\.(ts|map)$|^extension/package-lock\.json$'; then
-            echo "Refusing VSIX containing internal source, test or workflow files." >&2
+          version="$(node -p "require('./package.json').version")"
+          bash scripts/verify-vsix.sh "scarp-$version.vsix" "$version"
+
+      - name: Prove pre-release asset comparison rejects changed bytes
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          vsix="scarp-$version.vsix"
+          bash scripts/compare-vsix.sh "$vsix" "$vsix"
+          tampered="$(mktemp "${RUNNER_TEMP}/scarp-tampered-XXXXXX.vsix")"
+          trap 'rm -f "$tampered"' EXIT
+          python3 - "$vsix" "$tampered" <<'PY'
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
+              for member in verified.infolist():
+                  payload = verified.read(member.filename)
+                  if member.filename == 'extension/package.json':
+                      payload += b' '
+                  altered.writestr(member, payload)
+          PY
+          if bash scripts/compare-vsix.sh "$vsix" "$tampered"; then
+            echo "Unsafe VSIX comparison accepted altered release bytes." >&2
             exit 1
           fi
       - uses: actions/upload-artifact@v4
