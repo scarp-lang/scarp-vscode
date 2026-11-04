@@ -115,19 +115,12 @@ jobs:
       - name: Build verified pre-release package
         run: npm run package:pre
 
-      - name: Check VSIX excludes internal repository metadata
+      - name: Verify release-ready VSIX before any GitHub upload
         shell: bash
-        run: |
-          set -euo pipefail
-          vsix="scarp-$(node -p "require('./package.json').version").vsix"
-          test -f "$vsix"
-          unzip -Z1 "$vsix" | grep -Fx 'extension/syntaxes/scarp.tmLanguage.json'
-          unzip -Z1 "$vsix" | grep -Fx 'extension/dist/src/extension.js'
-          unzip -Z1 "$vsix" | grep -Fx 'extension/language-configuration.json'
-          if unzip -Z1 "$vsix" | grep -E '^extension/(release-requests|compiler|test|\.github|\.vscode|site|docs|src|scripts|node_modules)/|\.(ts|map)$|^extension/package-lock\.json$'; then
-            echo "Refusing VSIX containing internal source, test or workflow files." >&2
-            exit 1
-          fi
+        env:
+          VSIX: ${{ steps.release.outputs.vsix }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: bash scripts/verify-vsix.sh "$VSIX" "$VERSION"
 
       - name: Ensure approved GitHub pre-release has the VSIX
         shell: bash
@@ -161,45 +154,20 @@ jobs:
           if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fqx "$VSIX"; then
             mkdir -p release-package
             gh release download "$TAG" --pattern "$VSIX" --dir release-package
-            # Reject a pre-attached asset if its contents differ from the
-            # verified package rebuilt from this release commit. ZIP header
-            # timestamps can differ, so compare members and raw file bytes.
-            if ! diff -u <(unzip -Z1 "$VSIX" | LC_ALL=C sort) \
-                         <(unzip -Z1 "release-package/$VSIX" | LC_ALL=C sort); then
-              echo "Existing GitHub release VSIX has a different file inventory." >&2
-              exit 1
-            fi
-            while IFS= read -r member; do
-              [[ -z "$member" || "$member" == */ ]] && continue
-              if ! cmp -s <(unzip -p "$VSIX" "$member") \
-                          <(unzip -p "release-package/$VSIX" "$member"); then
-                echo "Existing GitHub release VSIX contains changed bytes: $member" >&2
-                exit 1
-              fi
-            done < <(unzip -Z1 "$VSIX")
+            # Never publish a pre-attached asset unless its uncompressed bytes
+            # exactly match the verified VSIX rebuilt from the reviewed tag.
+            bash scripts/compare-vsix.sh "$VSIX" "release-package/$VSIX"
             cp "release-package/$VSIX" "$VSIX"
           else
             gh release upload "$TAG" "$VSIX"
           fi
 
-      - name: Verify release VSIX identity and pre-release marker
+      - name: Reverify released VSIX after any GitHub download
         shell: bash
         env:
           VSIX: ${{ steps.release.outputs.vsix }}
           VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          set -euo pipefail
-          unzip -p "$VSIX" extension/package.json | node -e '
-            const fs = require("node:fs");
-            const p = JSON.parse(fs.readFileSync(0, "utf8"));
-            if (p.publisher !== "ScarpLang" || p.name !== "scarp" ||
-                p.version !== process.env.VERSION) {
-              console.error("VSIX publisher/name/version does not match this release.");
-              process.exit(1);
-            }
-          '
-          unzip -p "$VSIX" extension.vsixmanifest |
-            grep -Fq 'Microsoft.VisualStudio.Code.PreRelease'
+        run: bash scripts/verify-vsix.sh "$VSIX" "$VERSION"
 
       - name: Verify Open VSX secret exists before publishing
         if: github.event_name == 'release' || inputs.publish_openvsx
