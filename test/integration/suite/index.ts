@@ -140,7 +140,7 @@ export async function run(): Promise<void> {
         'const fs = require("node:fs");',
         'const argv = process.argv.slice(2);',
         'if (argv[0] === "--version") {',
-        '  process.stdout.write("scarp 0.0.5-alpha.4\\\n");',
+        '  process.stdout.write("scarp 0.0.5-alpha.4\\n");',
         '  process.exit(0);',
         '}',
         'if (argv[0] === "diagnose") {',
