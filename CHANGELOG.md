@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Reconcile previously verified project source hashes when VS Code regains focus, or via **Scarp: Check Verified Project Diagnostic Freshness**. Clear stale per-project Problems if a filesystem watcher missed an external change; never run the compiler automatically.
+- Coalesce overlapping focus scans, prevent stale scan results from invalidating a newer verification, and treat missing/unreadable files as stale. Add focused unit tests and a VS Code Extension Host regression.
+
 - Monitor at most eight explicitly verified Scarp project roots with VS Code filesystem watchers and a bounded native recursive fallback when supported; after verification, invalidate outdated Problems on external `.srp` or root-manifest file events without automatically recompiling or executing code.
 - Dispose watchers after invalidation, re-verification or extension shutdown; evict oldest watchers and clear their project-owned diagnostics when at capacity. Cover lifecycle and real Extension Host external-file events.
 
