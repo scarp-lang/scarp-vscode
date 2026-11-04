@@ -113,6 +113,17 @@ export async function run(): Promise<void> {
           && diagnostic.severity === vscode.DiagnosticSeverity.Error
       ), 'Invalid Scarp project entrypoint must report real compiler Problems');
 
+      // A source created directly on disk *after* verification must invalidate
+      // previously published Problems. The file was never opened by VS Code.
+      const watchedExternal = path.join(projectPath, 'src', 'watched-external.srp');
+      await fs.writeFile(watchedExternal, 'print("new source");\n');
+      await waitFor(() => vscode.languages.getDiagnostics(entryUri).length === 0
+        ? true : undefined, 'External file creation did not clear stale project Problems');
+      // A new manual verification restores the broken entrypoint's real error.
+      await vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+      assert.ok(vscode.languages.getDiagnostics(entryUri).some(d => d.source === 'Scarp'),
+        'Reverification must repopulate project Problems');
+
       // Editing a previously clean file must clear old project-level Problems
       // even when the compiler error was located in a different source file.
       const cleanUri = vscode.Uri.file(path.join(projectPath, 'src', 'unrelated.srp'));
