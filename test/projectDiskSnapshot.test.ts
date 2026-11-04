@@ -108,3 +108,11 @@ test('rejects source symlinks that point outside the explicit project', async t 
   await fs.symlink(outsideFile, path.join(root, 'src', 'outside.srp'));
   await assert.rejects(snapshotProjectDisk(root), /symlink escapes the project/);
 });
+
+test('rejects oversized input before reading it into extension host memory', async t => {
+  const root = await project();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'src', 'main.srp');
+  await fs.truncate(file, 64 * 1024 * 1024 + 1);
+  await assert.rejects(snapshotProjectDisk(root), /source bytes exceed the disk snapshot limit/);
+});
