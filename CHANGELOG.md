@@ -2,7 +2,7 @@
 
 ## Unreleased — v0.1.4 development
 
-- Monitor at most eight explicitly verified Scarp project roots with VS Code filesystem watchers; after verification, invalidate outdated Problems on external `.srp` or root-manifest file events without automatically recompiling or executing code.
+- Monitor at most eight explicitly verified Scarp project roots with VS Code filesystem watchers and a bounded native recursive fallback when supported; after verification, invalidate outdated Problems on external `.srp` or root-manifest file events without automatically recompiling or executing code.
 - Dispose watchers after invalidation, re-verification or extension shutdown; evict oldest watchers and clear their project-owned diagnostics when at capacity. Cover lifecycle and real Extension Host external-file events.
 
 - Reject project diagnostic results if a bounded local disk snapshot of `.srp` sources or `Scarp.project` changes during compiler verification, including edits from other processes, new files and deletions.
