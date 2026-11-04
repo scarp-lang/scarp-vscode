@@ -1,45 +1,59 @@
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import type { BigIntStats } from 'node:fs';
 import * as path from 'node:path';
+import { isWithinProject } from './projectChangeTracker';
 
 /**
  * Bounded, local filesystem fingerprint for an explicit Scarp project.
- * Only the manifest and .srp sources affect the compiler's static results.
- * Do not follow symlinked directories: their contents cannot be safely
- * bounded using the project tree alone.
+ * Capture the manifest and all .srp source bytes, including symlinked files,
+ * before and after the official compiler's static verification.
  *
- * This detects changes to file identity, size and high-resolution timestamps,
- * not adversarial same-metadata rewrites. It never reads source contents.
+ * Directories linked outside the project are not traversed. Oversized or
+ * unmonitorable trees fail closed instead of accepting possibly stale errors.
+ * A snapshot is not a continuous background filesystem watcher.
  */
 export type ProjectDiskSnapshot = ReadonlyMap<string, string>;
 
 const MAX_ENTRIES = 20_000;
 const MAX_SCARP_FILES = 4_096;
 const MAX_DEPTH = 32;
+const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
 
 function signature(stat: BigIntStats): string {
   return [stat.dev, stat.ino, stat.mode, stat.size,
     stat.mtimeNs, stat.ctimeNs].map(String).join(':');
 }
 
-/** True for Scarp inputs, excluding files unrelated to the compiler. */
 function isInput(relativePath: string): boolean {
   return relativePath === 'Scarp.project' ||
     path.extname(relativePath).toLowerCase() === '.srp';
 }
 
+/** Detect rewrites even when a tool restores size/mtime after saving. */
+async function fingerprint(file: string, before: BigIntStats): Promise<string> {
+  const bytes = await fs.readFile(file);
+  const after = await fs.stat(file, { bigint: true });
+  if (signature(before) !== signature(after) ||
+      BigInt(bytes.length) !== before.size) {
+    throw new Error('Scarp source changed while taking a disk snapshot: ' + file);
+  }
+  return signature(after) + ':' + createHash('sha256').update(bytes).digest('hex');
+}
+
 export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnapshot> {
   const rootPath = path.resolve(root);
+  const canonicalRoot = await fs.realpath(rootPath);
   const result = new Map<string, string>();
   const stack: Array<{ directory: string; depth: number }> = [
     { directory: rootPath, depth: 0 }
   ];
   let entries = 0;
+  let totalBytes = 0n;
 
   while (stack.length) {
     const { directory, depth } = stack.pop()!;
     const children = await fs.readdir(directory, { withFileTypes: true });
-    // A deterministic traversal also makes snapshot comparisons predictable.
     children.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
     for (const child of children) {
@@ -51,8 +65,6 @@ export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnap
       const relative = path.relative(rootPath, absolute);
 
       if (child.isSymbolicLink()) {
-        // The compiler can follow a .srp symlink. Capture the target's
-        // metadata as well as the link's own identity.
         const link = await fs.lstat(absolute, { bigint: true });
         const target = await fs.stat(absolute, { bigint: true });
         if (target.isDirectory()) {
@@ -60,10 +72,21 @@ export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnap
             relative);
         }
         if (isInput(relative)) {
-          if (!target.isFile()) {
-            throw new Error('Scarp input is not a file: ' + relative);
+          if (!target.isFile()) { throw new Error('Scarp input is not a file: ' + relative); }
+          const canonical = await fs.realpath(absolute);
+          if (!isWithinProject(canonicalRoot, canonical)) {
+            throw new Error('Scarp input symlink escapes the project: ' + relative);
           }
-          result.set(relative, signature(link) + ' -> ' + signature(target));
+          totalBytes += target.size;
+          if (totalBytes > BigInt(MAX_SOURCE_BYTES)) {
+            throw new Error('Scarp project source bytes exceed the disk snapshot limit.');
+          }
+          const digest = await fingerprint(absolute, target);
+          const linkAfter = await fs.lstat(absolute, { bigint: true });
+          if (signature(link) !== signature(linkAfter)) {
+            throw new Error('Scarp source symlink changed during verification: ' + relative);
+          }
+          result.set(relative, signature(link) + ' -> ' + digest);
           if (result.size > MAX_SCARP_FILES) {
             throw new Error('Scarp project has too many source files to verify safely.');
           }
@@ -81,7 +104,11 @@ export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnap
         if (!stat.isFile()) {
           throw new Error('Scarp input is not a regular file: ' + relative);
         }
-        result.set(relative, signature(stat));
+        totalBytes += stat.size;
+        if (totalBytes > BigInt(MAX_SOURCE_BYTES)) {
+          throw new Error('Scarp project source bytes exceed the disk snapshot limit.');
+        }
+        result.set(relative, await fingerprint(absolute, stat));
       }
 
       if (result.size > MAX_SCARP_FILES) {
@@ -100,8 +127,8 @@ export function sameProjectDisk(
   first: ProjectDiskSnapshot, second: ProjectDiskSnapshot
 ): boolean {
   if (first.size !== second.size) { return false; }
-  for (const [file, fingerprint] of first) {
-    if (second.get(file) !== fingerprint) { return false; }
+  for (const [file, fingerprintValue] of first) {
+    if (second.get(file) !== fingerprintValue) { return false; }
   }
   return true;
 }
