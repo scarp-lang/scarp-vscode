@@ -36,7 +36,8 @@
     "onLanguage:scarp",
     "onCommand:scarp.createProject",
     "onCommand:scarp.verifyProject",
-    "onCommand:scarp.launchProject"
+    "onCommand:scarp.launchProject",
+    "onCommand:scarp.reconcileProjects"
   ],
   "contributes": {
     "languages": [
@@ -85,6 +86,11 @@
       {
         "command": "scarp.verifyProject",
         "title": "Scarp: Verify Project",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.reconcileProjects",
+        "title": "Scarp: Check Verified Project Diagnostic Freshness",
         "category": "Scarp"
       },
       {
