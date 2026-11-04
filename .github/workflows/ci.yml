@@ -47,7 +47,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:
-          name: scarp-vscode-0.1.3-dev-vsix
+          name: scarp-vscode-0.1.4-dev-vsix
           path: "*.vsix"
           if-no-files-found: error
 
@@ -67,8 +67,9 @@ jobs:
         shell: bash
         run: |
           compiler/target/release/scarp --version
-          compiler/target/release/scarp check test/fixtures/hello.srp
-          output="$(compiler/target/release/scarp run test/fixtures/hello.srp)"
+          compiler/target/release/scarp verify test/fixtures/hello.srp
+          compiler/target/release/scarp guide exec
+          output="$(compiler/target/release/scarp exec test/fixtures/hello.srp)"
           test "$output" = "Hello from Scarp!"
           project_parent="$(mktemp -d)"
           trap 'rm -rf "$project_parent"' EXIT
