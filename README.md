@@ -56,6 +56,8 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 
 These commands run the real interpreter and static compiler, **not** native executable generation. `verify` never uses run budgets or executes normal runtime statements; `launch` uses the configured run budgets. Project diagnostics with source locations are added to Problems. Manifest errors without source locations remain visible in the Scarp Output channel.
 
+**Project verification safety (v0.1.4 development):** Save open `.srp` files and `Scarp.project` before verifying. A project verification is skipped if there is already one running for the same root. If an open project file or manifest changes while the compiler is checking, its outdated result is discarded instead of updating Problems; verify again after saving. This protects against VS Code in-editor edits, not concurrent changes made exclusively by external tools on disk.
+
 Unspecified limits use compiler defaults.
 
 ## Limitations
