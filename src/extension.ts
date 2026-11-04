@@ -9,7 +9,7 @@ import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
-import { snapshotProjectDisk, sameProjectDisk } from './projectDiskSnapshot';
+import { snapshotProjectDisk, sameProjectDisk, type ProjectDiskSnapshot } from './projectDiskSnapshot';
 import { ProjectWatchRegistry } from './projectWatchRegistry';
 
 const running = new Map<string, vscode.Terminal>();
@@ -269,6 +269,7 @@ async function verifyProject(
       throw new Error('Save open Scarp project files before verifying: ' + dirty.uri.fsPath);
     }
     const manifestVersion = doc.version;
+    let acceptedSnapshot: ProjectDiskSnapshot | undefined;
     // Capture the actual on-disk source tree before compiler work begins.
     // VS Code editor events alone cannot see another process rewriting a file.
     const diskBefore = await snapshotProjectDisk(key);
@@ -287,7 +288,9 @@ async function verifyProject(
         if (!watch.isCurrent()) { return false; }
         try {
           const diskAfter = await snapshotProjectDisk(key);
-          return sameProjectDisk(diskBefore, diskAfter) && watch.isCurrent();
+          const unchanged = sameProjectDisk(diskBefore, diskAfter) && watch.isCurrent();
+          if (unchanged) { acceptedSnapshot = diskAfter; }
+          return unchanged;
         } catch (error) {
           output.appendLine('Scarp project disk snapshot could not be validated: ' + String(error));
           return false;
@@ -305,10 +308,13 @@ async function verifyProject(
     }
     // Future in-editor edits anywhere in this project invalidate this root's
     // compiler snapshot, even if the edited file itself had no Problems.
+    if (!acceptedSnapshot) {
+      throw new Error('Project snapshot was not retained after verification.');
+    }
     projectChanges.completedVerification(key, manifest.toString());
     try {
       // Only verified explicit roots are watched; no implicit workspace scan.
-      projectMonitors.track(key, manifest.toString(), onSourceChanged);
+      projectMonitors.track(key, manifest.toString(), onSourceChanged, acceptedSnapshot);
     } catch (error) {
       // If a watcher could not be established, do not retain unmonitored
       // diagnostic ownership indefinitely.
@@ -483,6 +489,14 @@ export function activate(context: vscode.ExtensionContext): void {
       applyProblems(diagnostics, owners.replace(owner, new Map()));
     }
   };
+  const reconcileVerifiedProjects = async (): Promise<void> => {
+    if (!vscode.workspace.isTrusted) { return; }
+    const invalidated = await projectMonitors.reconcile();
+    if (invalidated) {
+      output.appendLine('Scarp: cleared diagnostics from ' + invalidated +
+        ' changed project(s). Re-run Verify Project to refresh Problems.');
+    }
+  };
   const saveVerifier = new DebouncedSerialTasks<{ doc: vscode.TextDocument; version: number }>(
     300,
     async (_key, request) => {
@@ -518,6 +532,13 @@ export function activate(context: vscode.ExtensionContext): void {
     { label: 'Scarp declarations' }
   );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation, projectMonitors,
+    vscode.window.onDidChangeWindowState(state => {
+      if (state.focused) {
+        void reconcileVerifiedProjects().catch(error =>
+          output.appendLine('Scarp project reconciliation error: ' + String(error))
+        );
+      }
+    }),
     vscode.workspace.onDidSaveTextDocument(doc => {
       if (!vscode.workspace.isTrusted || doc.uri.scheme !== 'file' ||
           doc.languageId !== 'scarp' ||
@@ -551,6 +572,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('scarp.verifyProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => verifyProject(
         uri, output, diagnostics, owners, projectMonitors, invalidateProject))),
+    vscode.commands.registerCommand('scarp.reconcileProjects',
+      (): Promise<void> => safe(reconcileVerifiedProjects)),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
