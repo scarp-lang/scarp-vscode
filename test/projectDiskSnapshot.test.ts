@@ -83,3 +83,28 @@ test('tracks target edits through source file symlinks', async t => {
   await fs.writeFile(path.join(root, 'src', 'main.srp'), 'print("altered");\n');
   assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root)), false);
 });
+
+test('detects equal-size rewrites even when modification time is restored', async t => {
+  const root = await project();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'src', 'main.srp');
+  const times = await fs.stat(file);
+  const original = await snapshotProjectDisk(root);
+  await fs.writeFile(file, 'print("two");\n');
+  await fs.utimes(file, times.atime, times.mtime);
+  assert.equal(sameProjectDisk(original, await snapshotProjectDisk(root)), false);
+});
+
+test('rejects source symlinks that point outside the explicit project', async t => {
+  if (process.platform === 'win32') { t.skip('Windows symlink creation needs privileges'); return; }
+  const root = await project();
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-outside-source-'));
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+    await fs.rm(outside, { recursive: true, force: true });
+  });
+  const outsideFile = path.join(outside, 'secret.srp');
+  await fs.writeFile(outsideFile, 'print("outside");\n');
+  await fs.symlink(outsideFile, path.join(root, 'src', 'outside.srp'));
+  await assert.rejects(snapshotProjectDisk(root), /symlink escapes the project/);
+});
