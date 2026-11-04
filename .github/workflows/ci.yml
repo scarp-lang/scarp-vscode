@@ -40,8 +40,10 @@ jobs:
           vsix="scarp-$(node -p "require('./package.json').version").vsix"
           test -f "$vsix"
           unzip -Z1 "$vsix" | grep -Fx 'extension/syntaxes/scarp.tmLanguage.json'
-          if unzip -Z1 "$vsix" | grep -E '^extension/(release-requests|compiler|test|\.github)/'; then
-            echo "Refusing VSIX containing internal workflow or test files." >&2
+          unzip -Z1 "$vsix" | grep -Fx 'extension/dist/src/extension.js'
+          unzip -Z1 "$vsix" | grep -Fx 'extension/language-configuration.json'
+          if unzip -Z1 "$vsix" | grep -E '^extension/(release-requests|compiler|test|\.github|\.vscode|site|docs|src|scripts|node_modules)/|\.(ts|map)$|^extension/package-lock\.json$'; then
+            echo "Refusing VSIX containing internal source, test or workflow files." >&2
             exit 1
           fi
       - uses: actions/upload-artifact@v4
