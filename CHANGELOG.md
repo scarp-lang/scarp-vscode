@@ -2,6 +2,10 @@
 
 ## Unreleased — v0.1.4 development
 
+- Prevent project verification from publishing stale Problems when an open source file, imported module or `Scarp.project` changes while the compiler runs.
+- Reject dirty project source/manifest buffers and overlapping verifications of the same project root, rather than checking a different on-disk snapshot.
+- Add path containment and edit lifecycle unit tests plus a delayed-compiler VS Code Extension Host regression for source and manifest edits.
+
 - Prefer the official Scarp-first `exec` command when supported, while retaining the historical `run` fallback for older compilers.
 - Preserve multi-byte Unicode in compiler stdout/stderr even when OS pipes split a UTF-8 character between chunks.
 - Cover canonical command detection with the pinned real Scarp compiler, Unicode process output and legacy command fallback.

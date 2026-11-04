@@ -112,6 +112,84 @@ export async function run(): Promise<void> {
         diagnostic => diagnostic.source === 'Scarp'
           && diagnostic.severity === vscode.DiagnosticSeverity.Error
       ), 'Invalid Scarp project entrypoint must report real compiler Problems');
+
+      // A delayed verification must not publish errors from an older source
+      // snapshot (the compiler reads disk while VS Code edits continue).
+      const repaired = new vscode.WorkspaceEdit();
+      repaired.replace(entryUri, new vscode.Range(
+        entryDocument.positionAt(0), entryDocument.positionAt(entryDocument.getText().length)
+      ), 'print("Hello from Scarp!");\n');
+      assert.ok(await vscode.workspace.applyEdit(repaired));
+      assert.ok(await entryDocument.save());
+      assert.equal(vscode.languages.getDiagnostics(entryUri).length, 0,
+        'Editing the source should invalidate previous project diagnostics');
+
+      const started = path.join(projectParent, 'slow-verify-started');
+      const delayedBinary = path.join(projectParent, 'slow-scarp');
+      const staleDiagnostic = {
+        schema_version: 1, severity: 'error', code: 'E0004',
+        message: 'stale verification error',
+        primary: {
+          path: entryUri.fsPath,
+          start: { line: 1, column: 1 }, end: { line: 1, column: 2 }
+        },
+        help: null
+      };
+      const delayedScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const argv = process.argv.slice(2);',
+        'if (argv[0] === "--version") {',
+        '  process.stdout.write("scarp 0.0.5-alpha.4\\n");',
+        '  process.exit(0);',
+        '}',
+        'if (argv[0] === "diagnose") {',
+        '  process.stdout.write(JSON.stringify({schema_version:1, version:"0.0.5-alpha.4",',
+        '    execution:"interpreter", static_verify:true, project_workflow:true}));',
+        '  process.exit(0);',
+        '}',
+        'if (argv[0] === "verify") {',
+        '  fs.writeFileSync(' + JSON.stringify(started) + ', "started");',
+        '  setTimeout(() => {',
+        '    process.stderr.write(' + JSON.stringify(JSON.stringify(staleDiagnostic)) + ');',
+        '    process.exitCode = 1;',
+        '  }, 450);',
+        '} else { process.exit(2); }'
+      ].join('\n');
+      await fs.writeFile(delayedBinary, delayedScript, { mode: 0o755 });
+      await fs.chmod(delayedBinary, 0o755);
+      await settings.update('compilerPath', delayedBinary, vscode.ConfigurationTarget.Global);
+      try {
+        const staleSourceCheck = vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+        await waitFor(() => fsSync.existsSync(started) ? true : undefined,
+          'Delayed project verification did not start');
+        const changedSource = new vscode.WorkspaceEdit();
+        changedSource.insert(entryUri, new vscode.Position(0, 0), '// changed in editor\n');
+        assert.ok(await vscode.workspace.applyEdit(changedSource));
+        assert.ok(await entryDocument.save());
+        await staleSourceCheck;
+        assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
+          diagnostic => diagnostic.message.includes('stale verification error')
+        ), 'A source edit must suppress outdated compiler diagnostics');
+
+        await fs.rm(started);
+        const staleManifestCheck = vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+        await waitFor(() => fsSync.existsSync(started) ? true : undefined,
+          'Delayed manifest verification did not start');
+        const manifestUri = vscode.Uri.file(path.join(projectPath, 'Scarp.project'));
+        const manifestDocument = await vscode.workspace.openTextDocument(manifestUri);
+        const changedManifest = new vscode.WorkspaceEdit();
+        changedManifest.insert(manifestUri,
+          manifestDocument.positionAt(manifestDocument.getText().length), '\n');
+        assert.ok(await vscode.workspace.applyEdit(changedManifest));
+        assert.ok(await manifestDocument.save());
+        await staleManifestCheck;
+        assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
+          diagnostic => diagnostic.message.includes('stale verification error')
+        ), 'A manifest edit must suppress outdated compiler diagnostics');
+      } finally {
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
     } finally {
       await fs.rm(projectParent, { recursive: true, force: true });
     }
