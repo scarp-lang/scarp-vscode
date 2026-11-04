@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
-import type { BigIntStats } from 'node:fs';
+import { createReadStream, type BigIntStats } from 'node:fs';
 import * as path from 'node:path';
 import { isWithinProject } from './projectChangeTracker';
 
@@ -32,13 +32,23 @@ function isInput(relativePath: string): boolean {
 
 /** Detect rewrites even when a tool restores size/mtime after saving. */
 async function fingerprint(file: string, before: BigIntStats): Promise<string> {
-  const bytes = await fs.readFile(file);
+  const hash = createHash('sha256');
+  let readBytes = 0n;
+  // Streaming keeps a concurrent file growth from allocating an unbounded
+  // Buffer in the VS Code Extension Host.
+  for await (const chunk of createReadStream(file, { highWaterMark: 64 * 1024 })) {
+    const bytes = chunk as Buffer;
+    readBytes += BigInt(bytes.length);
+    if (readBytes > before.size || readBytes > BigInt(MAX_SOURCE_BYTES)) {
+      throw new Error('Scarp source changed or exceeded the snapshot byte limit: ' + file);
+    }
+    hash.update(bytes);
+  }
   const after = await fs.stat(file, { bigint: true });
-  if (signature(before) !== signature(after) ||
-      BigInt(bytes.length) !== before.size) {
+  if (signature(before) !== signature(after) || readBytes !== before.size) {
     throw new Error('Scarp source changed while taking a disk snapshot: ' + file);
   }
-  return signature(after) + ':' + createHash('sha256').update(bytes).digest('hex');
+  return signature(after) + ':' + hash.digest('hex');
 }
 
 export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnapshot> {
