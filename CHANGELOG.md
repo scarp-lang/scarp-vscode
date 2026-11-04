@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Clear completed project verification diagnostics when any local `.srp` or `Scarp.project` editor buffer changes, including previously clean files. Preserve independent verification owners and avoid clearing for unrelated sibling directories or Markdown edits.
+- Cover project-wide invalidation in unit tests and the real VS Code Extension Host.
+
 - Prevent project verification from publishing stale Problems when an open source file, imported module or `Scarp.project` changes while the compiler runs.
 - Reject dirty project source/manifest buffers and overlapping verifications of the same project root, rather than checking a different on-disk snapshot.
 - Add path containment and edit lifecycle unit tests plus a delayed-compiler VS Code Extension Host regression for source and manifest edits.

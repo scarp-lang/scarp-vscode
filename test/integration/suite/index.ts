@@ -113,6 +113,18 @@ export async function run(): Promise<void> {
           && diagnostic.severity === vscode.DiagnosticSeverity.Error
       ), 'Invalid Scarp project entrypoint must report real compiler Problems');
 
+      // Editing a previously clean file must clear old project-level Problems
+      // even when the compiler error was located in a different source file.
+      const cleanUri = vscode.Uri.file(path.join(projectPath, 'src', 'unrelated.srp'));
+      await fs.writeFile(cleanUri.fsPath, '// clean module\n');
+      const cleanDocument = await vscode.workspace.openTextDocument(cleanUri);
+      const cleanEdit = new vscode.WorkspaceEdit();
+      cleanEdit.insert(cleanUri, new vscode.Position(0, 0), '// edited in VS Code\n');
+      assert.ok(await vscode.workspace.applyEdit(cleanEdit));
+      assert.ok(await cleanDocument.save());
+      assert.equal(vscode.languages.getDiagnostics(entryUri).length, 0,
+        'Editing a clean project file must invalidate its previous project Problems');
+
       // A delayed verification must not publish errors from an older source
       // snapshot (the compiler reads disk while VS Code edits continue).
       const repaired = new vscode.WorkspaceEdit();

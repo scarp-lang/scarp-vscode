@@ -282,6 +282,9 @@ async function verifyProject(
         + 'Save your changes and verify again.');
       return;
     }
+    // Future in-editor edits anywhere in this project invalidate this root's
+    // compiler snapshot, even if the edited file itself had no Problems.
+    projectChanges.completedVerification(key, manifest.toString());
     if (result.exitCode === 0) {
       vscode.window.showInformationMessage('Scarp project static verification passed.');
     } else {
@@ -445,7 +448,10 @@ export function activate(context: vscode.ExtensionContext): void {
       if (event.contentChanges.length === 0) { return; }
       if (event.document.uri.scheme === 'file') {
         // Scarp.project is normally not assigned the 'scarp' language ID.
-        projectChanges.changed(event.document.uri.fsPath);
+        // A file with no previous errors can still invalidate the project.
+        for (const owner of projectChanges.changed(event.document.uri.fsPath)) {
+          applyProblems(diagnostics, owners.replace(owner, new Map()));
+        }
       }
       if (event.document.languageId !== 'scarp') { return; }
       verifiedVersions.delete(event.document.uri.fsPath);
