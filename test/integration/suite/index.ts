@@ -22,7 +22,7 @@ export async function run(): Promise<void> {
   const binary = process.env.SCARP_TEST_BINARY;
   assert.ok(binary, 'SCARP_TEST_BINARY is required');
   assert.equal(await preferredExecutionVerb(binary), 'exec',
-    'Pinned Scarp alpha.4 should expose the canonical exec guide');
+    'Pinned Scarp alpha.5 should expose the canonical exec guide');
 
   const extension = vscode.extensions.getExtension('ScarpLang.scarp');
   assert.ok(extension, 'Official Scarp extension must be installed in Extension Host');
@@ -82,6 +82,22 @@ export async function run(): Promise<void> {
       await vscode.commands.executeCommand('scarp.verifyProject', projectUri);
       assert.equal(vscode.languages.getDiagnostics(entryUri).length, 0,
         'Valid Scarp project must pass static verification');
+
+      // Alpha.5 exposes project-scoped, non-executing module graph inspection.
+      // This tests the actual released compiler contract, not an invented UI.
+      const inspected = await promisify(execFile)(
+        binary, ['inspect', 'modules', '--json', '--', projectPath],
+        { timeout: 10000, maxBuffer: 1024 * 1024 }
+      );
+      const graph = JSON.parse(inspected.stdout) as {
+        schema_version: number;
+        entry: number;
+        modules: Array<{ id: number; path: string }>;
+      };
+      assert.equal(graph.schema_version, 1);
+      assert.equal(graph.entry, 0);
+      assert.ok(graph.modules.length >= 1 && graph.modules[0].id === 0,
+        'Official compiler alpha.5 must inspect a project directory');
       const projectTerminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {
         const timer = setTimeout(() => {
           disposable.dispose();
