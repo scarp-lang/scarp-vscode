@@ -17,11 +17,6 @@ on:
         default: false
   release:
     types: [published]
-  # One specifically approved v0.1.3 release, never ordinary source pushes.
-  push:
-    branches: [main]
-    paths:
-      - release-requests/v0.1.3.approved
 
 permissions:
   contents: write
@@ -36,9 +31,7 @@ jobs:
     # NEVER publish for a stable release, a normal push or a non-main manual run.
     if: >-
       (github.event_name == 'release' && github.event.release.prerelease == true) ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-       github.event.head_commit.message == 'release: approve Scarp extension v0.1.3 pre-release')
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,14 +86,6 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "vsix=scarp-$version.vsix" >> "$GITHUB_OUTPUT"
 
-      - name: Verify explicit v0.1.3 release approval
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(node -p "require('./package.json').version")" = "0.1.3"
-          test "$(cat release-requests/v0.1.3.approved)" = "scarp-vscode v0.1.3 experimental pre-release approved"
-
       - name: Build verified pre-release package
         run: npm run package:pre
 
@@ -125,7 +110,7 @@ jobs:
           VSIX: ${{ steps.release.outputs.vsix }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             if gh release view "$TAG" >/dev/null 2>&1; then
               if [[ "$(gh release view "$TAG" --json isPrerelease --jq '.isPrerelease')" != "true" ]]; then
                 echo "Existing GitHub release $TAG is stable. Refusing to publish." >&2
@@ -173,7 +158,7 @@ jobs:
             grep -Fq 'Microsoft.VisualStudio.Code.PreRelease'
 
       - name: Verify Open VSX secret exists before publishing
-        if: github.event_name == 'release' || github.event_name == 'push' || inputs.publish_openvsx
+        if: github.event_name == 'release' || inputs.publish_openvsx
         shell: bash
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -184,13 +169,13 @@ jobs:
           fi
 
       - name: Publish Visual Studio Marketplace pre-release (Trusted Publishing)
-        if: github.event_name == 'release' || github.event_name == 'push' || inputs.publish_marketplace
+        if: github.event_name == 'release' || inputs.publish_marketplace
         env:
           VSIX: ${{ steps.release.outputs.vsix }}
         run: npx vsce publish --pre-release --packagePath "$VSIX" --oidc
 
       - name: Publish Open VSX pre-release (scoped token)
-        if: github.event_name == 'release' || github.event_name == 'push' || inputs.publish_openvsx
+        if: github.event_name == 'release' || inputs.publish_openvsx
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
           VSIX: ${{ steps.release.outputs.vsix }}

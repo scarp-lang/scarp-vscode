@@ -25,7 +25,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 **Not yet supported:** native executable compilation, project builds that emit executables, package registries or dependency management. Scarp compiler v0.0.5-alpha.4 supports interpreter-backed project creation, static verification and launching only. No fictional implementation is provided.
 
-The latest **published** pre-release is [v0.1.2](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.2). Development on `main` is preparing **v0.1.3** (not yet published). The v0.1.2 publishing workflow succeeded for both registries. [Read the v0.1.2 release notes](docs/releases/v0.1.2.md).
+The latest **published** pre-release is [v0.1.3](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.3). The v0.1.3 publishing workflow passed for Visual Studio Marketplace and Open VSX using the same verified VSIX. [Read the v0.1.3 release notes](docs/releases/v0.1.3.md).
 
 ## Install and run
 
@@ -48,12 +48,13 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 | scarp.checkTimeoutMs | Timeout for checking (default: 30000 milliseconds) |
 | scarp.verifyOnSave | Opt in to non-executing verification after saving a `.srp` file; **off by default** |
 
-**Project commands:** Open the project folder containing `Scarp.project` in VS Code, then choose **Scarp: Verify Project** or **Scarp: Launch Project** from the Command Palette. In multi-root workspaces, select the explicit project folder. The extension does not search parent directories for a manifest. **Scarp: Create Project** asks for the parent workspace folder and a new directory name; the compiler refuses to overwrite any existing path. Project commands are available only when `scarp diagnose --json` reports `project_workflow: true` (official v0.0.5-alpha.4+). A missing compiler or an older release produces an explanatory error, not a simulated result.
-
-These commands run the real interpreter and static compiler, **not** native executable generation. `verify` never uses run budgets or executes normal runtime statements; `launch` uses the configured run budgets. Project diagnostics with source locations are added to Problems. Manifest errors without source locations remain visible in the Scarp Output channel.
 | scarp.maxSteps, scarp.maxPrints | Optional execution limits |
 | scarp.maxCallDepth, scarp.maxCalls | Optional call limits |
 | scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes, scarp.maxTextBytes | Optional memory/resource limits |
+
+**Project commands:** Open the project folder containing `Scarp.project` in VS Code, then choose **Scarp: Verify Project** or **Scarp: Launch Project** from the Command Palette. In multi-root workspaces, select the explicit project folder. The extension does not search parent directories for a manifest. **Scarp: Create Project** asks for the parent workspace folder and a new directory name; the compiler refuses to overwrite any existing path. Project commands are available only when `scarp diagnose --json` reports `project_workflow: true` (official v0.0.5-alpha.4+). A missing compiler or an older release produces an explanatory error, not a simulated result.
+
+These commands run the real interpreter and static compiler, **not** native executable generation. `verify` never uses run budgets or executes normal runtime statements; `launch` uses the configured run budgets. Project diagnostics with source locations are added to Problems. Manifest errors without source locations remain visible in the Scarp Output channel.
 
 Unspecified limits use compiler defaults.
 
