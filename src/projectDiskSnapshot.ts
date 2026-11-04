@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import type { BigIntStats } from 'node:fs';
 import * as path from 'node:path';
 
 /**
@@ -16,7 +17,7 @@ const MAX_ENTRIES = 20_000;
 const MAX_SCARP_FILES = 4_096;
 const MAX_DEPTH = 32;
 
-function signature(stat: Awaited<ReturnType<typeof fs.lstat>>): string {
+function signature(stat: BigIntStats): string {
   return [stat.dev, stat.ino, stat.mode, stat.size,
     stat.mtimeNs, stat.ctimeNs].map(String).join(':');
 }
@@ -63,6 +64,9 @@ export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnap
             throw new Error('Scarp input is not a file: ' + relative);
           }
           result.set(relative, signature(link) + ' -> ' + signature(target));
+          if (result.size > MAX_SCARP_FILES) {
+            throw new Error('Scarp project has too many source files to verify safely.');
+          }
         }
         continue;
       }
