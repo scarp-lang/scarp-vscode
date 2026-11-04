@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 
 export interface ProcessResult {
   stdout: string;
@@ -33,6 +34,8 @@ export function executeProcess(
     });
     let stdout = '';
     let stderr = '';
+    const stdoutDecoder = new StringDecoder('utf8');
+    const stderrDecoder = new StringDecoder('utf8');
     let byteCount = 0;
     let exceeded = false;
     let timedOut = false;
@@ -54,8 +57,8 @@ export function executeProcess(
         child.kill();
         return;
       }
-      if (stream === 'stdout') { stdout += chunk.toString('utf8'); }
-      else { stderr += chunk.toString('utf8'); }
+      if (stream === 'stdout') { stdout += stdoutDecoder.write(chunk); }
+      else { stderr += stderrDecoder.write(chunk); }
     };
     child.stdout.on('data', (chunk: Buffer) => addOutput('stdout', chunk));
     child.stderr.on('data', (chunk: Buffer) => addOutput('stderr', chunk));
@@ -66,6 +69,9 @@ export function executeProcess(
       clearTimeout(timer);
       if (timedOut) { reject(new Error('Scarp process timed out')); return; }
       if (exceeded) { reject(new Error('Scarp output exceeded the safety limit')); return; }
+      // Data events can split UTF-8 code points across arbitrary pipe chunks.
+      stdout += stdoutDecoder.end();
+      stderr += stderrDecoder.end();
       resolve({ stdout, stderr, exitCode: code, signal });
     });
   });
@@ -74,4 +80,20 @@ export function executeProcess(
 export function compilerVersion(output: string): string | undefined {
   const match = /^scarp\s+(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/m.exec(output.trim());
   return match?.[1];
+}
+
+/** Prefer the official Scarp-first execution verb when the compiler advertises it.
+ * Historical binaries that lack `guide exec` continue to use `run`.
+ * Probe command support rather than guessing from unstable alpha version strings.
+ */
+export async function preferredExecutionVerb(executable: string): Promise<'exec' | 'run'> {
+  try {
+    const help = await executeProcess(executable, ['guide', 'exec'], {
+      timeoutMs: 5000, maxOutputBytes: 32768
+    });
+    if (help.exitCode === 0 && /^Usage:\s*scarp exec\b/m.test(help.stdout)) {
+      return 'exec';
+    }
+  } catch { /* Legacy compilers may not have `guide`; keep the old route. */ }
+  return 'run';
 }

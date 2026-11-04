@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { compilerVersion, executeProcess } from './cli';
+import { compilerVersion, executeProcess, preferredExecutionVerb } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
@@ -334,16 +334,17 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
   }
   await ensureSaved(doc);
   const { binary, version } = await validateCompiler();
+  const command = await preferredExecutionVerb(binary);
   // VS Code launches the compiler directly as the terminal process.
   // shellArgs are argv entries, not interpolated source text.
   const terminal = vscode.window.createTerminal({
     name: 'Scarp: ' + path.basename(filename),
     shellPath: binary,
-    shellArgs: ['run', ...budgets(), '--', filename],
+    shellArgs: [command, ...budgets(), '--', filename],
     cwd: path.dirname(filename)
   });
   running.set(filename, terminal);
-  output.appendLine('Scarp ' + version + ' — run ' + filename);
+  output.appendLine('Scarp ' + version + ' — ' + command + ' ' + filename);
   terminal.show();
 }
 function stop(): void {

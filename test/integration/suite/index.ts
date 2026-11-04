@@ -6,6 +6,7 @@ import * as fsSync from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as vscode from 'vscode';
+import { preferredExecutionVerb } from '../../../src/cli';
 
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
   for (let i = 0; i < 60; i++) {
@@ -20,6 +21,8 @@ async function waitFor<T>(read: () => T | undefined, message: string): Promise<T
 export async function run(): Promise<void> {
   const binary = process.env.SCARP_TEST_BINARY;
   assert.ok(binary, 'SCARP_TEST_BINARY is required');
+  assert.equal(await preferredExecutionVerb(binary), 'exec',
+    'Pinned Scarp alpha.4 should expose the canonical exec guide');
 
   const extension = vscode.extensions.getExtension('ScarpLang.scarp');
   assert.ok(extension, 'Official Scarp extension must be installed in Extension Host');

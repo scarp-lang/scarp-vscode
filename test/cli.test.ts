@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { executeProcess, compilerVersion } from '../src/cli';
+import { executeProcess, compilerVersion, preferredExecutionVerb } from '../src/cli';
 
 test('parses actual compiler version format', () => {
   assert.equal(compilerVersion('scarp 0.0.5-alpha.2\n'), '0.0.5-alpha.2');
@@ -26,4 +26,23 @@ test('terminates long-running checks', async () => {
     executeProcess(process.execPath, ['-e', 'setTimeout(()=>{},2000)'], { timeoutMs: 100 }),
     /timed out/
   );
+});
+
+test('decodes Unicode correctly across split stdout/stderr UTF-8 chunks', async () => {
+  const script = [
+    'process.stdout.write(Buffer.from([0xf0, 0x9f]));',
+    'process.stderr.write(Buffer.from([0xe2]));',
+    'setTimeout(() => {',
+    '  process.stdout.write(Buffer.from([0x98, 0x80]));',
+    '  process.stderr.write(Buffer.from([0x82, 0xac]));',
+    '}, 40);'
+  ].join('\n');
+  const result = await executeProcess(process.execPath, ['-e', script]);
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, '😀');
+  assert.equal(result.stderr, '€');
+});
+
+test('falls back to legacy run when Scarp-first guide is missing', async () => {
+  assert.equal(await preferredExecutionVerb(process.execPath), 'run');
 });

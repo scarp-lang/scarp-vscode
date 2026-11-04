@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased — v0.1.3 development
+## Unreleased — v0.1.4 development
+
+- Prefer the official Scarp-first `exec` command when supported, while retaining the historical `run` fallback for older compilers.
+- Preserve multi-byte Unicode in compiler stdout/stderr even when OS pipes split a UTF-8 character between chunks.
+- Cover canonical command detection with the pinned real Scarp compiler, Unicode process output and legacy command fallback.
+- Update compiler smoke tests and pre-release development packaging to v0.1.4 without publishing another version.
+
+## v0.1.3 — experimental pre-release (2026-11-04)
 
 - Integrate the newly released Scarp compiler **v0.0.5-alpha.4** project workflow: create, static verify and launch an explicit `Scarp.project` directory without shell interpolation.
 - Gate new project actions on the real `scarp diagnose --json` `project_workflow` capability instead of guessing from a version string.
@@ -50,7 +57,7 @@
 - Problems diagnostics, Output channel, resource limit settings and Stop command.
 - Automated unit tests, planned real-compiler CI and experimental VSIX packaging.
 
-GitHub v0.1.2 is an experimental pre-release, published with verified Visual Studio Marketplace and Open VSX upload steps; it is not a stable extension.
+GitHub v0.1.3 is the latest experimental pre-release, published with verified Visual Studio Marketplace and Open VSX upload steps; it is not a stable extension.
 
 Marketplace pre-release: https://marketplace.visualstudio.com/items?itemName=ScarpLang.scarp
 

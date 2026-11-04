@@ -7,13 +7,13 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 ## Implemented
 
 - Recognize .srp files as Scarp, with a real TextMate grammar for the current Scarp compiler's declarations, functions, types, control flow, strings, numeric literals, operators, and line comments.
-- **Scarp: Run Current File:** launch the official compiler in the integrated terminal with program input/output.
+- **Scarp: Run Current File:** launch the official compiler in the integrated terminal with program input/output. Prefer canonical `scarp exec` when the installed compiler advertises `scarp guide exec`, and retain legacy `scarp run` for older compiler versions.
 - **Scarp: Verify Current File:** use the compiler's non-executing `verify` command when supported (Scarp v0.0.5-alpha.3+), including source-span JSON diagnostics in Problems. Older compilers fall back to the legacy evaluating `check` command.
 - **Scarp: Show Compiler Version:** verify the executable.
 - **Scarp: Stop Running Program:** stop extension-owned terminal sessions.
 - Configure executable path, check timeout and eight documented CLI resource budgets.
 - Preserve file paths with spaces by passing process arguments directly, without invoking a shell.
-- Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback.
+- Decode schema-v1 Scarp JSON errors into precise Problems ranges (including Unicode columns), with legacy human-readable diagnostic fallback. Preserve UTF-8 characters split across process output chunks.
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
 - **Optional verify on save:** debounce rapid saves, use static-only verification where supported, and quietly refresh Problems without opening a terminal or displaying popups.
 - **Outline / Go to Symbol in Editor:** show top-level Scarp `funcra` and `pure funcra` functions, `bind` / `var` declarations, `pub` exports, and `import ... as ...` aliases, without executing or compiling the file.
