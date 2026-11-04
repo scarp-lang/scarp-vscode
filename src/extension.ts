@@ -7,10 +7,13 @@ import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
+import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
 const verifiedVersions = new Map<string, number>();
+const projectChanges = new ProjectChangeTracker();
+const activeProjectChecks = new Set<string>();
 const config = () => vscode.workspace.getConfiguration('scarp');
 
 function budgets(): string[] {
@@ -70,7 +73,8 @@ function applyProblems(
 
 async function showProblems(
   doc: vscode.TextDocument, stderr: string, collection: vscode.DiagnosticCollection,
-  owners: DiagnosticOwners<vscode.Diagnostic>, expectedVersion: number
+  owners: DiagnosticOwners<vscode.Diagnostic>, expectedVersion: number,
+  isCurrent: () => boolean = () => true
 ): Promise<number | undefined> {
   const groups = new Map<string, vscode.Diagnostic[]>();
   for (const entry of parseDiagnostics(stderr)) {
@@ -103,7 +107,7 @@ async function showProblems(
   }
   // The source may have changed while the external compiler was checking it.
   // Never overwrite current Problems with diagnostics from a stale snapshot.
-  if (doc.version !== expectedVersion) { return undefined; }
+  if (doc.version !== expectedVersion || !isCurrent()) { return undefined; }
   applyProblems(collection, owners.replace(doc.uri.toString(), groups));
   return [...groups.values()].reduce((sum, items) => sum + items.length, 0);
 }
@@ -239,27 +243,56 @@ async function verifyProject(
 ): Promise<void> {
   const directory = await projectDirectory(explicit);
   if (!directory) { return; }
-  const manifest = vscode.Uri.joinPath(directory, 'Scarp.project');
-  const doc = await vscode.workspace.openTextDocument(manifest);
-  if (doc.isDirty) { throw new Error('Save Scarp.project before project verification.'); }
-  const { binary, version } = await validateProjectCompiler();
-  output.clear();
-  output.appendLine('Scarp ' + version + ' — static verify project ' + directory.fsPath);
-  const result = await executeProcess(binary, projectArgv('verify', directory.fsPath), {
-    cwd: directory.fsPath,
-    timeoutMs: config().get<number>('checkTimeoutMs', 30000),
-    maxOutputBytes: 1024 * 1024
-  });
-  if (result.stdout) { output.append(result.stdout); }
-  if (result.stderr) { output.append(result.stderr); }
-  const count = await showProblems(doc, result.stderr, diagnostics, owners, doc.version);
-  if (result.exitCode === 0) {
-    vscode.window.showInformationMessage('Scarp project static verification passed.');
-  } else {
-    output.show(true);
-    vscode.window.showErrorMessage('Scarp project verification failed (exit '
-      + String(result.exitCode) + ', ' + String(count ?? 0) + ' located diagnostic(s)). '
-      + 'See Scarp output for manifest or unlocated errors.');
+  const key = directory.fsPath;
+  if (activeProjectChecks.has(key)) {
+    throw new Error('Scarp is already verifying this project.');
+  }
+  // Start watching before asynchronous compiler work so source edits cannot
+  // turn an old verification into fresh Problems.
+  activeProjectChecks.add(key);
+  const watch = projectChanges.watch(key);
+  try {
+    const manifest = vscode.Uri.joinPath(directory, 'Scarp.project');
+    const doc = await vscode.workspace.openTextDocument(manifest);
+    // The real compiler reads saved files from disk, not unsaved editor buffers.
+    const dirty = vscode.workspace.textDocuments.find(source =>
+      source.uri.scheme === 'file' && source.isDirty &&
+      isWithinProject(key, source.uri.fsPath) &&
+      (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
+        path.basename(source.uri.fsPath) === 'Scarp.project')
+    );
+    if (dirty) {
+      throw new Error('Save open Scarp project files before verifying: ' + dirty.uri.fsPath);
+    }
+    const manifestVersion = doc.version;
+    const { binary, version } = await validateProjectCompiler();
+    output.clear();
+    output.appendLine('Scarp ' + version + ' — static verify project ' + key);
+    const result = await executeProcess(binary, projectArgv('verify', key), {
+      cwd: key,
+      timeoutMs: config().get<number>('checkTimeoutMs', 30000),
+      maxOutputBytes: 1024 * 1024
+    });
+    if (result.stdout) { output.append(result.stdout); }
+    if (result.stderr) { output.append(result.stderr); }
+    const count = await showProblems(doc, result.stderr, diagnostics, owners,
+      manifestVersion, watch.isCurrent);
+    if (count === undefined) {
+      output.appendLine('Project changed during verification; outdated diagnostics discarded. '
+        + 'Save your changes and verify again.');
+      return;
+    }
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage('Scarp project static verification passed.');
+    } else {
+      output.show(true);
+      vscode.window.showErrorMessage('Scarp project verification failed (exit '
+        + String(result.exitCode) + ', ' + String(count) + ' located diagnostic(s)). '
+        + 'See Scarp output for manifest or unlocated errors.');
+    }
+  } finally {
+    watch.dispose();
+    activeProjectChecks.delete(key);
   }
 }
 
@@ -409,7 +442,12 @@ export function activate(context: vscode.ExtensionContext): void {
       saveVerifier.request(doc.uri.toString(), { doc, version: doc.version });
     }),
     vscode.workspace.onDidChangeTextDocument(event => {
-      if (event.document.languageId !== 'scarp' || event.contentChanges.length === 0) { return; }
+      if (event.contentChanges.length === 0) { return; }
+      if (event.document.uri.scheme === 'file') {
+        // Scarp.project is normally not assigned the 'scarp' language ID.
+        projectChanges.changed(event.document.uri.fsPath);
+      }
+      if (event.document.languageId !== 'scarp') { return; }
       verifiedVersions.delete(event.document.uri.fsPath);
       applyProblems(diagnostics, owners.invalidateChanged(event.document.uri.toString()));
     }),
