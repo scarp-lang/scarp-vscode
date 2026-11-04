@@ -17,7 +17,27 @@
 5. Confirm the published version reports `publishedWithTrustedPublishing: true` in its Open VSX metadata. If registration isn't configured, keep the currently working PAT-based workflow instead of publishing with broken credentials.
 
 Because a trusted publisher is identified by GitHub repository/workflow identity, review any changes to `.github/workflows/prerelease.yml` carefully and keep main-branch protection enabled.
-- Existing releases v0.1.0, v0.1.1, and v0.1.2 are experimental. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
+- Existing releases v0.1.0, v0.1.1, v0.1.2 and v0.1.3 are experimental. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
+
+## Tag origin and release-asset integrity
+
+- For an approved published GitHub **pre-release**, the workflow explicitly
+  checks out the release's **tagged commit**, not the current tip of `main`.
+  It rejects a tag whose commit is not reachable from protected `main`.
+- Source verification, official compiler tests, typechecking, linting, unit
+  tests and package validation run before a new VSIX is attached to a release.
+  A downloaded GitHub release VSIX is validated again after download.
+- When a release already contains `scarp-VERSION.vsix`, the shared
+  `scripts/compare-vsix.sh` gate compares its entire ZIP entry list and
+  uncompressed payload bytes against the locally rebuilt package. Identical
+  files with different ZIP timestamps are accepted; changed files or extra
+  entries are **rejected** before either registry upload.
+- Release scripts live only in the source repository and are excluded from
+  the installable VSIX. CI verifies that the comparator detects tampering.
+
+These checks are safety gates, not authorization to publish. Do not create
+a release/tag unless the version and compiler compatibility have been
+reviewed, and always mark GitHub and registry publication as **pre-release**.
 
 ## Publish an approved pre-release
 
@@ -39,9 +59,9 @@ Publishing requires an explicit human release action; routine pushes and pull re
 4. **GitHub Actions releases created using the default `GITHUB_TOKEN` do not trigger a second `release: published` workflow run.** Therefore, the manual workflow also performs the selected registry publishing directly.
 5. Do not use this path to republish an unchanged version already present in a registry.
 
-The pre-release packaging gate rejects VSIX archives containing internal workflow, compiler-checkout, test, or release-request files. In particular, approval marker files must remain in GitHub and **must not** ship inside the installed extension.
+The shared `scripts/verify-vsix.sh` pre-release packaging gate checks the package publisher, extension ID, numeric version, compiled entrypoint, grammar and the VS Code pre-release marker. It rejects VSIX archives containing internal workflow, compiler-checkout, test, source, scripts or release-request files. In particular, approval marker files must remain in GitHub and **must not** ship inside the installed extension.
 
-The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The official compiler smoke test is pinned to `v0.0.5-alpha.4` until a reviewed compatibility update.
+The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The official compiler smoke test is pinned to the actually published `v0.0.5-alpha.5`. It checks `verify`, `exec`, project creation/verification/launch, and the new read-only `inspect modules --json PROJECT_DIRECTORY` route. This does **not** imply that native executable generation is available.
 
 **The PAT secret's existence cannot be verified by reading public repository files.** If `OVSX_PAT` is missing or empty, publishing fails before uploading to either registry.
 
