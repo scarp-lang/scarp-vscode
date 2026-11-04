@@ -8,6 +8,7 @@ import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
+import { snapshotProjectDisk, sameProjectDisk } from './projectDiskSnapshot';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -74,7 +75,7 @@ function applyProblems(
 async function showProblems(
   doc: vscode.TextDocument, stderr: string, collection: vscode.DiagnosticCollection,
   owners: DiagnosticOwners<vscode.Diagnostic>, expectedVersion: number,
-  isCurrent: () => boolean = () => true
+  isCurrent: () => boolean | Promise<boolean> = () => true
 ): Promise<number | undefined> {
   const groups = new Map<string, vscode.Diagnostic[]>();
   for (const entry of parseDiagnostics(stderr)) {
@@ -107,7 +108,7 @@ async function showProblems(
   }
   // The source may have changed while the external compiler was checking it.
   // Never overwrite current Problems with diagnostics from a stale snapshot.
-  if (doc.version !== expectedVersion || !isCurrent()) { return undefined; }
+  if (doc.version !== expectedVersion || !(await isCurrent())) { return undefined; }
   applyProblems(collection, owners.replace(doc.uri.toString(), groups));
   return [...groups.values()].reduce((sum, items) => sum + items.length, 0);
 }
@@ -265,6 +266,9 @@ async function verifyProject(
       throw new Error('Save open Scarp project files before verifying: ' + dirty.uri.fsPath);
     }
     const manifestVersion = doc.version;
+    // Capture the actual on-disk source tree before compiler work begins.
+    // VS Code editor events alone cannot see another process rewriting a file.
+    const diskBefore = await snapshotProjectDisk(key);
     const { binary, version } = await validateProjectCompiler();
     output.clear();
     output.appendLine('Scarp ' + version + ' — static verify project ' + key);
@@ -276,8 +280,20 @@ async function verifyProject(
     if (result.stdout) { output.append(result.stdout); }
     if (result.stderr) { output.append(result.stderr); }
     const count = await showProblems(doc, result.stderr, diagnostics, owners,
-      manifestVersion, watch.isCurrent);
+      manifestVersion, async () => {
+        if (!watch.isCurrent()) { return false; }
+        try {
+          const diskAfter = await snapshotProjectDisk(key);
+          return sameProjectDisk(diskBefore, diskAfter) && watch.isCurrent();
+        } catch (error) {
+          output.appendLine('Scarp project disk snapshot could not be validated: ' + String(error));
+          return false;
+        }
+      });
     if (count === undefined) {
+      // Any previously recorded Problems from the same project are obsolete,
+      // including when the changes happened outside the VS Code editor.
+      applyProblems(diagnostics, owners.replace(manifest.toString(), new Map()));
       output.appendLine('Project changed during verification; outdated diagnostics discarded. '
         + 'Save your changes and verify again.');
       return;
