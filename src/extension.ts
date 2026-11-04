@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
 import { compilerVersion, executeProcess, preferredExecutionVerb } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
@@ -441,7 +442,32 @@ export function activate(context: vscode.ExtensionContext): void {
         watcher.onDidChange(uri => changed(uri.fsPath)),
         watcher.onDidDelete(uri => changed(uri.fsPath))
       ];
+      // VS Code's recursive watchers can omit out-of-workspace events on
+      // some editor/OS combinations. Also use one bounded native recursive
+      // subscription per verified project as a best-effort fallback.
+      let native: FSWatcher | undefined;
+      if (pattern === '**/*.srp') {
+        try {
+          native = nativeWatch(root, { recursive: true }, (event, filename) => {
+            const relative = filename?.toString();
+            // A folder rename can invalidate imported files even when its
+            // own name does not have a .srp extension.
+            if (!relative || path.extname(relative).toLowerCase() === '.srp' ||
+                relative === 'Scarp.project' ||
+                (event === 'rename' && !path.extname(relative))) {
+              changed(path.join(root, relative || 'Scarp.project'));
+            }
+          });
+          native.on('error', error => {
+            output.appendLine('Scarp native project watch error: ' + String(error));
+            changed(path.join(root, 'Scarp.project'));
+          });
+        } catch (error) {
+          output.appendLine('Scarp native project watch unavailable: ' + String(error));
+        }
+      }
       return { dispose() {
+        native?.close();
         subscriptions.forEach(subscription => subscription.dispose());
         watcher.dispose();
       } };
