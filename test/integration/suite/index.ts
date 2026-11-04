@@ -118,7 +118,7 @@ export async function run(): Promise<void> {
       const repaired = new vscode.WorkspaceEdit();
       repaired.replace(entryUri, new vscode.Range(
         entryDocument.positionAt(0), entryDocument.positionAt(entryDocument.getText().length)
-      ), 'print("Hello from Scarp!");\\n');
+      ), 'print("Hello from Scarp!");\n');
       assert.ok(await vscode.workspace.applyEdit(repaired));
       assert.ok(await entryDocument.save());
       assert.equal(vscode.languages.getDiagnostics(entryUri).length, 0,
@@ -140,7 +140,7 @@ export async function run(): Promise<void> {
         'const fs = require("node:fs");',
         'const argv = process.argv.slice(2);',
         'if (argv[0] === "--version") {',
-        '  process.stdout.write("scarp 0.0.5-alpha.4\\\\n");',
+        '  process.stdout.write("scarp 0.0.5-alpha.4\\\n");',
         '  process.exit(0);',
         '}',
         'if (argv[0] === "diagnose") {',
@@ -155,7 +155,7 @@ export async function run(): Promise<void> {
         '    process.exitCode = 1;',
         '  }, 450);',
         '} else { process.exit(2); }'
-      ].join('\\n');
+      ].join('\n');
       await fs.writeFile(delayedBinary, delayedScript, { mode: 0o755 });
       await fs.chmod(delayedBinary, 0o755);
       await settings.update('compilerPath', delayedBinary, vscode.ConfigurationTarget.Global);
@@ -164,7 +164,7 @@ export async function run(): Promise<void> {
         await waitFor(() => fsSync.existsSync(started) ? true : undefined,
           'Delayed project verification did not start');
         const changedSource = new vscode.WorkspaceEdit();
-        changedSource.insert(entryUri, new vscode.Position(0, 0), '// changed in editor\\n');
+        changedSource.insert(entryUri, new vscode.Position(0, 0), '// changed in editor\n');
         assert.ok(await vscode.workspace.applyEdit(changedSource));
         assert.ok(await entryDocument.save());
         await staleSourceCheck;
@@ -180,7 +180,7 @@ export async function run(): Promise<void> {
         const manifestDocument = await vscode.workspace.openTextDocument(manifestUri);
         const changedManifest = new vscode.WorkspaceEdit();
         changedManifest.insert(manifestUri,
-          manifestDocument.positionAt(manifestDocument.getText().length), '\\n');
+          manifestDocument.positionAt(manifestDocument.getText().length), '\n');
         assert.ok(await vscode.workspace.applyEdit(changedManifest));
         assert.ok(await manifestDocument.save());
         await staleManifestCheck;
