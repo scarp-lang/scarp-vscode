@@ -71,9 +71,12 @@ export class ProjectWatchRegistry implements WatchDisposable {
     if (this.reconciling) { return this.reconciling; }
     const work = this.reconcileOnce();
     this.reconciling = work;
-    void work.finally(() => {
+    // Use both settlement branches to avoid an unhandled rejection if a
+    // future reconciliation callback reports an unexpected error.
+    const clear = () => {
       if (this.reconciling === work) { this.reconciling = undefined; }
-    });
+    };
+    void work.then(clear, clear);
     return work;
   }
 
