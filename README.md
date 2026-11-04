@@ -27,6 +27,8 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 The latest **published** pre-release is [v0.1.3](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.3). The v0.1.3 publishing workflow passed for Visual Studio Marketplace and Open VSX using the same verified VSIX. [Read the v0.1.3 release notes](docs/releases/v0.1.3.md).
 
+**Next planned experimental version:** v0.1.4 development is being checked against the officially published Scarp **v0.0.5-alpha.5** and a strengthened release integrity gate. See the [draft v0.1.4 release notes](docs/releases/v0.1.4.md). No v0.1.4 GitHub/Marketplace/Open VSX release has been published by these development changes. The compiler's new read-only project module inspection is tested through its CLI; the extension does not yet expose an interactive module graph UI.
+
 ## Install and run
 
 1. Install Scarp from [official compiler releases](https://github.com/scarp-lang/scarp/releases).
