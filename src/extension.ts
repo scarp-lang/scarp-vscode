@@ -9,6 +9,7 @@ import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { snapshotProjectDisk, sameProjectDisk } from './projectDiskSnapshot';
+import { ProjectWatchRegistry } from './projectWatchRegistry';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -240,7 +241,8 @@ async function projectDirectory(provided?: vscode.Uri): Promise<vscode.Uri | und
 
 async function verifyProject(
   explicit: vscode.Uri | undefined, output: vscode.OutputChannel,
-  diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>
+  diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>,
+  projectMonitors: ProjectWatchRegistry, onSourceChanged: (filename: string) => void
 ): Promise<void> {
   const directory = await projectDirectory(explicit);
   if (!directory) { return; }
@@ -293,6 +295,8 @@ async function verifyProject(
     if (count === undefined) {
       // Any previously recorded Problems from the same project are obsolete,
       // including when the changes happened outside the VS Code editor.
+      projectMonitors.stopRoot(key);
+      projectChanges.forgetCompleted(key);
       applyProblems(diagnostics, owners.replace(manifest.toString(), new Map()));
       output.appendLine('Project changed during verification; outdated diagnostics discarded. '
         + 'Save your changes and verify again.');
@@ -301,6 +305,16 @@ async function verifyProject(
     // Future in-editor edits anywhere in this project invalidate this root's
     // compiler snapshot, even if the edited file itself had no Problems.
     projectChanges.completedVerification(key, manifest.toString());
+    try {
+      // Only verified explicit roots are watched; no implicit workspace scan.
+      projectMonitors.track(key, manifest.toString(), onSourceChanged);
+    } catch (error) {
+      // If a watcher could not be established, do not retain unmonitored
+      // diagnostic ownership indefinitely.
+      projectChanges.forgetCompleted(key);
+      applyProblems(diagnostics, owners.replace(manifest.toString(), new Map()));
+      output.appendLine('Scarp project monitoring unavailable: ' + String(error));
+    }
     if (result.exitCode === 0) {
       vscode.window.showInformationMessage('Scarp project static verification passed.');
     } else {
@@ -417,6 +431,32 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Scarp');
   const diagnostics = vscode.languages.createDiagnosticCollection('scarp');
   const owners = new DiagnosticOwners<vscode.Diagnostic>();
+  const projectMonitors = new ProjectWatchRegistry(
+    (root, pattern, changed) => {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(vscode.Uri.file(root), pattern)
+      );
+      const subscriptions = [
+        watcher.onDidCreate(uri => changed(uri.fsPath)),
+        watcher.onDidChange(uri => changed(uri.fsPath)),
+        watcher.onDidDelete(uri => changed(uri.fsPath))
+      ];
+      return { dispose() {
+        subscriptions.forEach(subscription => subscription.dispose());
+        watcher.dispose();
+      } };
+    },
+    (root, owner) => {
+      projectChanges.forgetCompleted(root);
+      applyProblems(diagnostics, owners.replace(owner, new Map()));
+    }
+  );
+  const invalidateProject = (filename: string): void => {
+    for (const owner of projectChanges.changed(filename)) {
+      projectMonitors.stopOwner(owner);
+      applyProblems(diagnostics, owners.replace(owner, new Map()));
+    }
+  };
   const saveVerifier = new DebouncedSerialTasks<{ doc: vscode.TextDocument; version: number }>(
     300,
     async (_key, request) => {
@@ -451,7 +491,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     { label: 'Scarp declarations' }
   );
-  context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
+  context.subscriptions.push(output, diagnostics, saveVerifier, navigation, projectMonitors,
     vscode.workspace.onDidSaveTextDocument(doc => {
       if (!vscode.workspace.isTrusted || doc.uri.scheme !== 'file' ||
           doc.languageId !== 'scarp' ||
@@ -465,9 +505,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (event.document.uri.scheme === 'file') {
         // Scarp.project is normally not assigned the 'scarp' language ID.
         // A file with no previous errors can still invalidate the project.
-        for (const owner of projectChanges.changed(event.document.uri.fsPath)) {
-          applyProblems(diagnostics, owners.replace(owner, new Map()));
-        }
+        invalidateProject(event.document.uri.fsPath);
       }
       if (event.document.languageId !== 'scarp') { return; }
       verifiedVersions.delete(event.document.uri.fsPath);
@@ -485,7 +523,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('scarp.createProject',
       (): Promise<void> => safe(async () => createProject(output))),
     vscode.commands.registerCommand('scarp.verifyProject',
-      (uri?: vscode.Uri): Promise<void> => safe(async () => verifyProject(uri, output, diagnostics, owners))),
+      (uri?: vscode.Uri): Promise<void> => safe(async () => verifyProject(
+        uri, output, diagnostics, owners, projectMonitors, invalidateProject))),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
