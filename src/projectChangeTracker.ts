@@ -37,6 +37,14 @@ export class ProjectChangeTracker {
     this.completed.set(path.resolve(root), ownerUri);
   }
 
+  /** Stop retaining completed state when a watcher is evicted or removed. */
+  forgetCompleted(root: string): string | undefined {
+    const key = path.resolve(root);
+    const owner = this.completed.get(key);
+    this.completed.delete(key);
+    return owner;
+  }
+
   /**
    * Mark in-flight checks stale, and return finished verification owners whose
    * previous Problems must be cleared. An edit to a clean module can change
