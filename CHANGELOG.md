@@ -2,6 +2,10 @@
 
 ## Unreleased — v0.1.4 development
 
+- Align cross-platform CI and release readiness with the published Scarp v0.0.5-alpha.5 compiler. Smoke-test canonical `verify` and `exec`, project launch and read-only project module JSON inspection.
+- Harden experimental publishing: check out the approved GitHub release tag reachable from protected main, validate the compiled VSIX identity and pre-release marker before attachment, reject leaking internal source/scripts, and compare pre-attached release asset contents against the reviewed build before dual-registry publishing.
+- Share release package checks and add CI tampering regression coverage. Prepare experimental v0.1.4 release notes without tagging or publishing.
+
 - Reconcile previously verified project source hashes when VS Code regains focus, or via **Scarp: Check Verified Project Diagnostic Freshness**. Clear stale per-project Problems if a filesystem watcher missed an external change; never run the compiler automatically.
 - Coalesce overlapping focus scans, prevent stale scan results from invalidating a newer verification, and treat missing/unreadable files as stale. Add focused unit tests and a VS Code Extension Host regression.
 
