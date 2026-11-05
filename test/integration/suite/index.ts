@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { preferredExecutionVerb } from '../../../src/cli';
 import { parseBrowsableProjectModules } from '../../../src/projectModules';
+import { parseProjectSymbols } from '../../../src/navigationIndex';
 
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
   for (let i = 0; i < 60; i++) {
@@ -35,7 +36,8 @@ export async function run(): Promise<void> {
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
     'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject',
-    'scarp.verifyProject', 'scarp.browseProjectModules', 'scarp.launchProject']) {
+    'scarp.verifyProject', 'scarp.browseProjectModules',
+    'scarp.browseProjectSymbols', 'scarp.launchProject']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -108,6 +110,15 @@ export async function run(): Promise<void> {
       await fs.writeFile(navigationUri.fsPath, 'bind answer = 41;\nprint(answer + 1);\n');
       const navigationDoc = await vscode.workspace.openTextDocument(navigationUri);
       await vscode.window.showTextDocument(navigationDoc);
+      const rawSymbols = await promisify(execFile)(
+        binary, ['inspect', 'symbols', '--json', '--', navigationUri.fsPath],
+        { timeout: 10000, maxBuffer: 1024 * 1024 }
+      );
+      const symbolInventory = parseProjectSymbols(
+        rawSymbols.stdout, await fs.realpath(projectPath));
+      assert.ok(symbolInventory.symbols.some(symbol =>
+        symbol.kind === 'binding' && symbol.name === 'answer' && symbol.location),
+      'Published Scarp alpha.1 must return concrete symbol locations');
       const usePosition = new vscode.Position(1, 8);
       const definition = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeDefinitionProvider', navigationUri, usePosition);

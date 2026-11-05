@@ -38,7 +38,8 @@
     "onCommand:scarp.verifyProject",
     "onCommand:scarp.launchProject",
     "onCommand:scarp.reconcileProjects",
-    "onCommand:scarp.browseProjectModules"
+    "onCommand:scarp.browseProjectModules",
+    "onCommand:scarp.browseProjectSymbols"
   ],
   "contributes": {
     "languages": [
@@ -92,6 +93,11 @@
       {
         "command": "scarp.browseProjectModules",
         "title": "Scarp: Browse Project Modules",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.browseProjectSymbols",
+        "title": "Scarp: Browse Project Symbols",
         "category": "Scarp"
       },
       {

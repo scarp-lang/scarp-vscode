@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Add **Scarp: Browse Project Symbols** using the officially published v0.0.6-alpha.1 `inspect symbols --json` schema. Search statically verified project declarations from a Quick Pick and jump to the source with canonical path, strict UTF-8 byte/Unicode column and disk-snapshot validation. Unsupported compilers, stale source changes and unsaved buffers fail closed.
+- Share the parser's bounded schema-v1 file/symbol validation across both symbol and reference views; add schema contract tests and a real-compiler Extension Host symbol inventory smoke test.
+
 - Guard compiler-backed Go to Definition and Find All References with bounded SHA-256 source snapshots before inspection, after the CLI completes and before returning VS Code locations. Detect changes to imported modules and standalone files made outside the editor; reject stale/unreloaded buffers and coordinates whose byte offsets disagree with the compiler.
 - Extend the existing trusted project snapshot mechanism to non-project Scarp source roots without weakening the project manifest check. Add regression tests for standalone import changes and new files.
 

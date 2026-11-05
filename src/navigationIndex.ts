@@ -28,8 +28,8 @@ export interface NavigationIndex {
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-function fail(): never {
-  throw new Error('Invalid or unsupported Scarp references schema (expected v1).');
+function fail(kind: 'references' | 'symbols'): never {
+  throw new Error('Invalid or unsupported Scarp ' + kind + ' schema (expected v1).');
 }
 function integer(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
@@ -55,13 +55,15 @@ function location(value: unknown, files: number): value is SourceSpan {
  * Index locations are file-local UTF-8 byte ranges. IDs are valid only for
  * this one CLI snapshot and MUST NOT be reused after an edit.
  */
-export function parseNavigationIndex(stdout: string, canonicalRoot: string): NavigationIndex {
+function parseIndex(
+  stdout: string, canonicalRoot: string, kind: 'references' | 'symbols'
+): NavigationIndex {
   let raw: unknown;
   try { raw = JSON.parse(stdout); }
-  catch { return fail(); }
+  catch { return fail(kind); }
   if (!record(raw) ||
       raw.schema_version !== 1 ||
-      raw.kind !== 'scarp.references' ||
+      raw.kind !== 'scarp.' + kind ||
       raw.span_encoding !== 'utf-8-bytes' ||
       raw.column_encoding !== 'unicode-scalar' ||
       raw.position_base !== 1 ||
@@ -69,8 +71,10 @@ export function parseNavigationIndex(stdout: string, canonicalRoot: string): Nav
       !Array.isArray(raw.files) || raw.files.length < 1 ||
       raw.files.length > 128 ||
       !Array.isArray(raw.symbols) || raw.symbols.length > 65536 ||
-      !Array.isArray(raw.references) || raw.references.length > 65536) {
-    return fail();
+      (kind === 'references' && (!Array.isArray(raw.references) ||
+        raw.references.length > 65536)) ||
+      (kind === 'symbols' && raw.references !== undefined)) {
+    return fail(kind);
   }
   const files: string[] = [];
   const seen = new Set<string>();
@@ -78,10 +82,10 @@ export function parseNavigationIndex(stdout: string, canonicalRoot: string): Nav
     if (!record(item) || item.id !== i || typeof item.path !== 'string' ||
         !path.isAbsolute(item.path) ||
         path.extname(item.path).toLowerCase() !== '.srp') {
-      return fail();
+      return fail(kind);
     }
     const name = path.resolve(item.path);
-    if (!isWithinProject(canonicalRoot, name) || seen.has(name)) { return fail(); }
+    if (!isWithinProject(canonicalRoot, name) || seen.has(name)) { return fail(kind); }
     seen.add(name);
     files.push(name);
   }
@@ -90,7 +94,7 @@ export function parseNavigationIndex(stdout: string, canonicalRoot: string): Nav
     if (!record(item) || item.id !== i || typeof item.name !== 'string' ||
         typeof item.kind !== 'string' ||
         !(item.location === null || location(item.location, files.length))) {
-      return fail();
+      return fail(kind);
     }
     symbols.push({
       id: i, name: item.name, kind: item.kind,
@@ -98,17 +102,27 @@ export function parseNavigationIndex(stdout: string, canonicalRoot: string): Nav
     });
   }
   const references: IndexedReference[] = [];
-  for (const item of raw.references) {
+  for (const item of kind === 'references' ? raw.references as unknown[] : []) {
     if (!record(item) || !integer(item.target) ||
         item.target >= symbols.length || typeof item.kind !== 'string' ||
         !location(item.location, files.length)) {
-      return fail();
+      return fail(kind);
     }
     references.push({
       target: item.target, kind: item.kind, location: item.location
     });
   }
   return { files, symbols, references };
+}
+
+/** The official alpha.1 project symbol view has no references array. */
+export function parseProjectSymbols(stdout: string, canonicalRoot: string): NavigationIndex {
+  return parseIndex(stdout, canonicalRoot, 'symbols');
+}
+
+/** Go to Definition and Find References use the separate references view. */
+export function parseNavigationIndex(stdout: string, canonicalRoot: string): NavigationIndex {
+  return parseIndex(stdout, canonicalRoot, 'references');
 }
 
 /** Prefer a use-site to a declaration and never confuse an adjacent token. */
