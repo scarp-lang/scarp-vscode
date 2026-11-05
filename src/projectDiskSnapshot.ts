@@ -9,6 +9,9 @@ import { isWithinProject } from './projectChangeTracker';
  * Capture the manifest and all .srp source bytes, including symlinked files,
  * before and after the official compiler's static verification.
  *
+ * Standalone navigation can opt out of requiring a root manifest while
+ * retaining the same bounded source hashing and symlink protection.
+ *
  * Directories linked outside the project are not traversed. Oversized or
  * unmonitorable trees fail closed instead of accepting possibly stale errors.
  * A snapshot is not a continuous background filesystem watcher.
@@ -51,7 +54,9 @@ async function fingerprint(file: string, before: BigIntStats): Promise<string> {
   return signature(after) + ':' + hash.digest('hex');
 }
 
-export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnapshot> {
+export async function snapshotProjectDisk(
+  root: string, requireManifest = true
+): Promise<ProjectDiskSnapshot> {
   const rootPath = path.resolve(root);
   const canonicalRoot = await fs.realpath(rootPath);
   const result = new Map<string, string>();
@@ -127,7 +132,7 @@ export async function snapshotProjectDisk(root: string): Promise<ProjectDiskSnap
     }
   }
 
-  if (!result.has('Scarp.project')) {
+  if (requireManifest && !result.has('Scarp.project')) {
     throw new Error('Scarp project manifest disappeared during verification.');
   }
   return result;

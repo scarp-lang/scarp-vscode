@@ -121,6 +121,69 @@ export async function run(): Promise<void> {
       'Compiler references should include the source use site');
       assert.ok(graph.modules.length >= 1 && graph.modules[0].id === 0,
         'Official compiler alpha.5 must inspect a project directory');
+
+      // Navigation must reject a compiler index if a different on-disk source
+      // changes before the CLI responds. That file is never opened in VS Code.
+      const navRoot = path.join(projectParent, 'standalone navigation');
+      await fs.mkdir(navRoot);
+      const navSource = path.join(navRoot, 'main.srp');
+      const navImport = path.join(navRoot, 'lib.srp');
+      await fs.writeFile(navSource, 'bind item = 1;\nprint(item);\n');
+      await fs.writeFile(navImport, 'pub bind answer = 1;\n');
+      const navUri = vscode.Uri.file(navSource);
+      await vscode.workspace.openTextDocument(navUri);
+      const navMarker = path.join(projectParent, 'navigation-inspection-started');
+      const navCompiler = path.join(projectParent, 'delayed-navigation');
+      const declaration = {
+        source: 0, span: [5, 9],
+        start: { line: 1, column: 6 }, end: { line: 1, column: 10 }
+      };
+      const reference = {
+        source: 0, span: [21, 25],
+        start: { line: 2, column: 7 }, end: { line: 2, column: 11 }
+      };
+      const navIndex = {
+        schema_version: 1, kind: 'scarp.references',
+        span_encoding: 'utf-8-bytes',
+        column_encoding: 'unicode-scalar', position_base: 1,
+        files: [{ id: 0, path: navSource }],
+        symbols: [{ id: 0, name: 'item', kind: 'binding', owner: null,
+          public: false, mutable: false, target_module: null,
+          location: declaration }],
+        references: [{ target: 0, kind: 'read', location: reference }]
+      };
+      const navScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const argv = process.argv.slice(2);',
+        'if (argv[0] !== "inspect" || argv[1] !== "references") process.exit(2);',
+        'fs.writeFileSync(' + JSON.stringify(navMarker) + ', "started");',
+        'setTimeout(() => { process.stdout.write(' +
+          JSON.stringify(JSON.stringify(navIndex)) + '); }, 350);'
+      ].join('\n');
+      await fs.writeFile(navCompiler, navScript, { mode: 0o755 });
+      await fs.chmod(navCompiler, 0o755);
+      await settings.update('compilerPath', navCompiler, vscode.ConfigurationTarget.Global);
+      try {
+        const currentNavigation = await vscode.commands.executeCommand<vscode.Location[]>(
+          'vscode.executeDefinitionProvider', navUri, new vscode.Position(1, 8));
+        assert.ok(currentNavigation?.some(item =>
+          item.uri.fsPath === navSource && item.range.start.line === 0 &&
+          item.range.start.character === 5),
+        'Unchanged standalone source should resolve compiler navigation');
+
+        await fs.rm(navMarker);
+        const pendingNavigation = vscode.commands.executeCommand<vscode.Location[]>(
+          'vscode.executeDefinitionProvider', navUri, new vscode.Position(1, 8));
+        await waitFor(() => fsSync.existsSync(navMarker) ? true : undefined,
+          'Delayed navigation inspection did not start');
+        await fs.writeFile(navImport, 'pub bind answer = 2;\n');
+        const staleNavigation = await pendingNavigation;
+        assert.equal(staleNavigation?.length ?? 0, 0,
+          'External rewrite of another source must suppress stale definition results');
+      } finally {
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
       const projectTerminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {
         const timer = setTimeout(() => {
           disposable.dispose();

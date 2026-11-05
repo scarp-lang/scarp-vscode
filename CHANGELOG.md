@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Guard compiler-backed Go to Definition and Find All References with bounded SHA-256 source snapshots before inspection, after the CLI completes and before returning VS Code locations. Detect changes to imported modules and standalone files made outside the editor; reject stale/unreloaded buffers and coordinates whose byte offsets disagree with the compiler.
+- Extend the existing trusted project snapshot mechanism to non-project Scarp source roots without weakening the project manifest check. Add regression tests for standalone import changes and new files.
+
 - Integrate the newly published Scarp compiler **v0.0.6-alpha.1** static source index with on-demand VS Code **Go to Definition** and **Find All References** across project files. Validate schema-v1 reference metadata, file ownership and UTF-8/UTF-16 coordinates; do not execute source, cache snapshot IDs, or guess on unsupported compilers.
 - Pin real-compiler CI/release smoke tests and Extension Host integration to v0.0.6-alpha.1, including `inspect references --json` checks. Preserve the current experimental-only publishing gate.
 
