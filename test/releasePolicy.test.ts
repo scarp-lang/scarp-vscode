@@ -40,15 +40,16 @@ test('release contents are verified before attaching or publishing', () => {
   assert.match(ci, /tampered-release|scarp-tampered/);
 });
 
-test('published compiler alpha.5 is pinned in both verification workflows', () => {
+test('published compiler 0.0.6-alpha.1 is pinned in both verification workflows', () => {
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
-  assert.equal((ci.match(/ref: v0\.0\.5-alpha\.5/g) ?? []).length, 2);
-  assert.equal((publish.match(/ref: v0\.0\.5-alpha\.5/g) ?? []).length, 1);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.1/g) ?? []).length, 2);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.1/g) ?? []).length, 1);
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
     assert.match(workflow, /scarp exec test\/fixtures\/hello\.srp/);
     assert.match(workflow, /scarp inspect modules --json/);
+    assert.match(workflow, /scarp inspect references --json/);
   }
 });
 
