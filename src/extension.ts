@@ -343,26 +343,33 @@ async function verifyProject(
 
 /**
  * Read the published alpha.5 module graph without running project statements.
- * A trusted, explicit root is required and unsaved editor buffers are rejected
- * because the compiler reads source directly from the filesystem.
+ * A trusted, explicit root is required. The compiler reads the filesystem:
+ * reject unsaved buffers and discard source inventories when disk changes
+ * during inspection, Quick Pick selection or opening the target document.
  */
+function unsavedProjectInput(root: string): vscode.TextDocument | undefined {
+  return vscode.workspace.textDocuments.find(source =>
+    source.uri.scheme === 'file' && source.isDirty &&
+    isWithinProject(root, source.uri.fsPath) &&
+    (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
+      path.basename(source.uri.fsPath) === 'Scarp.project')
+  );
+}
 async function browseProjectModules(
   explicit: vscode.Uri | undefined, output: vscode.OutputChannel
 ): Promise<void> {
   const directory = await projectDirectory(explicit);
   if (!directory) { return; }
   const root = directory.fsPath;
-  const unsaved = vscode.workspace.textDocuments.find(source =>
-    source.uri.scheme === 'file' && source.isDirty &&
-    isWithinProject(root, source.uri.fsPath) &&
-    (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
-      path.basename(source.uri.fsPath) === 'Scarp.project')
-  );
+  const unsaved = unsavedProjectInput(root);
   if (unsaved) {
     throw new Error('Save open Scarp project files before browsing modules: ' +
       unsaved.uri.fsPath);
   }
 
+  // Include compiler capability detection in the consistency window:
+  // the project must be unchanged throughout the entire static lookup.
+  const before = await snapshotProjectDisk(root);
   const { binary, version } = await validateProjectCompiler();
   const result = await executeProcess(binary,
     ['inspect', 'modules', '--json', '--diagnostic-format=json', '--', root], {
@@ -377,6 +384,10 @@ async function browseProjectModules(
     throw new Error('Project module browsing requires Scarp v0.0.5-alpha.5+ ' +
       'and a statically valid project. See Scarp output for compiler diagnostics.');
   }
+  const after = await snapshotProjectDisk(root);
+  if (!sameProjectDisk(before, after) || unsavedProjectInput(root)) {
+    throw new Error('Scarp project changed during module inspection. Save files and retry.');
+  }
   const canonicalRoot = await fs.realpath(root);
   const modules = parseBrowsableProjectModules(result.stdout, canonicalRoot);
   const selected = await vscode.window.showQuickPick(modules.map(module => ({
@@ -390,6 +401,10 @@ async function browseProjectModules(
     placeHolder: 'Select a statically inspected source module to open'
   });
   if (!selected) { return; }
+  if (unsavedProjectInput(root) ||
+      !sameProjectDisk(after, await snapshotProjectDisk(root))) {
+    throw new Error('Scarp project changed while choosing a module. Retry inspection.');
+  }
 
   // Re-resolve after the user chooses: a symlink might have changed between
   // the compiler's snapshot, opening the picker and selecting a file.
@@ -400,6 +415,15 @@ async function browseProjectModules(
     throw new Error('Selected Scarp module no longer resolves to a project source file.');
   }
   const document = await vscode.workspace.openTextDocument(vscode.Uri.file(canonicalFile));
+  // A clean VS Code buffer can lag an external filesystem rewrite.
+  if (document.isDirty ||
+      !Buffer.from(document.getText(), 'utf8').equals(await fs.readFile(canonicalFile))) {
+    throw new Error('Selected Scarp module differs from the saved compiler snapshot.');
+  }
+  if (unsavedProjectInput(root) ||
+      !sameProjectDisk(after, await snapshotProjectDisk(root))) {
+    throw new Error('Scarp project changed before opening the selected module. Retry.');
+  }
   await vscode.window.showTextDocument(document, { preview: true });
   output.appendLine('Scarp ' + version + ' — opened project module ' + canonicalFile);
 }

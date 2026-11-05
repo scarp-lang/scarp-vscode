@@ -104,6 +104,61 @@ export async function run(): Promise<void> {
       assert.ok(browsable.length >= 1 && browsable[0].isEntry);
       assert.equal(browsable[0].filename, await fs.realpath(entryUri.fsPath));
 
+      // Regression: module browsing must discard an otherwise valid inventory
+      // if a separate on-disk .srp changes during the compiler inspection.
+      // The CLI wrapper delegates all commands to the real official compiler,
+      // but holds the module JSON long enough for an external source rewrite.
+      const moduleMarker = path.join(projectParent, 'module-inspect-started');
+      const delayedModuleCompiler = path.join(projectParent, 'delayed-module-scarp');
+      const delayedModuleScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const { spawnSync } = require("node:child_process");',
+        'const argv = process.argv.slice(2);',
+        'const result = spawnSync(' + JSON.stringify(binary) + ', argv,',
+        '  { cwd: process.cwd(), encoding: "utf8", timeout: 12000 });',
+        'if (result.error) { console.error(result.error); process.exit(1); }',
+        'if (argv[0] === "inspect" && argv[1] === "modules") {',
+        '  fs.writeFileSync(' + JSON.stringify(moduleMarker) + ', "started");',
+        '  setTimeout(() => {',
+        '    process.stdout.write(result.stdout || "");',
+        '    process.stderr.write(result.stderr || "");',
+        '    process.exitCode = result.status ?? 1;',
+        '  }, 500);',
+        '} else {',
+        '  process.stdout.write(result.stdout || "");',
+        '  process.stderr.write(result.stderr || "");',
+        '  process.exitCode = result.status ?? 1;',
+        '}'
+      ].join('\n');
+      await fs.writeFile(delayedModuleCompiler, delayedModuleScript, { mode: 0o755 });
+      await fs.chmod(delayedModuleCompiler, 0o755);
+      await settings.update('compilerPath', delayedModuleCompiler,
+        vscode.ConfigurationTarget.Global);
+      try {
+        const extraSource = path.join(projectPath, 'external-module-test.srp');
+        await fs.writeFile(extraSource, 'pub bind answer = 1;\n');
+        const pending = vscode.commands.executeCommand(
+          'scarp.browseProjectModules', projectUri);
+        await waitFor(() => fsSync.existsSync(moduleMarker) ? true : undefined,
+          'Delayed compiler module inspection did not begin');
+        await fs.writeFile(extraSource, 'pub bind answer = 2;\n');
+        let deadline: NodeJS.Timeout | undefined;
+        try {
+          await Promise.race([
+            pending,
+            new Promise<never>((_, reject) => {
+              deadline = setTimeout(() => reject(new Error(
+                'Stale module inventory unexpectedly opened a Quick Pick')), 5000);
+            })
+          ]);
+        } finally {
+          if (deadline) { clearTimeout(deadline); }
+        }
+      } finally {
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
+
       // v0.0.6-alpha.1 provides a real cross-file symbol index. Exercise
       // Go to Definition and References through VS Code, not a mock server.
       const navigationUri = vscode.Uri.file(path.join(projectPath, 'navigation.srp'));
