@@ -80,7 +80,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.5
+          ref: v0.0.6-alpha.1
           path: compiler
       - name: Build official pinned compiler
         run: cargo build --locked --release --manifest-path compiler/Cargo.toml
@@ -102,7 +102,18 @@ jobs:
               const graph = JSON.parse(fs.readFileSync(0, "utf8"));
               if (graph.schema_version !== 1 || !Array.isArray(graph.modules) ||
                   graph.modules.length < 1) {
-                throw new Error("Scarp alpha.5 did not return a valid project module inventory.");
+                throw new Error("Scarp v0.0.6-alpha.1 did not return a valid project module inventory.");
+              }
+            '
+          # New static symbol/references schema-v1 from published 0.0.6-alpha.1.
+          compiler/target/release/scarp inspect references --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || graph.kind !== "scarp.references" ||
+                  !Array.isArray(graph.files) || !Array.isArray(graph.symbols) ||
+                  !Array.isArray(graph.references)) {
+                throw new Error("Scarp source navigation schema is incompatible.");
               }
             '
           project_output="$(compiler/target/release/scarp launch -- "$project_parent/my project")"
@@ -117,7 +128,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.5-alpha.5
+          ref: v0.0.6-alpha.1
           path: compiler
       - uses: actions/setup-node@v4
         with:
