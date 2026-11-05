@@ -23,7 +23,7 @@ export async function run(): Promise<void> {
   const binary = process.env.SCARP_TEST_BINARY;
   assert.ok(binary, 'SCARP_TEST_BINARY is required');
   assert.equal(await preferredExecutionVerb(binary), 'exec',
-    'Pinned Scarp alpha.5 should expose the canonical exec guide');
+    'Pinned Scarp compiler should expose the canonical exec guide');
 
   const extension = vscode.extensions.getExtension('ScarpLang.scarp');
   assert.ok(extension, 'Official Scarp extension must be installed in Extension Host');
@@ -101,6 +101,24 @@ export async function run(): Promise<void> {
         await fs.realpath(projectPath));
       assert.ok(browsable.length >= 1 && browsable[0].isEntry);
       assert.equal(browsable[0].filename, await fs.realpath(entryUri.fsPath));
+
+      // v0.0.6-alpha.1 provides a real cross-file symbol index. Exercise
+      // Go to Definition and References through VS Code, not a mock server.
+      const navigationUri = vscode.Uri.file(path.join(projectPath, 'navigation.srp'));
+      await fs.writeFile(navigationUri.fsPath, 'bind answer = 41;\nprint(answer + 1);\n');
+      const navigationDoc = await vscode.workspace.openTextDocument(navigationUri);
+      await vscode.window.showTextDocument(navigationDoc);
+      const usePosition = new vscode.Position(1, 8);
+      const definition = await vscode.commands.executeCommand<vscode.Location[]>(
+        'vscode.executeDefinitionProvider', navigationUri, usePosition);
+      assert.ok(definition?.some(item => item.uri.fsPath === navigationUri.fsPath &&
+        item.range.start.line === 0 && item.range.start.character === 5),
+      'Compiler navigation should resolve the actual Scarp binding');
+      const references = await vscode.commands.executeCommand<vscode.Location[]>(
+        'vscode.executeReferenceProvider', navigationUri, usePosition);
+      assert.ok(references?.some(item => item.uri.fsPath === navigationUri.fsPath &&
+        item.range.start.line === 1 && item.range.start.character === 6),
+      'Compiler references should include the source use site');
       assert.ok(graph.modules.length >= 1 && graph.modules[0].id === 0,
         'Official compiler alpha.5 must inspect a project directory');
       const projectTerminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {

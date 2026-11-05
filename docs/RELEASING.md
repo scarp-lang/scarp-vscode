@@ -61,7 +61,7 @@ Publishing requires an explicit human release action; routine pushes and pull re
 
 The shared `scripts/verify-vsix.sh` pre-release packaging gate checks the package publisher, extension ID, numeric version, compiled entrypoint, grammar and the VS Code pre-release marker. It rejects VSIX archives containing internal workflow, compiler-checkout, test, source, scripts or release-request files. In particular, approval marker files must remain in GitHub and **must not** ship inside the installed extension.
 
-The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The official compiler smoke test is pinned to the actually published `v0.0.5-alpha.5`. It checks `verify`, `exec`, project creation/verification/launch, and the new read-only `inspect modules --json PROJECT_DIRECTORY` route. This does **not** imply that native executable generation is available.
+The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The official compiler smoke test is pinned to the actually published `v0.0.6-alpha.1`. It checks `verify`, `exec`, project creation/verification/launch, and the new read-only `inspect modules --json PROJECT_DIRECTORY` route. This does **not** imply that native executable generation is available.
 
 **The PAT secret's existence cannot be verified by reading public repository files.** If `OVSX_PAT` is missing or empty, publishing fails before uploading to either registry.
 

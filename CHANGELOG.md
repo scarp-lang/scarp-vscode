@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Integrate the newly published Scarp compiler **v0.0.6-alpha.1** static source index with on-demand VS Code **Go to Definition** and **Find All References** across project files. Validate schema-v1 reference metadata, file ownership and UTF-8/UTF-16 coordinates; do not execute source, cache snapshot IDs, or guess on unsupported compilers.
+- Pin real-compiler CI/release smoke tests and Extension Host integration to v0.0.6-alpha.1, including `inspect references --json` checks. Preserve the current experimental-only publishing gate.
+
 - Add **Scarp: Browse Project Modules** with a read-only Quick Pick backed by the published Scarp alpha.5 `inspect modules --json PROJECT_DIRECTORY` contract. Open the selected project source without executing Scarp statements.
 - Validate schema-v1 inventory, bounded module/import/symbol counts, canonical project containment and symlink-safe opening; reject dirty editor inputs and document CLI errors. Cover malformed inventories and real compiler integration.
 

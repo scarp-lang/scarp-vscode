@@ -13,6 +13,7 @@ import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { snapshotProjectDisk, sameProjectDisk, type ProjectDiskSnapshot } from './projectDiskSnapshot';
 import { ProjectWatchRegistry } from './projectWatchRegistry';
 import { parseBrowsableProjectModules } from './projectModules';
+import { registerCompilerNavigation } from './navigationProvider';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -598,6 +599,7 @@ export function activate(context: vscode.ExtensionContext): void {
     { label: 'Scarp declarations' }
   );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation, projectMonitors,
+    ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
         void reconcileVerifiedProjects().catch(error =>

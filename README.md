@@ -17,10 +17,13 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - Keep Problems for independent .srp files separate; editing a file clears only outdated diagnostics from the affected verification.
 - **Optional verify on save:** debounce rapid saves, use static-only verification where supported, and quietly refresh Problems without opening a terminal or displaying popups.
 - **Outline / Go to Symbol in Editor:** show top-level Scarp `funcra` and `pure funcra` functions, `bind` / `var` declarations, `pub` exports, and `import ... as ...` aliases, without executing or compiling the file.
+- **Go to Definition / Find All References (compiler v0.0.6-alpha.1+):** invoke the official Scarp static source index on demand, resolving local and imported declarations (including named arguments). No background compiler process, caching across edits, runtime execution or invented definitions for builtins. Requires saved sources in a trusted workspace; older compilers retain editor-only Outline.
 - **Browse Project Modules (compiler alpha.5+):** open an explicitly selected project's statically inspected module list in a Quick Pick, with entrypoint, import counts and public-symbol counts; select a module to open its source. No source is executed or changed. Malformed/out-of-root results and unsaved project buffers are rejected.
 - **Scarp projects (compiler alpha.4+):** `Scarp: Create Project` creates a fresh `Scarp.project` and `src/main.srp` using the official compiler. `Scarp: Verify Project` checks the chosen project statically, and `Scarp: Launch Project` runs its declared entrypoint in an integrated terminal.
 
 **Syntax highlighting:** The v0.1.2 grammar is editor-only and never executes code. It follows Scarp compiler v0.0.5-alpha.3 token spelling, not Python/Rust conventions. Color choices are supplied by your VS Code theme. Strings and comments do not mistakenly color embedded keywords.
+
+**Compiler-backed definition/reference navigation** uses the v0.0.6-alpha.1 static `inspect references --json` schema. Right-click on a Scarp symbol and select Go to Definition or Find All References, or use VS Code's normal navigation shortcuts. Only saved, trusted local projects are inspected. If an explicit workspace root contains `Scarp.project`, the full project graph is examined; otherwise the active .srp file is the root. Compiler semantic errors and older compilers can return no navigation results. Results belong to a single compiler snapshot and may become stale after external disk edits; reissue the command after changes. Files are never executed.
 
 **Outline navigation** is intentionally limited to file-scope declarations. It uses a tolerant editor scanner; definitive syntax and semantics remain the official compiler's responsibility. Local variables are not shown in the Outline. No compiler installation or workspace trust is needed to navigate a document.
 
@@ -28,7 +31,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 The latest **published** pre-release is [v0.1.3](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.3). The v0.1.3 publishing workflow passed for Visual Studio Marketplace and Open VSX using the same verified VSIX. [Read the v0.1.3 release notes](docs/releases/v0.1.3.md).
 
-**Next planned experimental version:** v0.1.4 development is being checked against the officially published Scarp **v0.0.5-alpha.5** and a strengthened release integrity gate. See the [draft v0.1.4 release notes](docs/releases/v0.1.4.md). No v0.1.4 GitHub/Marketplace/Open VSX release has been published by these development changes. The compiler's new read-only project module inspection is tested through its CLI; the extension now offers a read-only project module browser backed by the official schema-v1 CLI inventory; it is not a graphical module dependency editor.
+**Next planned experimental version:** v0.1.4 development is being checked against the officially published Scarp **v0.0.6-alpha.1** and a strengthened release integrity gate. See the [draft v0.1.4 release notes](docs/releases/v0.1.4.md). No v0.1.4 GitHub/Marketplace/Open VSX release has been published by these development changes. The compiler's new read-only project module inspection is tested through its CLI; the extension now offers a read-only project module browser backed by the official schema-v1 CLI inventory; it is not a graphical module dependency editor.
 
 ## Install and run
 
@@ -77,7 +80,7 @@ Unspecified limits use compiler defaults.
 - **Verify on save safety:** disabled by default; only works in trusted workspaces, with saved local `.srp` files, and on compilers supporting non-executing `verify` (v0.0.5-alpha.3+). Older compilers are skipped, never silently executed.
 - Save events are coalesced for 300 ms per file and serialized. Errors update Problems and the Scarp Output channel without intrusive notifications; manual **Verify Current File** retains its existing behavior.
 - Unsaved document changes are saved first when invoking manual commands.
-- Native build, native compilation, code completion, AI coding, and debugging are out of scope.
+- Native build, native compilation, code completion, AI coding, and debugging are out of scope. Compiler-backed Go to Definition and Find All References are available on v0.0.6-alpha.1+.
 
 ## Contributing and testing
 
