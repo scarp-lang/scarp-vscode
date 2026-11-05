@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { preferredExecutionVerb } from '../../../src/cli';
+import { parseBrowsableProjectModules } from '../../../src/projectModules';
 
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
   for (let i = 0; i < 60; i++) {
@@ -34,7 +35,7 @@ export async function run(): Promise<void> {
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
     'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject',
-    'scarp.verifyProject', 'scarp.launchProject']) {
+    'scarp.verifyProject', 'scarp.browseProjectModules', 'scarp.launchProject']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -96,6 +97,10 @@ export async function run(): Promise<void> {
       };
       assert.equal(graph.schema_version, 1);
       assert.equal(graph.entry, 0);
+      const browsable = parseBrowsableProjectModules(inspected.stdout,
+        await fs.realpath(projectPath));
+      assert.ok(browsable.length >= 1 && browsable[0].isEntry);
+      assert.equal(browsable[0].filename, await fs.realpath(entryUri.fsPath));
       assert.ok(graph.modules.length >= 1 && graph.modules[0].id === 0,
         'Official compiler alpha.5 must inspect a project directory');
       const projectTerminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {

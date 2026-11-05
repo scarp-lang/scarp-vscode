@@ -37,7 +37,8 @@
     "onCommand:scarp.createProject",
     "onCommand:scarp.verifyProject",
     "onCommand:scarp.launchProject",
-    "onCommand:scarp.reconcileProjects"
+    "onCommand:scarp.reconcileProjects",
+    "onCommand:scarp.browseProjectModules"
   ],
   "contributes": {
     "languages": [
@@ -86,6 +87,11 @@
       {
         "command": "scarp.verifyProject",
         "title": "Scarp: Verify Project",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.browseProjectModules",
+        "title": "Scarp: Browse Project Modules",
         "category": "Scarp"
       },
       {

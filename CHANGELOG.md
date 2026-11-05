@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Add **Scarp: Browse Project Modules** with a read-only Quick Pick backed by the published Scarp alpha.5 `inspect modules --json PROJECT_DIRECTORY` contract. Open the selected project source without executing Scarp statements.
+- Validate schema-v1 inventory, bounded module/import/symbol counts, canonical project containment and symlink-safe opening; reject dirty editor inputs and document CLI errors. Cover malformed inventories and real compiler integration.
+
 - Align cross-platform CI and release readiness with the published Scarp v0.0.5-alpha.5 compiler. Smoke-test canonical `verify` and `exec`, project launch and read-only project module JSON inspection.
 - Harden experimental publishing: check out the approved GitHub release tag reachable from protected main, validate the compiled VSIX identity and pre-release marker before attachment, reject leaking internal source/scripts, and compare pre-attached release asset contents against the reviewed build before dual-registry publishing.
 - Share release package checks and add CI tampering regression coverage. Prepare experimental v0.1.4 release notes without tagging or publishing.

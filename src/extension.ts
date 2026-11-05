@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
 import { compilerVersion, executeProcess, preferredExecutionVerb } from './cli';
@@ -11,6 +12,7 @@ import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWork
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { snapshotProjectDisk, sameProjectDisk, type ProjectDiskSnapshot } from './projectDiskSnapshot';
 import { ProjectWatchRegistry } from './projectWatchRegistry';
+import { parseBrowsableProjectModules } from './projectModules';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -336,6 +338,70 @@ async function verifyProject(
   }
 }
 
+
+/**
+ * Read the published alpha.5 module graph without running project statements.
+ * A trusted, explicit root is required and unsaved editor buffers are rejected
+ * because the compiler reads source directly from the filesystem.
+ */
+async function browseProjectModules(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel
+): Promise<void> {
+  const directory = await projectDirectory(explicit);
+  if (!directory) { return; }
+  const root = directory.fsPath;
+  const unsaved = vscode.workspace.textDocuments.find(source =>
+    source.uri.scheme === 'file' && source.isDirty &&
+    isWithinProject(root, source.uri.fsPath) &&
+    (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
+      path.basename(source.uri.fsPath) === 'Scarp.project')
+  );
+  if (unsaved) {
+    throw new Error('Save open Scarp project files before browsing modules: ' +
+      unsaved.uri.fsPath);
+  }
+
+  const { binary, version } = await validateProjectCompiler();
+  const result = await executeProcess(binary,
+    ['inspect', 'modules', '--json', '--diagnostic-format=json', '--', root], {
+      cwd: root,
+      timeoutMs: config().get<number>('checkTimeoutMs', 30000),
+      maxOutputBytes: 2 * 1024 * 1024
+    });
+  if (result.exitCode !== 0) {
+    output.appendLine('Scarp ' + version + ' — module inspection failed for ' + root);
+    if (result.stderr) { output.append(result.stderr); }
+    output.show(true);
+    throw new Error('Project module browsing requires Scarp v0.0.5-alpha.5+ ' +
+      'and a statically valid project. See Scarp output for compiler diagnostics.');
+  }
+  const canonicalRoot = await fs.realpath(root);
+  const modules = parseBrowsableProjectModules(result.stdout, canonicalRoot);
+  const selected = await vscode.window.showQuickPick(modules.map(module => ({
+    label: module.displayPath,
+    description: module.isEntry ? 'Entry module' : undefined,
+    detail: module.importCount + ' import(s), ' + module.publicSymbols +
+      ' public symbol(s)',
+    filename: module.filename
+  })), {
+    title: 'Scarp: Browse Project Modules',
+    placeHolder: 'Select a statically inspected source module to open'
+  });
+  if (!selected) { return; }
+
+  // Re-resolve after the user chooses: a symlink might have changed between
+  // the compiler's snapshot, opening the picker and selecting a file.
+  const canonicalFile = await fs.realpath(selected.filename);
+  if (!isWithinProject(canonicalRoot, canonicalFile) ||
+      path.extname(canonicalFile).toLowerCase() !== '.srp' ||
+      !(await fs.stat(canonicalFile)).isFile()) {
+    throw new Error('Selected Scarp module no longer resolves to a project source file.');
+  }
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(canonicalFile));
+  await vscode.window.showTextDocument(document, { preview: true });
+  output.appendLine('Scarp ' + version + ' — opened project module ' + canonicalFile);
+}
+
 async function launchProject(explicit: vscode.Uri | undefined,
   output: vscode.OutputChannel): Promise<void> {
   const directory = await projectDirectory(explicit);
@@ -574,6 +640,8 @@ export function activate(context: vscode.ExtensionContext): void {
         uri, output, diagnostics, owners, projectMonitors, invalidateProject))),
     vscode.commands.registerCommand('scarp.reconcileProjects',
       (): Promise<void> => safe(reconcileVerifiedProjects)),
+    vscode.commands.registerCommand('scarp.browseProjectModules',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => browseProjectModules(uri, output))),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
