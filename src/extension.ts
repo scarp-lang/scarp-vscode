@@ -14,6 +14,7 @@ import { snapshotProjectDisk, sameProjectDisk, type ProjectDiskSnapshot } from '
 import { ProjectWatchRegistry } from './projectWatchRegistry';
 import { parseBrowsableProjectModules } from './projectModules';
 import { registerCompilerNavigation } from './navigationProvider';
+import { browseProjectSymbols } from './projectSymbolBrowser';
 
 const running = new Map<string, vscode.Terminal>();
 const checks = new Map<string, Promise<void>>();
@@ -644,6 +645,14 @@ export function activate(context: vscode.ExtensionContext): void {
       (): Promise<void> => safe(reconcileVerifiedProjects)),
     vscode.commands.registerCommand('scarp.browseProjectModules',
       (uri?: vscode.Uri): Promise<void> => safe(async () => browseProjectModules(uri, output))),
+    vscode.commands.registerCommand('scarp.browseProjectSymbols',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => {
+        const directory = await projectDirectory(uri);
+        if (!directory) { return; }
+        const { binary } = await validateProjectCompiler();
+        await browseProjectSymbols(directory.fsPath, binary, output,
+          config().get<number>('checkTimeoutMs', 30000));
+      })),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),

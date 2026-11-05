@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
-import { parseNavigationIndex, referencesFor, symbolAt } from '../src/navigationIndex';
+import { parseNavigationIndex, parseProjectSymbols, referencesFor, symbolAt } from '../src/navigationIndex';
 
 const root = path.resolve('fixtures', 'navigation');
 const source = path.join(root, 'src', 'main.srp');
@@ -90,4 +90,36 @@ test('rejects inventories beyond safe bounded limits', () => {
   large.references = Array(65537).fill((large.references as unknown[])[0]);
   assert.throws(() => parseNavigationIndex(JSON.stringify(large), root),
     /Invalid or unsupported Scarp references schema/);
+});
+
+test('parses published compiler symbols inventory without a references array', () => {
+  const data = payload();
+  data.kind = 'scarp.symbols';
+  delete data.references;
+  const index = parseProjectSymbols(JSON.stringify(data), root);
+  assert.equal(index.files.length, 2);
+  assert.equal(index.symbols[1].name, 'count');
+  assert.deepEqual(index.references, []);
+  assert.throws(() => parseNavigationIndex(JSON.stringify(data), root),
+    /Invalid or unsupported Scarp references schema/);
+});
+
+test('symbols view rejects incompatible metadata and unsafe files', () => {
+  const data = payload();
+  data.kind = 'scarp.symbols';
+  delete data.references;
+  const variants: Array<(value: Record<string, unknown>) => void> = [
+    obj => { obj.references = []; },
+    obj => { obj.kind = 'scarp.references'; },
+    obj => { obj.schema_version = 2; },
+    obj => { obj.column_encoding = 'utf-16'; },
+    obj => { (obj.files as Array<{ path: string }>)[0].path = path.resolve('outside.srp'); },
+    obj => { (obj.symbols as Array<{ location: { source: number } }>)[1].location.source = 3; }
+  ];
+  for (const mutate of variants) {
+    const value = structuredClone(data);
+    mutate(value);
+    assert.throws(() => parseProjectSymbols(JSON.stringify(value), root),
+      /Invalid or unsupported Scarp symbols schema/);
+  }
 });
