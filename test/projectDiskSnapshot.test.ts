@@ -116,3 +116,28 @@ test('rejects oversized input before reading it into extension host memory', asy
   await fs.truncate(file, 64 * 1024 * 1024 + 1);
   await assert.rejects(snapshotProjectDisk(root), /source bytes exceed the disk snapshot limit/);
 });
+
+test('standalone source navigation uses the same bounded snapshot without a manifest', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-nav-snapshot-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.writeFile(path.join(root, 'main.srp'), 'import "lib.srp" as lib;\n');
+  await fs.writeFile(path.join(root, 'lib.srp'), 'pub bind x = 1;\n');
+  await assert.rejects(snapshotProjectDisk(root), /manifest disappeared/);
+  const before = await snapshotProjectDisk(root, false);
+  assert.equal(before.size, 2);
+  assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root, false)), true);
+  await fs.writeFile(path.join(root, 'lib.srp'), 'pub bind x = 2;\n');
+  assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root, false)), false);
+  const after = await snapshotProjectDisk(root, false);
+  await fs.writeFile(path.join(root, 'README.md'), 'not a navigation input');
+  assert.equal(sameProjectDisk(after, await snapshotProjectDisk(root, false)), true);
+});
+
+test('standalone navigation snapshot detects newly added source files', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-nav-new-file-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.writeFile(path.join(root, 'main.srp'), 'print(1);\n');
+  const before = await snapshotProjectDisk(root, false);
+  await fs.writeFile(path.join(root, 'external.srp'), 'bind x = 1;\n');
+  assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root, false)), false);
+});
