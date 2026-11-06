@@ -216,6 +216,64 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha2-compatibility:
+    name: Official Scarp alpha.2 compatibility (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # Test the actual published compiler, never unreleased compiler main.
+      # Retain alpha.1 smoke and Editor Host jobs above as the minimum supported
+      # navigation/CLI baseline. The newest public prerelease is a separate gate.
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.2
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - name: Build and smoke-test official Scarp v0.0.6-alpha.2 CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.2'
+          compiler/target/release/scarp verify test/fixtures/hello.srp
+          compiler/target/release/scarp guide exec
+          output="$(compiler/target/release/scarp exec test/fixtures/hello.srp)"
+          test "$output" = "Hello from Scarp!"
+          project_parent="$(mktemp -d)"
+          trap 'rm -rf "$project_parent"' EXIT
+          compiler/target/release/scarp create -- "$project_parent/my project"
+          compiler/target/release/scarp verify --diagnostic-format=json -- "$project_parent/my project"
+          compiler/target/release/scarp inspect modules --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || !Array.isArray(graph.modules) ||
+                  graph.modules.length < 1) {
+                throw new Error("Scarp alpha.2 project module schema is incompatible.");
+              }
+            '
+          compiler/target/release/scarp inspect references --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || graph.kind !== "scarp.references" ||
+                  !Array.isArray(graph.files) || !Array.isArray(graph.symbols) ||
+                  !Array.isArray(graph.references)) {
+                throw new Error("Scarp alpha.2 source reference schema is incompatible.");
+              }
+            '
+          output="$(compiler/target/release/scarp launch -- "$project_parent/my project")"
+          test "$output" = "Hello from Scarp!"
+      - name: Exercise actual VS Code Extension Host with Scarp alpha.2
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
