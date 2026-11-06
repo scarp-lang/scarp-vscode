@@ -20,13 +20,15 @@ async function main(): Promise<void> {
         SCARP_UNTRUSTED_WORKSPACE: workspace,
         SCARP_UNTRUSTED_TEST_ROOT: root
       },
+      // @vscode/test-electron opens the workspace only when the folder
+      // is the FIRST launch argument. Otherwise it starts an empty trusted window.
       launchArgs: [
+        workspace,
         '--disable-extensions',
         '--skip-welcome',
         '--skip-release-notes',
         '--no-sandbox',
-        '--user-data-dir', userDataDir,
-        workspace
+        '--user-data-dir', userDataDir
       ]
     });
   } finally {
