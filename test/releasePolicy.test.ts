@@ -38,6 +38,14 @@ test('release contents are verified before attaching or publishing', () => {
   assert.match(ci, /bash scripts\/verify-vsix\.sh/);
   assert.match(ci, /bash scripts\/compare-vsix\.sh/);
   assert.match(ci, /tampered-release|scarp-tampered/);
+  assert.match(ci, /TAMPER_MEMBER=/);
+  assert.match(ci, /\[Content_Types\]\.xml/);
+  assert.match(ci, /duplicate ZIP member/);
+  const compare = repoFile('scripts/compare-vsix.sh');
+  assert.match(compare, /zipfile\.ZipFile/);
+  assert.match(compare, /archive\.namelist\(\)/);
+  assert.match(compare, /len\(names\) != len\(set\(names\)\)/);
+  assert.match(compare, /sha256\(built, name\)/);
 });
 
 test('pre-release publishing reruns trusted and Restricted Mode editor tests before any asset upload', () => {
