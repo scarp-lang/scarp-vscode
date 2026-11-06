@@ -23,6 +23,9 @@ const pendingStarts = new Map<string, { cancelled: boolean }>();
 // Cancel obsolete file Run startup compiler probes on source edits, closes,
 // Stop, and compiler switches; never affect already-started terminals.
 const activeFileRunProbes = new Map<string, AbortController>();
+// A project launch must not open a terminal for a manifest/source snapshot
+// superseded while compiler capability probing. Scopes are explicit roots.
+const activeProjectRunProbes = new Map<string, AbortController>();
 let stopGeneration = 0;
 // Discard in-flight results if scarp.compilerPath changes.
 // Previous verified Problems remain until the user checks again.
@@ -514,12 +517,31 @@ async function launchProject(explicit: vscode.Uri | undefined,
     throw new Error('Scarp is already running or starting this project. Stop it before relaunching.');
   }
   const pending = { cancelled: false };
+  const controller = new AbortController();
   pendingStarts.set(key, pending);
+  activeProjectRunProbes.set(key, controller);
+  const isCurrent = (): boolean => !pending.cancelled &&
+    !controller.signal.aborted && generation === stopGeneration &&
+    revision === compilerRevision && vscode.workspace.isTrusted;
   try {
-    const { binary, version } = await validateProjectCompiler();
-    if (pending.cancelled || generation !== stopGeneration ||
-        revision !== compilerRevision) {
-      output.appendLine('Scarp project launch cancelled before terminal startup.');
+    // Launching a project while one of its sources has unsaved changes would
+    // run disk bytes different from those shown in the user's editor.
+    const dirty = unsavedProjectInput(key);
+    if (dirty) {
+      throw new Error('Save open Scarp project files before launching: ' +
+        dirty.uri.fsPath);
+    }
+    const diskBefore = await snapshotProjectDisk(key);
+    if (!isCurrent()) { return; }
+    const { binary, version } = await validateProjectCompiler(controller.signal);
+    if (!isCurrent()) { return; }
+    // Guard against external editors and tools as well as VS Code changes.
+    // No asynchronous gap remains between this final check and createTerminal.
+    const diskAfter = await snapshotProjectDisk(key);
+    if (!isCurrent() || unsavedProjectInput(key) ||
+        !sameProjectDisk(diskBefore, diskAfter)) {
+      output.appendLine('Scarp project changed during launch preparation; ' +
+        'obsolete terminal startup cancelled. Save sources and retry.');
       return;
     }
     const terminal = vscode.window.createTerminal({
@@ -532,11 +554,13 @@ async function launchProject(explicit: vscode.Uri | undefined,
     output.appendLine('Scarp ' + version + ' — launch project ' + key);
     terminal.show();
   } catch (error) {
-    // A Stop that overlaps compiler capability detection wins over startup.
-    if (!pending.cancelled && generation === stopGeneration &&
-        revision === compilerRevision) { throw error; }
+    // Stop, edits, and compiler switches are cancellations, not late errors.
+    if (isCurrent()) { throw error; }
   } finally {
     if (pendingStarts.get(key) === pending) { pendingStarts.delete(key); }
+    if (activeProjectRunProbes.get(key) === controller) {
+      activeProjectRunProbes.delete(key);
+    }
   }
 }
 
@@ -645,6 +669,7 @@ function stop(): void {
   stopGeneration++;
   for (const pending of pendingStarts.values()) { pending.cancelled = true; }
   for (const controller of activeFileRunProbes.values()) { controller.abort(); }
+  for (const controller of activeProjectRunProbes.values()) { controller.abort(); }
   for (const terminal of running.values()) { terminal.dispose(); }
   running.clear();
   vscode.window.showInformationMessage(count || pendingCount
@@ -715,6 +740,9 @@ export function activate(context: vscode.ExtensionContext): void {
     if (path.extname(filename).toLowerCase() === '.srp' ||
         path.basename(filename) === 'Scarp.project') {
       for (const [root, controller] of activeProjectCheckAborts) {
+        if (isWithinProject(root, filename)) { controller.abort(); }
+      }
+      for (const [root, controller] of activeProjectRunProbes) {
         if (isWithinProject(root, filename)) { controller.abort(); }
       }
     }
@@ -811,6 +839,9 @@ export function activate(context: vscode.ExtensionContext): void {
           controller.abort();
         }
         for (const controller of activeFileRunProbes.values()) {
+          controller.abort();
+        }
+        for (const controller of activeProjectRunProbes.values()) {
           controller.abort();
         }
         for (const controller of activeProjectCheckAborts.values()) {
