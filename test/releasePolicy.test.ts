@@ -62,6 +62,13 @@ test('pre-release publishing reruns trusted and Restricted Mode editor tests bef
   assert.match(publish, /xvfb-run -a npm run test:untrusted/);
   assert.match(ci, /name: VS Code Extension Host \(Linux\)/);
   assert.match(ci, /name: VS Code Restricted Mode \(Linux\)/);
+  const untrustedJob = ci.slice(ci.indexOf('  editor-untrusted:'));
+  const runUntrusted = untrustedJob.indexOf('xvfb-run -a npm run test:untrusted');
+  const packageAfter = untrustedJob.indexOf('npm run package:pre');
+  const verifyAfter = untrustedJob.indexOf('bash scripts/verify-vsix.sh');
+  assert.ok(runUntrusted >= 0 && packageAfter > runUntrusted &&
+    verifyAfter > packageAfter,
+  'CI must package and verify a VSIX after the Restricted Mode editor download');
 });
 
 test('published compiler 0.0.6-alpha.1 is pinned in both verification workflows', () => {
