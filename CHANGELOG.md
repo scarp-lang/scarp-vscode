@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.5 development
 
+- Prevent **Run Current File** from opening a terminal for a saved `.srp` source externally rewritten while the compiler version or `guide exec` capability probes are running. Reuse the bounded selected-source disk fingerprint and revalidate it immediately before terminal creation. Preserve cancellation on in-editor edits, Stop and compiler switches, and leave unrelated sibling files independent. Add real VS Code Extension Host regressions for both startup phases and successful Run after a sibling-only change.
+
+
 - Qualify the newly published Scarp **v0.0.6-alpha.2** compiler against the VS Code extension's real CLI contract and trusted VS Code Extension Host, without removing pinned alpha.1 backwards-compatibility CI checks or changing protected-branch check names. Update the experimental-only release gate to build and verify alpha.2, retain module/reference JSON shape verification and version assertions, and clarify that alpha.2's new optional Rust embedding caches do not implement a language server or CLI native compilation. No extension release is published by this work.
 
 
