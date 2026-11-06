@@ -42,10 +42,13 @@ export class DebouncedSerialTasks<T> {
       this.reportError(error);
     } finally {
       this.active.delete(key);
+      const hadRerun = this.rerun.has(key);
       const latest = this.rerun.get(key);
       this.rerun.delete(key);
-      if (!this.disposed && latest !== undefined) {
-        this.request(key, latest);
+      // A newer save may still be inside its debounce window. Do not
+      // replace its pending timer with an older, already-expired rerun.
+      if (!this.disposed && hadRerun && !this.timers.has(key)) {
+        this.request(key, latest as T);
       }
     }
   }
