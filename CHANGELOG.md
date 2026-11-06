@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.5 development
 
+- Prevent stale **Launch Project** terminals: reject unsaved Scarp source/manifest buffers, snapshot the explicitly selected project before compiler capability detection and recheck the saved source tree immediately before opening a terminal. Abort in-flight version/capability probes on source edits, Stop or compiler changes; detect external filesystem rewrites using bounded SHA-256 snapshots, while unrelated projects remain independent. Test all paths in a real VS Code Extension Host with a SIGTERM-resistant fake compiler.
+
+
 - Abort obsolete **Go to Definition / Find All References** compiler inspections as soon as any open `.srp` source or `Scarp.project` manifest in the selected navigation root is edited. Cancel when the requested document closes, while leaving other source roots, standalone checks and Run terminals untouched. Recheck dirty buffers after snapshot capture to close the listener-registration race; use the existing bounded SIGTERM/SIGKILL shutdown. Add real VS Code Extension Host tests for stubborn compiler cancellation on source/import edits and successful navigation after an unrelated edit.
 
 
