@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Harden **Scarp: Browse Project Modules** with bounded source snapshots before CLI capability detection, after static inspection, after Quick Pick selection and immediately before editor opening. Reject externally modified imports/manifest, dirty buffers and stale clean editor documents rather than opening an invalid source inventory.
+- Add a real VS Code Extension Host regression that wraps the released Scarp compiler, holds a valid static module inventory and modifies another saved source during the response; no stale Quick Pick may be shown.
+
 - Add **Scarp: Browse Project Symbols** using the officially published v0.0.6-alpha.1 `inspect symbols --json` schema. Search statically verified project declarations from a Quick Pick and jump to the source with canonical path, strict UTF-8 byte/Unicode column and disk-snapshot validation. Unsupported compilers, stale source changes and unsaved buffers fail closed.
 - Share the parser's bounded schema-v1 file/symbol validation across both symbol and reference views; add schema contract tests and a real-compiler Extension Host symbol inventory smoke test.
 
