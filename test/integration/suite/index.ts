@@ -720,8 +720,8 @@ export async function run(): Promise<void> {
       // The final saved file is invalid; only the newest version may populate
       // Problems, without opening a terminal or running program statements.
       for (const source of [
-        'print("intermediate repair");\\n',
-        'print("newest source is missing its semicolon")\\n'
+        'print("intermediate repair");\n',
+        'print("newest source is missing its semicolon")\n'
       ]) {
         const edit = new vscode.WorkspaceEdit();
         edit.replace(autoUri, new vscode.Range(autoDocument.positionAt(0),
