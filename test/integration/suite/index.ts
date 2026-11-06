@@ -434,6 +434,85 @@ export async function run(): Promise<void> {
       await fs.rm(projectParent, { recursive: true, force: true });
     }
 
+    // End-to-end: the published compiler reports a syntax error in an
+    // imported source, and the extension must attach that error to the
+    // imported file (not to the active entrypoint).
+    const importParent = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-import-'));
+    const importRoot = path.join(importParent, 'source files with spaces');
+    const entryWithSpaces = vscode.Uri.file(path.join(importRoot, 'entry with spaces.srp'));
+    const importedWithSpaces = vscode.Uri.file(path.join(importRoot, 'library with spaces.srp'));
+    try {
+      await fs.mkdir(importRoot);
+      await fs.writeFile(entryWithSpaces.fsPath,
+        'import "library with spaces.srp" as library;\nprint(library.answer);\n');
+      await fs.writeFile(importedWithSpaces.fsPath, 'pub bind answer = ;\n');
+      const importedEntry = await vscode.workspace.openTextDocument(entryWithSpaces);
+      assert.equal(importedEntry.languageId, 'scarp');
+      await vscode.window.showTextDocument(importedEntry);
+      await vscode.commands.executeCommand('scarp.checkFile');
+      const importedErrors = vscode.languages.getDiagnostics(importedWithSpaces);
+      assert.ok(importedErrors.some(item =>
+        item.source === 'Scarp' && item.severity === vscode.DiagnosticSeverity.Error),
+      'The official compiler error must appear on the imported source in Problems');
+      assert.equal(vscode.languages.getDiagnostics(entryWithSpaces).length, 0,
+        'An imported-source error must not be misattributed to the entrypoint');
+
+      // Missing compiler must never launch a terminal or overwrite the
+      // most recent valid compiler diagnostics with invented success.
+      const missingPath = path.join(importRoot, 'no-such-compiler');
+      await settings.update('compilerPath', missingPath, vscode.ConfigurationTarget.Global);
+      try {
+        const beforeTerminals = vscode.window.terminals.length;
+        await vscode.commands.executeCommand('scarp.checkFile');
+        await vscode.commands.executeCommand('scarp.runFile');
+        assert.equal(vscode.window.terminals.length, beforeTerminals,
+          'Missing compiler must not launch a terminal');
+        assert.deepEqual(vscode.languages.getDiagnostics(importedWithSpaces),
+          importedErrors, 'Missing compiler must preserve last verified Problems');
+      } finally {
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
+
+      // Repair the library, re-check through the real compiler, and ensure
+      // previously owned imported Problems are removed.
+      await fs.writeFile(importedWithSpaces.fsPath, 'pub bind answer = 42;\n');
+      await vscode.window.showTextDocument(importedEntry);
+      await vscode.commands.executeCommand('scarp.checkFile');
+      assert.equal(vscode.languages.getDiagnostics(importedWithSpaces).length, 0,
+        'Rechecking repaired imports must clear stale imported-file Problems');
+
+      // Run a standalone file whose source *and imported module* paths contain
+      // spaces; the command must supply an argv array, not shell interpolation.
+      const startedInSpaces = new Promise<vscode.Terminal>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          listener.dispose();
+          reject(new Error('No Scarp terminal opened for a path with spaces'));
+        }, 6000);
+        const listener = vscode.window.onDidOpenTerminal(terminal => {
+          if (terminal.name !== 'Scarp: entry with spaces.srp') { return; }
+          clearTimeout(timer);
+          listener.dispose();
+          resolve(terminal);
+        });
+      });
+      await vscode.commands.executeCommand('scarp.runFile');
+      const spacedTerminal = await startedInSpaces;
+      const options = spacedTerminal.creationOptions as vscode.TerminalOptions;
+      assert.equal(options.shellPath, binary,
+        'Scarp must launch the official compiler directly');
+      const args = options.shellArgs;
+      assert.ok(Array.isArray(args), 'Scarp must pass shell arguments as an argv array');
+      assert.equal(args.at(-2), '--');
+      assert.equal(args.at(-1), entryWithSpaces.fsPath);
+      assert.equal(options.cwd, importRoot);
+      await vscode.commands.executeCommand('scarp.stopProgram');
+      await waitFor(() => vscode.window.terminals.includes(spacedTerminal) ? undefined : true,
+        'Stop command did not close a source terminal with spaces');
+    } finally {
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await fs.rm(importParent, { recursive: true, force: true });
+    }
+
     const invalidUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/invalid.srp'));
     const invalid = await vscode.workspace.openTextDocument(invalidUri);
     assert.equal(invalid.languageId, 'scarp');
