@@ -3,7 +3,9 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { snapshotProjectDisk, sameProjectDisk } from '../src/projectDiskSnapshot';
+import {
+  snapshotProjectDisk, snapshotScarpSourceFile, sameProjectDisk
+} from '../src/projectDiskSnapshot';
 
 async function project(): Promise<string> {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-disk-snapshot-'));
@@ -140,4 +142,39 @@ test('standalone navigation snapshot detects newly added source files', async t 
   const before = await snapshotProjectDisk(root, false);
   await fs.writeFile(path.join(root, 'external.srp'), 'bind x = 1;\n');
   assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root, false)), false);
+});
+
+
+test('single-file fingerprint detects external rewrites without scanning sibling sources', async t => {
+  const root = await project();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const selected = path.join(root, 'src', 'main.srp');
+  const sibling = path.join(root, 'src', 'unrelated.srp');
+  const original = await snapshotScarpSourceFile(selected);
+  assert.equal(original, await snapshotScarpSourceFile(selected));
+  await fs.writeFile(sibling, 'pub bind unrelated = 1;\n');
+  assert.equal(original, await snapshotScarpSourceFile(selected),
+    'Only the explicitly selected standalone input is fingerprinted');
+  const times = await fs.stat(selected);
+  await fs.writeFile(selected, 'print("two");\n');
+  await fs.utimes(selected, times.atime, times.mtime);
+  assert.notEqual(original, await snapshotScarpSourceFile(selected),
+    'Even an equal-size rewrite with restored mtime must invalidate results');
+});
+
+test('single-file fingerprint detects unlink, oversize and symlink target rewrites', async t => {
+  const root = await project();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const source = path.join(root, 'src', 'main.srp');
+  const alias = path.join(root, 'src', 'alias.srp');
+  if (process.platform !== 'win32') {
+    await fs.symlink('main.srp', alias, 'file');
+    const prior = await snapshotScarpSourceFile(alias);
+    await fs.writeFile(source, 'print("updated");\n');
+    assert.notEqual(prior, await snapshotScarpSourceFile(alias));
+  }
+  await fs.truncate(source, 64 * 1024 * 1024 + 1);
+  await assert.rejects(snapshotScarpSourceFile(source), /snapshot byte limit/);
+  await fs.unlink(source);
+  await assert.rejects(snapshotScarpSourceFile(source), /ENOENT/);
 });

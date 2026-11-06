@@ -10,7 +10,10 @@ import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
-import { snapshotProjectDisk, sameProjectDisk, type ProjectDiskSnapshot } from './projectDiskSnapshot';
+import {
+  snapshotProjectDisk, snapshotScarpSourceFile, sameProjectDisk,
+  type ProjectDiskSnapshot
+} from './projectDiskSnapshot';
 import { ProjectWatchRegistry } from './projectWatchRegistry';
 import { parseBrowsableProjectModules } from './projectModules';
 import { registerCompilerNavigation } from './navigationProvider';
@@ -180,6 +183,22 @@ async function check(
         (mode === 'manual' || vscode.workspace.getConfiguration('scarp', doc.uri)
           .get<boolean>('verifyOnSave', false));
       if (!current()) { return; }
+      // VS Code document versions do not reliably change when an external
+      // editor replaces the saved source. Capture only this selected file;
+      // recursively hashing its parent could scan an unrelated monorepo.
+      const diskBefore = await snapshotScarpSourceFile(filename);
+      if (!current()) { return; }
+      const diskCurrent = async (): Promise<boolean> => {
+        if (!current()) { return false; }
+        try {
+          const diskAfter = await snapshotScarpSourceFile(filename);
+          return diskBefore === diskAfter && current();
+        } catch (error) {
+          output.appendLine('Scarp source disk snapshot could not be validated: ' +
+            String(error));
+          return false;
+        }
+      };
       const { binary, version } = await validateCompiler(controller.signal);
       if (!current()) { return; }
       const staticVerify = await supportsStaticVerify(binary, controller.signal);
@@ -203,10 +222,15 @@ async function check(
         signal: controller.signal
       });
       if (!current()) { return; }
+      if (!(await diskCurrent())) {
+        output.appendLine('Scarp source changed on disk during file verification; ' +
+          'outdated diagnostics discarded.');
+        return;
+      }
       if (result.stdout) { output.append(result.stdout); }
       if (result.stderr) { output.append(result.stderr); }
       const count = await showProblems(doc, result.stderr, diagnostics, owners,
-        expectedVersion, current);
+        expectedVersion, diskCurrent);
       if (count === undefined) {
         output.appendLine(revision !== compilerRevision
           ? 'Scarp compiler changed during file verification; previous result discarded.'
