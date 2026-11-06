@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Preserve the **newest** save request when an older debounced rerun is waiting on an active verification. An older rerun can no longer cancel a newer save's pending timer when the active check completes. Keep same-file verification serialized, independent files unaffected, and support generic task payloads whose value is `undefined`.
+
 - Cancel pending compiler-backed Go to Definition / Find All References requests promptly using VS Code cancellation tokens and a bounded SIGTERM/SIGKILL child-process shutdown. Abort stale inspections when `scarp.compilerPath` changes, suppress results from the previous executable, and dispose listeners on all outcomes. Cover pre-cancelled and running subprocesses, finished-process cancellation, and real Extension Host navigation races with compiler switches.
 
 - Fix ZIP archive release comparison for literal names such as `[Content_Types].xml`, and reject duplicate member names. The old `unzip -p` wildcard behavior could silently compare empty outputs for a required VSIX metadata file. Compare all exact uncompressed bytes with a bounded-memory streaming SHA-256 check instead, and exercise both tampered XML and duplicate-member regressions in CI.
