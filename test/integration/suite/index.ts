@@ -892,16 +892,15 @@ export async function run(): Promise<void> {
         d.message.includes('stale source result')),
       'Disk rewrite must suppress obsolete compiler diagnostics');
 
-      // A later check must still work after the editor adopts the external
-      // rewrite. VS Code can keep an older clean buffer after external I/O;
-      // explicitly edit and save a new document version before re-verifying.
-      const refreshedEdit = new vscode.WorkspaceEdit();
-      refreshedEdit.insert(externalUri, new vscode.Position(0, 0),
-        '// editor confirms current disk source\n');
-      assert.ok(await vscode.workspace.applyEdit(refreshedEdit),
-        'Editor must accept the updated source before the fresh verification');
-      assert.ok(await source.save(),
-        'A fresh editor save should synchronize the source after external changes');
+      // Revert/reload external changes instead of overwriting them. VS Code
+      // intentionally rejects saving a stale buffer ("File Modified Since").
+      // The next check must work once the editor adopts the updated disk source.
+      await vscode.window.showTextDocument(source);
+      await vscode.commands.executeCommand('workbench.action.files.revert');
+      const refreshedSource = await vscode.workspace.openTextDocument(externalUri);
+      await vscode.window.showTextDocument(refreshedSource);
+      assert.equal(refreshedSource.getText(), 'print("externally changed source");\n',
+        'The editor must load the external source bytes before re-verifying');
       await fs.writeFile(checkMode, 'final');
       await vscode.commands.executeCommand('scarp.checkFile');
       assert.ok(vscode.languages.getDiagnostics(externalUri).some(d =>
