@@ -99,7 +99,7 @@ test('cancelling a running inspection force-stops SIGTERM-resistant compilers', 
     'process.on("SIGTERM", () => {});',
     'fs.writeFileSync(' + JSON.stringify(marker) + ', String(process.pid));',
     'setInterval(() => {}, 1000);'
-  ].join('\\n');
+  ].join('\n');
   const controller = new AbortController();
   const pending = executeProcess(process.execPath, ['-e', script], {
     timeoutMs: 5000, signal: controller.signal
