@@ -655,6 +655,11 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
       output.appendLine('Scarp file run cancelled before compiler detection.');
       return;
     }
+    // A separate editor or generator may rewrite the saved file while the
+    // Scarp compiler version and execution-command probes are running.
+    // Capture only the selected input: don't traverse an unrelated workspace.
+    const sourceBefore = await snapshotScarpSourceFile(filename);
+    if (!isCurrent()) { return; }
     const { binary, version } = await validateCompiler(controller.signal);
     if (!isCurrent()) {
       output.appendLine('Scarp file run cancelled during compiler detection.');
@@ -663,6 +668,22 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
     const command = await preferredExecutionVerb(binary, controller.signal);
     if (!isCurrent()) {
       output.appendLine('Scarp file run cancelled before terminal startup.');
+      return;
+    }
+    // The terminal reads the saved file from disk, not the editor buffer.
+    // Refuse a stale launch if external tools replaced or rewrote that file
+    // during our asynchronous compiler probes. A missing/deleted file also
+    // fails closed, rather than turning into an unrelated Run error.
+    let sourceStillCurrent = false;
+    try {
+      sourceStillCurrent = sourceBefore === await snapshotScarpSourceFile(filename);
+    } catch (error) {
+      output.appendLine('Scarp file changed or disappeared during Run preparation: ' +
+        String(error));
+    }
+    if (!isCurrent() || !sourceStillCurrent) {
+      output.appendLine('Scarp file changed on disk before Run startup; ' +
+        'obsolete terminal cancelled. Reload the file and retry.');
       return;
     }
     // VS Code launches the compiler directly as the terminal process.

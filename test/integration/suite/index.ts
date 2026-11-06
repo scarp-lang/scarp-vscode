@@ -1157,6 +1157,102 @@ export async function run(): Promise<void> {
       await fs.rm(startupRoot, { recursive: true, force: true });
     }
 
+    // File Run must not open a terminal for an old saved input when an
+    // external tool rewrites that file during either compiler probe. The
+    // document can remain clean, with an unchanged editor version.
+    const diskRunRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-disk-run-race-'));
+    const diskRunUri = vscode.Uri.file(path.join(diskRunRoot, 'disk-run.srp'));
+    const diskRunSibling = path.join(diskRunRoot, 'independent.srp');
+    const diskRunBinary = path.join(diskRunRoot, 'disk-run-compiler');
+    const diskRunPhase = path.join(diskRunRoot, 'phase');
+    const diskRunStarted = path.join(diskRunRoot, 'probe-started');
+    const diskRunRelease = path.join(diskRunRoot, 'probe-release');
+    const diskRunExecuted = path.join(diskRunRoot, 'execution-started');
+    const diskRunScript = [
+      '#!/usr/bin/env node',
+      'const fs = require("node:fs");',
+      'const args = process.argv.slice(2);',
+      'const phase = fs.readFileSync(' + JSON.stringify(diskRunPhase) + ', "utf8");',
+      'if (args[0] === "exec" || args[0] === "run") {',
+      '  fs.writeFileSync(' + JSON.stringify(diskRunExecuted) + ', "executed");',
+      '  process.exit(0);',
+      '}',
+      'const version = args[0] === "--version";',
+      'const guide = args[0] === "guide" && args[1] === "exec";',
+      'if (!version && !guide) process.exit(2);',
+      'const finish = () => {',
+      '  console.log(version ? "scarp 0.0.6-alpha.2" : "Usage: scarp exec [OPTIONS]");',
+      '  process.exit(0);',
+      '};',
+      'if ((phase === "version" && version) ||',
+      '    ((phase === "guide" || phase === "sibling") && guide)) {',
+      '  fs.writeFileSync(' + JSON.stringify(diskRunStarted) + ', "started");',
+      '  const poll = setInterval(() => {',
+      '    if (!fs.existsSync(' + JSON.stringify(diskRunRelease) + ')) return;',
+      '    clearInterval(poll); finish();',
+      '  }, 20);',
+      '} else finish();'
+    ].join('\n');
+    const diskRunTerminals: vscode.Terminal[] = [];
+    const diskRunObserver = vscode.window.onDidOpenTerminal(terminal => {
+      if (terminal.name === 'Scarp: disk-run.srp') {
+        diskRunTerminals.push(terminal);
+      }
+    });
+    try {
+      await fs.writeFile(diskRunBinary, diskRunScript, { mode: 0o755 });
+      await fs.chmod(diskRunBinary, 0o755);
+      await fs.writeFile(diskRunUri.fsPath, 'print("original");\n');
+      await fs.writeFile(diskRunSibling, 'pub bind unrelated = 1;\n');
+      const diskRunDocument = await vscode.workspace.openTextDocument(diskRunUri);
+      await vscode.window.showTextDocument(diskRunDocument);
+      await settings.update('compilerPath', diskRunBinary,
+        vscode.ConfigurationTarget.Global);
+      for (const phase of ['version', 'guide', 'sibling']) {
+        // Each probe phase is independent. After the previous external write,
+        // reload the saved bytes rather than attempting another Run from a
+        // potentially stale editor buffer ("File Modified Since").
+        await vscode.window.showTextDocument(diskRunDocument);
+        if (phase !== 'version') {
+          await vscode.commands.executeCommand('workbench.action.files.revert');
+          assert.equal(diskRunDocument.getText(),
+            await fs.readFile(diskRunUri.fsPath, 'utf8'),
+            'Reload external source before exercising the next Run probe');
+        }
+        await fs.writeFile(diskRunPhase, phase);
+        await fs.rm(diskRunStarted, { force: true });
+        await fs.rm(diskRunRelease, { force: true });
+        const openedBefore = diskRunTerminals.length;
+        const pending = vscode.commands.executeCommand('scarp.runFile');
+        await waitFor(() => fsSync.existsSync(diskRunStarted) ? true : undefined,
+          phase + ': Run did not start its delayed compiler probe');
+        if (phase === 'sibling') {
+          await fs.writeFile(diskRunSibling, 'pub bind unrelated = 2;\n');
+        } else {
+          await fs.writeFile(diskRunUri.fsPath,
+            'print("external change during ' + phase + '");\n');
+        }
+        await fs.writeFile(diskRunRelease, 'go');
+        await pending;
+        if (phase !== 'sibling') {
+          assert.equal(diskRunTerminals.length, openedBefore,
+            phase + ': externally rewritten Scarp source cannot launch');
+          assert.equal(fsSync.existsSync(diskRunExecuted), false,
+            phase + ': stale Scarp source must never be executed');
+        } else {
+          await waitFor(() => diskRunTerminals.length > openedBefore
+            ? true : undefined,
+          'An unrelated sibling rewrite must not cancel a valid file Run');
+          await vscode.commands.executeCommand('scarp.stopProgram');
+        }
+      }
+    } finally {
+      await fs.writeFile(diskRunRelease, 'go');
+      diskRunObserver.dispose();
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await fs.rm(diskRunRoot, { recursive: true, force: true });
+    }
+
     // Cancelling a stale manual file check must actually terminate only its
     // compiler subprocess, not wait for the configured timeout or erase other
     // files' completed Problems. Also cancel on an in-editor source edit.
