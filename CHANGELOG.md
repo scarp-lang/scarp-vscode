@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.5 development
 
+- Abort obsolete **Go to Definition / Find All References** compiler inspections as soon as any open `.srp` source or `Scarp.project` manifest in the selected navigation root is edited. Cancel when the requested document closes, while leaving other source roots, standalone checks and Run terminals untouched. Recheck dirty buffers after snapshot capture to close the listener-registration race; use the existing bounded SIGTERM/SIGKILL shutdown. Add real VS Code Extension Host tests for stubborn compiler cancellation on source/import edits and successful navigation after an unrelated edit.
+
+
 - Stop stale **Run Current File** startups if the saved editor document is edited or closed during compiler version or execution-command probing. Cancel the actual pending child process (including SIGTERM-resistant probes) on source changes, Stop and compiler switches, and prevent a terminal from launching an older saved version. Keep running terminals and unrelated documents unaffected; add real VS Code Extension Host regressions for edits during both probes and Stop.
 
 - Stop active **automatic verify-on-save** compiler processes when `scarp.verifyOnSave` is switched off, respecting resource-scoped overrides and skipping any stale automatic diagnostics. Explicit **Verify Current File** checks continue independently when that setting changes. Add a real VS Code Extension Host test with a SIGTERM-resistant compiler for both cases.
