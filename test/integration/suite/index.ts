@@ -897,7 +897,7 @@ export async function run(): Promise<void> {
       // explicitly edit and save a new document version before re-verifying.
       const refreshedEdit = new vscode.WorkspaceEdit();
       refreshedEdit.insert(externalUri, new vscode.Position(0, 0),
-        '// editor confirms current disk source\\n');
+        '// editor confirms current disk source\n');
       assert.ok(await vscode.workspace.applyEdit(refreshedEdit),
         'Editor must accept the updated source before the fresh verification');
       assert.ok(await source.save(),
