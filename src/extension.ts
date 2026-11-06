@@ -31,6 +31,9 @@ const activeFileCheckAborts = new Map<string, AbortController>();
 const verifiedVersions = new Map<string, number>();
 const projectChanges = new ProjectChangeTracker();
 const activeProjectChecks = new Set<string>();
+// Cancellation is per explicit project root: a changed module cannot stop
+// unrelated project checks, file checks or user-run Scarp terminals.
+const activeProjectCheckAborts = new Map<string, AbortController>();
 const config = () => vscode.workspace.getConfiguration('scarp');
 
 function budgets(): string[] {
@@ -232,10 +235,10 @@ async function check(
   }
 }
 /** Never assume project support from a version string or from the old evaluating check. */
-async function validateProjectCompiler(): Promise<{ binary: string; version: string }> {
-  const compiler = await validateCompiler();
+async function validateProjectCompiler(signal?: AbortSignal): Promise<{ binary: string; version: string }> {
+  const compiler = await validateCompiler(signal);
   const result = await executeProcess(compiler.binary, ['diagnose', '--json'], {
-    timeoutMs: 5000, maxOutputBytes: 65536
+    timeoutMs: 5000, maxOutputBytes: 65536, signal
   });
   if (result.exitCode !== 0 || !hasProjectWorkflow(result.stdout)) {
     throw new Error(
@@ -294,7 +297,12 @@ async function verifyProject(
   // Start watching before asynchronous compiler work so source edits cannot
   // turn an old verification into fresh Problems.
   activeProjectChecks.add(key);
+  const controller = new AbortController();
+  activeProjectCheckAborts.set(key, controller);
   const watch = projectChanges.watch(key);
+  const isCurrent = (): boolean => !controller.signal.aborted &&
+    revision === compilerRevision && watch.isCurrent() &&
+    vscode.workspace.isTrusted;
   try {
     const manifest = vscode.Uri.joinPath(directory, 'Scarp.project');
     const doc = await vscode.workspace.openTextDocument(manifest);
@@ -313,25 +321,26 @@ async function verifyProject(
     // Capture the actual on-disk source tree before compiler work begins.
     // VS Code editor events alone cannot see another process rewriting a file.
     const diskBefore = await snapshotProjectDisk(key);
-    if (revision !== compilerRevision) { return; }
-    const { binary, version } = await validateProjectCompiler();
-    if (revision !== compilerRevision) { return; }
+    if (!isCurrent()) { return; }
+    const { binary, version } = await validateProjectCompiler(controller.signal);
+    if (!isCurrent()) { return; }
     output.clear();
     output.appendLine('Scarp ' + version + ' — static verify project ' + key);
     const result = await executeProcess(binary, projectArgv('verify', key), {
       cwd: key,
       timeoutMs: config().get<number>('checkTimeoutMs', 30000),
-      maxOutputBytes: 1024 * 1024
+      maxOutputBytes: 1024 * 1024,
+      signal: controller.signal
     });
+    if (!isCurrent()) { return; }
     if (result.stdout) { output.append(result.stdout); }
     if (result.stderr) { output.append(result.stderr); }
     const count = await showProblems(doc, result.stderr, diagnostics, owners,
       manifestVersion, async () => {
-        if (revision !== compilerRevision || !watch.isCurrent()) { return false; }
+        if (!isCurrent()) { return false; }
         try {
           const diskAfter = await snapshotProjectDisk(key);
-          const unchanged = sameProjectDisk(diskBefore, diskAfter) &&
-            watch.isCurrent() && revision === compilerRevision;
+          const unchanged = sameProjectDisk(diskBefore, diskAfter) && isCurrent();
           if (unchanged) { acceptedSnapshot = diskAfter; }
           return unchanged;
         } catch (error) {
@@ -379,9 +388,16 @@ async function verifyProject(
         + String(result.exitCode) + ', ' + String(count) + ' located diagnostic(s)). '
         + 'See Scarp output for manifest or unlocated errors.');
     }
+  } catch (error) {
+    // Source edits and compiler switches invalidate this attempt before it
+    // can publish results. They are not user-visible verification failures.
+    if (!controller.signal.aborted) { throw error; }
   } finally {
     watch.dispose();
     activeProjectChecks.delete(key);
+    if (activeProjectCheckAborts.get(key) === controller) {
+      activeProjectCheckAborts.delete(key);
+    }
   }
 }
 
@@ -671,6 +687,14 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   );
   const invalidateProject = (filename: string): void => {
+    // Only Scarp source and the project manifest affect static compilation.
+    // Other files, and changes in sibling projects, must not stop a check.
+    if (path.extname(filename).toLowerCase() === '.srp' ||
+        path.basename(filename) === 'Scarp.project') {
+      for (const [root, controller] of activeProjectCheckAborts) {
+        if (isWithinProject(root, filename)) { controller.abort(); }
+      }
+    }
     for (const owner of projectChanges.changed(filename)) {
       projectMonitors.stopOwner(owner);
       applyProblems(diagnostics, owners.replace(owner, new Map()));
@@ -759,6 +783,9 @@ export function activate(context: vscode.ExtensionContext): void {
         // publish new Problems or open a terminal after this setting changes.
         compilerRevision++;
         for (const controller of activeFileCheckAborts.values()) {
+          controller.abort();
+        }
+        for (const controller of activeProjectCheckAborts.values()) {
           controller.abort();
         }
         for (const pending of pendingStarts.values()) { pending.cancelled = true; }

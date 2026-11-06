@@ -457,6 +457,75 @@ export async function run(): Promise<void> {
         assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
           diagnostic => diagnostic.message.includes('stale verification error')
         ), 'Project checks must discard results from the previous compiler');
+
+        // Project verification must also terminate the old compiler itself,
+        // including one that refuses SIGTERM. A source edit cancels only its
+        // project; a compiler switch cancels all outdated compiler checks.
+        // Preserve previously completed standalone Problems in both cases.
+        const independentUri = vscode.Uri.file(path.join(projectParent, 'independent-invalid.srp'));
+        await fs.writeFile(independentUri.fsPath, 'print("missing semicolon")\n');
+        const independentDocument = await vscode.workspace.openTextDocument(independentUri);
+        await vscode.window.showTextDocument(independentDocument);
+        await vscode.commands.executeCommand('scarp.checkFile');
+        const independentProblems = vscode.languages.getDiagnostics(independentUri)
+          .map(item => item.message);
+        assert.ok(independentProblems.length > 0,
+          'The pinned compiler must report independent Problems before cancellation');
+
+        const stubbornBinary = path.join(projectParent, 'stubborn-project-scarp');
+        const stubbornMarker = path.join(projectParent, 'stubborn-project-pid');
+        const stubbornScript = [
+          '#!/usr/bin/env node',
+          'const fs = require("node:fs");',
+          'const args = process.argv.slice(2);',
+          'if (args[0] === "--version") {',
+          '  process.stdout.write("scarp 0.0.6-alpha.1\\n"); process.exit(0);',
+          '}',
+          'if (args[0] === "diagnose") {',
+          '  process.stdout.write(JSON.stringify({schema_version:1,',
+          '    version:"0.0.6-alpha.1", execution:"interpreter",',
+          '    static_verify:true, project_workflow:true}));',
+          '  process.exit(0);',
+          '}',
+          'if (args[0] !== "verify") { process.exit(2); }',
+          'process.on("SIGTERM", () => {});',
+          'fs.writeFileSync(' + JSON.stringify(stubbornMarker) + ', String(process.pid));',
+          'setInterval(() => {}, 1000);'
+        ].join('\n');
+        await fs.writeFile(stubbornBinary, stubbornScript, { mode: 0o755 });
+        await fs.chmod(stubbornBinary, 0o755);
+        for (const reason of ['source edit', 'compiler switch']) {
+          await fs.rm(stubbornMarker, { force: true });
+          await settings.update('compilerPath', stubbornBinary,
+            vscode.ConfigurationTarget.Global);
+          const pending = vscode.commands.executeCommand('scarp.verifyProject', projectUri);
+          await waitFor(() => fsSync.existsSync(stubbornMarker) ? true : undefined,
+            'Project verification did not reach the stubborn compiler');
+          const pid = Number(await fs.readFile(stubbornMarker, 'utf8'));
+          const cancelledAt = Date.now();
+          if (reason === 'source edit') {
+            const changed = new vscode.WorkspaceEdit();
+            changed.insert(entryUri, new vscode.Position(0, 0), '// edited while verifying\n');
+            assert.ok(await vscode.workspace.applyEdit(changed));
+          } else {
+            await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+          }
+          await pending;
+          assert.ok(Date.now() - cancelledAt < 3000,
+            reason + ': obsolete project verification should end before timeout');
+          assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' },
+            reason + ': SIGTERM-resistant project compiler must be stopped');
+          assert.deepEqual(vscode.languages.getDiagnostics(independentUri)
+            .map(item => item.message), independentProblems,
+          reason + ': completed standalone Problems must remain unchanged');
+          assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
+            item => item.message.includes('stale verification error')),
+          reason + ': obsolete project diagnostics must not be published');
+          if (entryDocument.isDirty) {
+            assert.ok(await entryDocument.save(),
+              'Source must be saved before the next project check');
+          }
+        }
       } finally {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
