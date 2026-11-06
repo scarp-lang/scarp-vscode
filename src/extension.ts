@@ -182,7 +182,9 @@ async function check(
     const count = await showProblems(doc, result.stderr, diagnostics, owners,
       expectedVersion, () => revision === compilerRevision);
     if (count === undefined) {
-      output.appendLine('Document changed during verification; outdated diagnostics discarded.');
+      output.appendLine(revision !== compilerRevision
+        ? 'Scarp compiler changed during file verification; previous result discarded.'
+        : 'Document changed during verification; outdated diagnostics discarded.');
       return;
     }
     verifiedVersions.set(filename, expectedVersion);
@@ -322,8 +324,10 @@ async function verifyProject(
       projectMonitors.stopRoot(key);
       projectChanges.forgetCompleted(key);
       applyProblems(diagnostics, owners.replace(manifest.toString(), new Map()));
-      output.appendLine('Project changed during verification; outdated diagnostics discarded. '
-        + 'Save your changes and verify again.');
+      output.appendLine(revision !== compilerRevision
+        ? 'Scarp compiler changed during project verification; previous result discarded.'
+        : 'Project changed during verification; outdated diagnostics discarded. '
+          + 'Save your changes and verify again.');
       return;
     }
     // Future in-editor edits anywhere in this project invalidate this root's
