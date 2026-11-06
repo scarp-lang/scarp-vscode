@@ -262,12 +262,28 @@ export async function run(): Promise<void> {
           resolve(terminal);
         });
       });
-      await vscode.commands.executeCommand('scarp.launchProject', projectUri);
-      const projectTerminal = await projectTerminalOpened;
-      assert.equal(projectTerminal.name, 'Scarp Project: project with spaces');
-      await vscode.commands.executeCommand('scarp.stopProgram');
-      await waitFor(() => vscode.window.terminals.includes(projectTerminal) ? undefined : true,
-        'Stop command must terminate the project terminal');
+      // The compiler probe yields; a second Launch must not bypass the guard.
+      const projectTerminals: vscode.Terminal[] = [];
+      const projectObserver = vscode.window.onDidOpenTerminal(terminal => {
+        if (terminal.name === 'Scarp Project: project with spaces') {
+          projectTerminals.push(terminal);
+        }
+      });
+      try {
+        await Promise.all([
+          vscode.commands.executeCommand('scarp.launchProject', projectUri),
+          vscode.commands.executeCommand('scarp.launchProject', projectUri)
+        ]);
+        const projectTerminal = await projectTerminalOpened;
+        assert.equal(projectTerminal.name, 'Scarp Project: project with spaces');
+        assert.equal(projectTerminals.length, 1,
+          'Concurrent project launches must open only one terminal');
+        await vscode.commands.executeCommand('scarp.stopProgram');
+        await waitFor(() => vscode.window.terminals.includes(projectTerminal) ? undefined : true,
+          'Stop command must terminate the project terminal');
+      } finally {
+        projectObserver.dispose();
+      }
 
       const broken = new vscode.WorkspaceEdit();
       broken.replace(entryUri, new vscode.Range(
@@ -477,12 +493,65 @@ export async function run(): Promise<void> {
         resolve(terminal);
       });
     });
-    await vscode.commands.executeCommand('scarp.runFile');
-    const terminal = await opened;
-    assert.match(terminal.name, /^Scarp: hello\.srp$/);
-    await vscode.commands.executeCommand('scarp.stopProgram');
-    await waitFor(() => vscode.window.terminals.includes(terminal) ? undefined : true,
-      'Stop command did not close the Scarp terminal');
+    const fileTerminals: vscode.Terminal[] = [];
+    const fileObserver = vscode.window.onDidOpenTerminal(terminal => {
+      if (terminal.name === 'Scarp: hello.srp') { fileTerminals.push(terminal); }
+    });
+    try {
+      await Promise.all([
+        vscode.commands.executeCommand('scarp.runFile'),
+        vscode.commands.executeCommand('scarp.runFile')
+      ]);
+      const terminal = await opened;
+      assert.match(terminal.name, /^Scarp: hello\.srp$/);
+      assert.equal(fileTerminals.length, 1,
+        'Concurrent file runs must open only one terminal');
+      await vscode.commands.executeCommand('scarp.stopProgram');
+      await waitFor(() => vscode.window.terminals.includes(terminal) ? undefined : true,
+        'Stop command did not close the Scarp terminal');
+    } finally {
+      fileObserver.dispose();
+    }
+
+    // Stop must cancel an in-flight compiler probe, not allow a late terminal.
+    const slowRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-start-'));
+    const slowBinary = path.join(slowRoot, 'slow-version-scarp');
+    const versionMarker = path.join(slowRoot, 'version-started');
+    const unexpectedRun = path.join(slowRoot, 'unexpected-run');
+    const slowScript = [
+      '#!/usr/bin/env node',
+      'const fs = require("node:fs");',
+      'const args = process.argv.slice(2);',
+      'if (args[0] === "--version") {',
+      '  fs.writeFileSync(' + JSON.stringify(versionMarker) + ', "started");',
+      '  setTimeout(() => process.stdout.write("scarp 0.0.6-alpha.1\\n"), 650);',
+      '} else {',
+      '  fs.writeFileSync(' + JSON.stringify(unexpectedRun) + ', args.join(" "));',
+      '  process.exitCode = 1;',
+      '}'
+    ].join('\n');
+    const cancelledTerminals: vscode.Terminal[] = [];
+    const pendingObserver = vscode.window.onDidOpenTerminal(terminal => {
+      if (terminal.name === 'Scarp: hello.srp') { cancelledTerminals.push(terminal); }
+    });
+    try {
+      await fs.writeFile(slowBinary, slowScript, { mode: 0o755 });
+      await fs.chmod(slowBinary, 0o755);
+      await settings.update('compilerPath', slowBinary, vscode.ConfigurationTarget.Global);
+      const pendingRun = vscode.commands.executeCommand('scarp.runFile');
+      await waitFor(() => fsSync.existsSync(versionMarker) ? true : undefined,
+        'Delayed compiler version probe did not begin');
+      await vscode.commands.executeCommand('scarp.stopProgram');
+      await pendingRun;
+      assert.equal(cancelledTerminals.length, 0,
+        'Stop during startup must prevent a late Run terminal');
+      assert.equal(fsSync.existsSync(unexpectedRun), false,
+        'Cancelled startup must not execute the source file');
+    } finally {
+      pendingObserver.dispose();
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await fs.rm(slowRoot, { recursive: true, force: true });
+    }
 
     // Verify on save is opt-in; use a temporary document rather than
     // modifying the checked-in fixtures, and exercise the real compiler.
