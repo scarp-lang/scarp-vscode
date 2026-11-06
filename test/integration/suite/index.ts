@@ -525,10 +525,10 @@ export async function run(): Promise<void> {
       'if (args[0] === "--version") {',
       '  fs.writeFileSync(' + JSON.stringify(versionMarker) + ', "started");',
       '  setTimeout(() => process.stdout.write("scarp 0.0.6-alpha.1\\n"), 650);',
-      '} else {',
+      '} else if (["exec", "run", "launch"].includes(args[0])) {',
       '  fs.writeFileSync(' + JSON.stringify(unexpectedRun) + ', args.join(" "));',
       '  process.exitCode = 1;',
-      '}'
+      '} else { process.exitCode = 1; }'
     ].join('\n');
     const cancelledTerminals: vscode.Terminal[] = [];
     const pendingObserver = vscode.window.onDidOpenTerminal(terminal => {
