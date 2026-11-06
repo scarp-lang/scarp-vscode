@@ -691,6 +691,66 @@ export async function run(): Promise<void> {
       await fs.rm(slowRoot, { recursive: true, force: true });
     }
 
+    // Cancelling a stale manual file check must actually terminate only its
+    // compiler subprocess, not wait for the configured timeout or erase other
+    // files' completed Problems. Also cancel on an in-editor source edit.
+    const cancelRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-check-cancel-'));
+    const cancelUri = vscode.Uri.file(path.join(cancelRoot, 'cancellable.srp'));
+    const cancelBinary = path.join(cancelRoot, 'stubborn-scarp');
+    const checkMarker = path.join(cancelRoot, 'active-check-pid');
+    const otherBefore = vscode.languages.getDiagnostics(otherUri).map(item => item.message);
+    assert.ok(otherBefore.length > 0, 'Expected independent completed compiler Problems');
+    try {
+      await fs.writeFile(cancelUri.fsPath, 'print("valid");\n');
+      const cancelDoc = await vscode.workspace.openTextDocument(cancelUri);
+      await vscode.window.showTextDocument(cancelDoc);
+      const cancelScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const args = process.argv.slice(2);',
+        'if (args[0] === "--version") {',
+        '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
+        '}',
+        'if (args[0] === "verify" && args[1] === "--help") {',
+        '  console.log("Usage: scarp verify [OPTIONS]"); process.exit(0);',
+        '}',
+        'if (args[0] !== "verify") { process.exit(2); }',
+        'process.on("SIGTERM", () => {});',
+        'fs.writeFileSync(' + JSON.stringify(checkMarker) + ', String(process.pid));',
+        'setInterval(() => {}, 1000);'
+      ].join('\n');
+      await fs.writeFile(cancelBinary, cancelScript, { mode: 0o755 });
+      await fs.chmod(cancelBinary, 0o755);
+      for (const cause of ['compiler switch', 'source edit']) {
+        await settings.update('compilerPath', cancelBinary, vscode.ConfigurationTarget.Global);
+        const pending = vscode.commands.executeCommand('scarp.checkFile');
+        await waitFor(() => fsSync.existsSync(checkMarker) ? true : undefined,
+          'Stubborn file verification did not reach static compiler invocation');
+        const pid = Number(await fs.readFile(checkMarker, 'utf8'));
+        const cancelledAt = Date.now();
+        if (cause === 'compiler switch') {
+          await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+        } else {
+          const updated = new vscode.WorkspaceEdit();
+          updated.insert(cancelUri, new vscode.Position(0, 0), '// edit during check\n');
+          assert.ok(await vscode.workspace.applyEdit(updated));
+        }
+        await pending;
+        assert.ok(Date.now() - cancelledAt < 3000,
+          cause + ': obsolete compiler must stop before its configured timeout');
+        assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' },
+          cause + ': stubborn compiler must no longer be running');
+        assert.deepEqual(vscode.languages.getDiagnostics(otherUri).map(item => item.message),
+          otherBefore, 'Cancelling one file must preserve unrelated Problems');
+        assert.equal(vscode.languages.getDiagnostics(cancelUri).length, 0,
+          'Cancelled file checks must not publish bogus Problems');
+        await fs.rm(checkMarker);
+      }
+    } finally {
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await fs.rm(cancelRoot, { recursive: true, force: true });
+    }
+
     // Verify on save is opt-in; use a temporary document rather than
     // modifying the checked-in fixtures, and exercise the real compiler.
     assert.equal(settings.get<boolean>('verifyOnSave', false), false,
