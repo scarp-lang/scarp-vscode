@@ -28,6 +28,54 @@ test('terminates long-running checks', async () => {
   );
 });
 
+test('rejects an invalid output cap before launching the compiler', async () => {
+  await assert.rejects(
+    executeProcess(process.execPath, ['-e', 'process.stdout.write("not reached")'],
+      { maxOutputBytes: 0 }),
+    /Invalid process output limit/
+  );
+  await assert.rejects(
+    executeProcess(process.execPath, [], { maxOutputBytes: Number.POSITIVE_INFINITY }),
+    /Invalid process output limit/
+  );
+});
+
+test('forces shutdown when a compiler ignores graceful termination', {
+  skip: process.platform === 'win32'
+}, async () => {
+  const script = [
+    'process.on("SIGTERM", () => {});',
+    'process.stdout.write("compiler ready\\n");',
+    'setInterval(() => {}, 1000);'
+  ].join('\\n');
+  const startedAt = Date.now();
+  await assert.rejects(
+    executeProcess(process.execPath, ['-e', script], { timeoutMs: 350 }),
+    /Scarp process timed out/
+  );
+  assert.ok(Date.now() - startedAt < 3000,
+    'A SIGTERM-resistant compiler must not hold the VS Code command forever');
+});
+
+test('forces shutdown on excessive compiler output even if SIGTERM is ignored', {
+  skip: process.platform === 'win32'
+}, async () => {
+  const script = [
+    'process.on("SIGTERM", () => {});',
+    'process.stdout.write("x".repeat(8192));',
+    'setInterval(() => {}, 1000);'
+  ].join('\\n');
+  const startedAt = Date.now();
+  await assert.rejects(
+    executeProcess(process.execPath, ['-e', script], {
+      timeoutMs: 3000, maxOutputBytes: 512
+    }),
+    /Scarp output exceeded the safety limit/
+  );
+  assert.ok(Date.now() - startedAt < 2400,
+    'Output overflow must force-stop a SIGTERM-resistant compiler');
+});
+
 test('decodes Unicode correctly across split stdout/stderr UTF-8 chunks', async () => {
   const script = [
     'process.stdout.write(Buffer.from([0xf0, 0x9f]));',
