@@ -26,6 +26,8 @@ Because a trusted publisher is identified by GitHub repository/workflow identity
   It rejects a tag whose commit is not reachable from protected `main`.
 - Source verification, official compiler tests, typechecking, linting, unit
   tests and package validation run before a new VSIX is attached to a release.
+- The publishing workflow independently runs **both** real Linux VS Code Extension Host suites against the checked-out approved revision before packaging or uploading: the trusted host uses the pinned official compiler and the Restricted Mode host confirms that no compiler can be invoked in an untrusted folder. The publish runner needs `xvfb-run`; earlier PR CI checks alone are not enough to pass the release gate.
+- CI-generated `.vscode-test/` editor installations are excluded from the VSIX; the package validator also rejects a VSIX that contains this directory.
   A downloaded GitHub release VSIX is validated again after download.
 - When a release already contains `scarp-VERSION.vsix`, the shared
   `scripts/compare-vsix.sh` gate compares its entire ZIP entry list and
