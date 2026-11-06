@@ -1209,6 +1209,16 @@ export async function run(): Promise<void> {
       await settings.update('compilerPath', diskRunBinary,
         vscode.ConfigurationTarget.Global);
       for (const phase of ['version', 'guide', 'sibling']) {
+        // Each probe phase is independent. After the previous external write,
+        // reload the saved bytes rather than attempting another Run from a
+        // potentially stale editor buffer ("File Modified Since").
+        await vscode.window.showTextDocument(diskRunDocument);
+        if (phase !== 'version') {
+          await vscode.commands.executeCommand('workbench.action.files.revert');
+          assert.equal(diskRunDocument.getText(),
+            await fs.readFile(diskRunUri.fsPath, 'utf8'),
+            'Reload external source before exercising the next Run probe');
+        }
         await fs.writeFile(diskRunPhase, phase);
         await fs.rm(diskRunStarted, { force: true });
         await fs.rm(diskRunRelease, { force: true });
