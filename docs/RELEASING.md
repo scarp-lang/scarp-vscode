@@ -17,7 +17,7 @@
 5. Confirm the published version reports `publishedWithTrustedPublishing: true` in its Open VSX metadata. If registration isn't configured, keep the currently working PAT-based workflow instead of publishing with broken credentials.
 
 Because a trusted publisher is identified by GitHub repository/workflow identity, review any changes to `.github/workflows/prerelease.yml` carefully and keep main-branch protection enabled.
-- Existing releases v0.1.0, v0.1.1, v0.1.2 and v0.1.3 are experimental. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
+- Existing releases v0.1.0 through v0.1.4 are experimental pre-releases. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
 
 ## Tag origin and release-asset integrity
 
@@ -30,10 +30,13 @@ Because a trusted publisher is identified by GitHub repository/workflow identity
 - CI-generated `.vscode-test/` editor installations are excluded from the VSIX; the package validator also rejects a VSIX that contains this directory.
   A downloaded GitHub release VSIX is validated again after download.
 - When a release already contains `scarp-VERSION.vsix`, the shared
-  `scripts/compare-vsix.sh` gate compares its entire ZIP entry list and
-  uncompressed payload bytes against the locally rebuilt package. Identical
-  files with different ZIP timestamps are accepted; changed files or extra
-  entries are **rejected** before either registry upload.
+  `scripts/compare-vsix.sh` gate compares the exact ZIP member names and
+  uncompressed payload bytes against the locally rebuilt package. It uses
+  literal ZIP entry access (not `unzip -p` wildcard matching), so mandatory
+  entries such as `[Content_Types].xml` cannot be silently skipped. Duplicate
+  member names, changed bytes and extra or missing entries are **rejected**
+  before either registry upload. Equivalent content with different ZIP
+  timestamps or compression settings remains acceptable.
 - Release scripts live only in the source repository and are excluded from
   the installable VSIX. CI verifies that the comparator detects tampering.
 
@@ -47,7 +50,7 @@ Publishing requires an explicit human release action; routine pushes and pull re
 
 **A. Create/publish a GitHub pre-release in the Releases UI (both registries).**
 
-1. Update and verify `package.json` version (e.g. `0.1.3`), commit and review changes, and verify compatibility against the official compiler.
+1. Update and verify `package.json` version (e.g. `0.1.5`), commit and review changes, and verify compatibility against the official compiler.
 2. Run CI and confirm that type checking, linting, unit tests, extension-host tests, compiler smoke tests, and package creation pass.
 3. Create a GitHub Release marked **This is a pre-release**, using tag `v<package.json version>` at the reviewed commit.
 4. The `release: published` event in `.github/workflows/prerelease.yml` builds and verifies the VSIX, attaches it to the GitHub release if missing, and **automatically publishes the same VSIX to both registries**. If the release already has a VSIX, the job downloads and validates that asset for both uploads.
