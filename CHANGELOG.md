@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased — v0.1.4 development
+## Unreleased — v0.1.5 development
+
+- Fix ZIP archive release comparison for literal names such as `[Content_Types].xml`, and reject duplicate member names. The old `unzip -p` wildcard behavior could silently compare empty outputs for a required VSIX metadata file. Compare all exact uncompressed bytes with a bounded-memory streaming SHA-256 check instead, and exercise both tampered XML and duplicate-member regressions in CI.
+
+## v0.1.4 — Experimental pre-release (2026-11-06)
+
 
 - Cancel in-flight static verification and pending file/project Run startups when `scarp.compilerPath` changes. Prevent the previous executable from adding fresh Problems or opening a delayed terminal after the setting changes. Preserve previously completed Problems when a compiler is missing until a new check or source edit updates them.
 

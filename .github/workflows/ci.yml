@@ -50,25 +50,45 @@ jobs:
           bash scripts/compare-vsix.sh "$vsix" "$vsix"
           tampered="$(mktemp "${RUNNER_TEMP}/scarp-tampered-XXXXXX.vsix")"
           trap 'rm -f "$tampered"' EXIT
+          # Check both ordinary package metadata and mandatory XML metadata.
+          # [Content_Types].xml exposed an unzip glob comparison blind spot.
+          for member in 'extension/package.json' '[Content_Types].xml'; do
+            TAMPER_MEMBER="$member" python3 - "$vsix" "$tampered" <<'PY'
+          import os
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
+              for entry in verified.infolist():
+                  payload = verified.read(entry.filename)
+                  if entry.filename == os.environ['TAMPER_MEMBER']:
+                      payload += b' '
+                  altered.writestr(entry.filename, payload, compress_type=entry.compress_type)
+          PY
+            if bash scripts/compare-vsix.sh "$vsix" "$tampered"; then
+              echo "Unsafe VSIX comparison accepted altered member: $member" >&2
+              exit 1
+            fi
+          done
+
+          # Duplicate names are ambiguous to ZIP consumers: fail closed.
           python3 - "$vsix" "$tampered" <<'PY'
           import sys
           import zipfile
 
           with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
-              for member in verified.infolist():
-                  payload = verified.read(member.filename)
-                  if member.filename == 'extension/package.json':
-                      payload += b' '
-                  altered.writestr(member, payload)
+              for entry in verified.infolist():
+                  altered.writestr(entry.filename, verified.read(entry.filename), compress_type=entry.compress_type)
+              altered.writestr('[Content_Types].xml', verified.read('[Content_Types].xml'))
           PY
           if bash scripts/compare-vsix.sh "$vsix" "$tampered"; then
-            echo "Unsafe VSIX comparison accepted altered release bytes." >&2
+            echo "Unsafe VSIX comparison accepted a duplicate ZIP member." >&2
             exit 1
           fi
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:
-          name: scarp-vscode-0.1.4-dev-vsix
+          name: scarp-vscode-0.1.5-dev-vsix
           path: "*.vsix"
           if-no-files-found: error
 
