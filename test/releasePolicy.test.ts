@@ -19,6 +19,52 @@ test('stable publishing remains blocked and routine pushes cannot publish', () =
   assert.match(publish, /ovsx@1\.3\.0 publish "\$VSIX"/);
 });
 
+test('manual runs qualify without publishing unless GitHub release is explicitly approved', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const githubInput = publish.indexOf('      publish_github:');
+  const marketplaceInput = publish.indexOf('      publish_marketplace:');
+  const openVsxInput = publish.indexOf('      publish_openvsx:');
+  assert.ok(githubInput > 0 && githubInput < marketplaceInput &&
+    marketplaceInput < openVsxInput, 'Manual publishing inputs must be explicit');
+  for (const next of [marketplaceInput, openVsxInput, publish.indexOf('  release:', openVsxInput)]) {
+    assert.ok(next > 0);
+  }
+  for (const chunk of [
+    publish.slice(githubInput, marketplaceInput),
+    publish.slice(marketplaceInput, openVsxInput),
+    publish.slice(openVsxInput, publish.indexOf('  release:', openVsxInput))
+  ]) {
+    assert.match(chunk, /type: boolean/);
+    assert.match(chunk, /default: false/);
+  }
+
+  const consent = publish.indexOf('name: Require explicit GitHub release opt-in before registry publishing');
+  const compiler = publish.indexOf('name: Smoke-test pinned official compiler');
+  const checked = publish.indexOf('name: Verify release-ready VSIX before any GitHub upload');
+  const dryRun = publish.indexOf('name: Upload qualified pre-release VSIX to this Actions run');
+  const attach = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
+  const reverify = publish.indexOf('name: Reverify released VSIX after any GitHub download');
+  const marketplace = publish.indexOf('name: Publish Visual Studio Marketplace');
+  assert.ok(consent > 0 && consent < compiler && compiler < checked &&
+    checked < dryRun && dryRun < attach && attach < reverify && reverify < marketplace,
+  'All checks must run before an artifact, and a public release must be opt-in');
+  const consentStep = publish.slice(consent, compiler);
+  assert.match(consentStep, /PUBLISH_GITHUB:/);
+  assert.match(consentStep, /PUBLISH_MARKETPLACE:/);
+  assert.match(consentStep, /PUBLISH_OPENVSX:/);
+  assert.match(consentStep, /\$PUBLISH_GITHUB" != "true"/);
+  assert.match(consentStep, /\$PUBLISH_MARKETPLACE" == "true"/);
+  assert.match(consentStep, /\$PUBLISH_OPENVSX" == "true"/);
+  assert.match(publish.slice(dryRun, attach), /if: github\.event_name == 'workflow_dispatch' && !inputs\.publish_github/);
+  assert.match(publish.slice(dryRun, attach), /actions\/upload-artifact@v4/);
+  assert.match(publish.slice(dryRun, attach), /retention-days: 7/);
+  for (const section of [publish.slice(attach, reverify), publish.slice(reverify, marketplace)]) {
+    assert.match(section, /if: github\.event_name == 'release' \|\| inputs\.publish_github/);
+  }
+  assert.match(publish, /github\.event\.release\.prerelease == true/);
+  assert.match(publish, /--prerelease/);
+});
+
 test('experimental GitHub releases must build the approved tagged revision', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
   assert.match(publish, /github\.event\.release\.tag_name \|\| github\.ref/);
@@ -66,14 +112,16 @@ test('release contents are verified before attaching or publishing', () => {
 
 test('manual prerelease version tags must resolve to exact checked-out source revision', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
-  const guard = publish.indexOf('name: Reject manual dispatch against an unrelated existing release tag');
+  const guard = publish.indexOf('name: Reject manual publication against an unrelated existing release tag');
   const build = publish.indexOf('name: Build verified pre-release package');
   const attach = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
   assert.ok(guard > 0 && guard < build && build < attach,
     'Reject conflicting release tags before packaging or any upload');
   assert.match(publish, /git fetch --tags origin/);
   assert.ok(publish.includes('node scripts/assert-tag-provenance.cjs "$TAG"'));
-  assert.ok(publish.slice(guard, build).includes("if: github.event_name == 'workflow_dispatch'"));
+  assert.ok(publish.slice(guard, build).includes(
+    "if: github.event_name == 'workflow_dispatch' && inputs.publish_github"),
+  'A qualification-only run must not fail because a different release tag exists');
 
   // Real Git fixture: exercise absent, lightweight, annotated, and stale
   // tags rather than merely checking the workflow text for a guard.

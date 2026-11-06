@@ -5,6 +5,11 @@ name: Publish experimental pre-release
 on:
   workflow_dispatch:
     inputs:
+      publish_github:
+        description: "Create a public GitHub experimental pre-release; false is qualification-only"
+        required: true
+        type: boolean
+        default: false
       publish_marketplace:
         description: "Also publish to Visual Studio Marketplace (OIDC)"
         required: true
@@ -49,6 +54,20 @@ jobs:
           git fetch origin main
           if ! git merge-base --is-ancestor HEAD origin/main; then
             echo "Refusing release: tag commit is not reachable from protected main." >&2
+            exit 1
+          fi
+
+      - name: Require explicit GitHub release opt-in before registry publishing
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          PUBLISH_GITHUB: ${{ inputs.publish_github }}
+          PUBLISH_MARKETPLACE: ${{ inputs.publish_marketplace }}
+          PUBLISH_OPENVSX: ${{ inputs.publish_openvsx }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUBLISH_GITHUB" != "true" && ( "$PUBLISH_MARKETPLACE" == "true" || "$PUBLISH_OPENVSX" == "true" ) ]]; then
+            echo "Registry publishing requires explicitly enabling publish_github too." >&2
             exit 1
           fi
 
@@ -133,8 +152,8 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "vsix=scarp-$version.vsix" >> "$GITHUB_OUTPUT"
 
-      - name: Reject manual dispatch against an unrelated existing release tag
-        if: github.event_name == 'workflow_dispatch'
+      - name: Reject manual publication against an unrelated existing release tag
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_github
         shell: bash
         env:
           TAG: ${{ steps.release.outputs.tag }}
@@ -155,7 +174,17 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: bash scripts/verify-vsix.sh "$VSIX" "$VERSION"
 
+      - name: Upload qualified pre-release VSIX to this Actions run (no publication)
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish_github
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarp-vscode-${{ steps.release.outputs.version }}-qualified-vsix
+          path: ${{ steps.release.outputs.vsix }}
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Ensure approved GitHub pre-release has the VSIX
+        if: github.event_name == 'release' || inputs.publish_github
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -196,6 +225,7 @@ jobs:
           fi
 
       - name: Reverify released VSIX after any GitHub download
+        if: github.event_name == 'release' || inputs.publish_github
         shell: bash
         env:
           VSIX: ${{ steps.release.outputs.vsix }}

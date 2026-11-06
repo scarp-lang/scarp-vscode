@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Make manual pre-release workflow invocations **qualification-only by default**, without creating a public GitHub release. After compiler, trusted/Restricted Mode editor, unit, packaging and VSIX safety checks, upload the validated VSIX as a short-lived Actions artifact. Creating a public pre-release requires an explicit `publish_github` opt-in, and either registry option requires that GitHub release approval. Preserve the existing approved GitHub pre-release event publishing behavior.
+
 - Strengthen the **first-upload** experimental VSIX verifier: reject duplicate ZIP entries, path traversal or absolute member names, symlinked/encrypted members, and missing `[Content_Types].xml` before GitHub attachment or registry publication. The older byte-for-byte comparator still protects pre-attached release assets. CI rebuilds tampered candidate archives to prove each refusal.
 
 - Guard manually dispatched experimental publication against a pre-existing `vVERSION` Git tag pointing at a different commit than the verified `main` checkout. Refresh remote tags and reject mismatched lightweight or annotated tags **before packaging or attaching a VSIX**. A missing tag may be created from the approved SHA; a matching tag can be reused. Exercise real temporary Git repositories in cross-platform release-policy tests.
