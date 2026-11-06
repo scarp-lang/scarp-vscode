@@ -40,6 +40,30 @@ test('release contents are verified before attaching or publishing', () => {
   assert.match(ci, /tampered-release|scarp-tampered/);
 });
 
+test('pre-release publishing reruns trusted and Restricted Mode editor tests before any asset upload', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const ci = repoFile('.github/workflows/ci.yml');
+  const pinnedCompiler = publish.indexOf('name: Smoke-test pinned official compiler');
+  const compile = publish.indexOf('cargo build --locked --release');
+  const sourceChecks = publish.indexOf('run: npm run check');
+  const trusted = publish.indexOf('name: Gate release on trusted VS Code Extension Host integration');
+  const untrusted = publish.indexOf('name: Gate release on real untrusted VS Code Restricted Mode');
+  const packageStep = publish.indexOf('name: Build verified pre-release package');
+  const attach = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
+  const marketplace = publish.indexOf('name: Publish Visual Studio Marketplace');
+  const openVsx = publish.indexOf('name: Publish Open VSX');
+  assert.ok(pinnedCompiler >= 0 && compile > pinnedCompiler &&
+    sourceChecks > compile && trusted > sourceChecks && untrusted > trusted &&
+    packageStep > untrusted && attach > packageStep &&
+    marketplace > attach && openVsx > marketplace,
+  'Both real VS Code editor suites must pass before packaging or registry publication');
+  assert.match(publish, /SCARP_TEST_BINARY: \$\{\{ github\.workspace \}\}\/compiler\/target\/release\/scarp/);
+  assert.match(publish, /xvfb-run -a npm run test:integration/);
+  assert.match(publish, /xvfb-run -a npm run test:untrusted/);
+  assert.match(ci, /name: VS Code Extension Host \(Linux\)/);
+  assert.match(ci, /name: VS Code Restricted Mode \(Linux\)/);
+});
+
 test('published compiler 0.0.6-alpha.1 is pinned in both verification workflows', () => {
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
