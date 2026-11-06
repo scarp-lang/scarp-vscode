@@ -160,60 +160,60 @@ async function check(
   const controller = new AbortController();
   const work = (async () => {
     try {
-    if (mode === 'manual') { await ensureSaved(doc); }
-    const expectedVersion = doc.version;
-    const current = (): boolean => !controller.signal.aborted &&
-      revision === compilerRevision && vscode.workspace.isTrusted &&
-      !doc.isClosed && !doc.isDirty && doc.version === expectedVersion;
-    if (!current()) { return; }
-    const { binary, version } = await validateCompiler(controller.signal);
-    if (!current()) { return; }
-    const staticVerify = await supportsStaticVerify(binary, controller.signal);
-    if (!current()) { return; }
-    if (mode === 'save' && !staticVerify) {
-      // Never run the older evaluating check automatically on an editor save.
-      output.appendLine('Scarp verify on save skipped: installed compiler does not support static verify.');
-      return;
-    }
-    if (mode === 'manual') { output.clear(); }
-    output.appendLine('Scarp ' + version + (staticVerify
-      ? ' — static verify ' : ' — legacy evaluating check ') + filename);
-    const argumentsForCheck = staticVerify
-      ? ['verify', '--diagnostic-format=json', '--', filename]
-      : ['check', ...budgets(), '--', filename];
-    const result = await executeProcess(binary, argumentsForCheck, {
-      cwd: path.dirname(filename),
-      timeoutMs: vscode.workspace.getConfiguration('scarp', doc.uri)
-        .get<number>('checkTimeoutMs', 30000),
-      maxOutputBytes: 1024 * 1024,
-      signal: controller.signal
-    });
-    if (!current()) { return; }
-    if (result.stdout) { output.append(result.stdout); }
-    if (result.stderr) { output.append(result.stderr); }
-    const count = await showProblems(doc, result.stderr, diagnostics, owners,
-      expectedVersion, current);
-    if (count === undefined) {
-      output.appendLine(revision !== compilerRevision
-        ? 'Scarp compiler changed during file verification; previous result discarded.'
-        : 'Document changed during verification; outdated diagnostics discarded.');
-      return;
-    }
-    verifiedVersions.set(filename, expectedVersion);
-    if (mode === 'save') {
-      output.appendLine(result.exitCode === 0
-        ? 'Scarp static verification on save passed.'
-        : 'Scarp static verification on save found ' + count + ' diagnostic(s).');
-      return;
-    }
-    if (result.exitCode === 0) {
-      vscode.window.showInformationMessage(staticVerify
-        ? 'Scarp static verification passed.' : 'Scarp legacy check passed.');
-    } else {
-      output.show(true);
-      vscode.window.showErrorMessage('Scarp check exited ' + String(result.exitCode)
-        + '. ' + count + ' diagnostic(s); see Scarp output.');
-    }
+      if (mode === 'manual') { await ensureSaved(doc); }
+      const expectedVersion = doc.version;
+      const current = (): boolean => !controller.signal.aborted &&
+        revision === compilerRevision && vscode.workspace.isTrusted &&
+        !doc.isClosed && !doc.isDirty && doc.version === expectedVersion;
+      if (!current()) { return; }
+      const { binary, version } = await validateCompiler(controller.signal);
+      if (!current()) { return; }
+      const staticVerify = await supportsStaticVerify(binary, controller.signal);
+      if (!current()) { return; }
+      if (mode === 'save' && !staticVerify) {
+        // Never run the older evaluating check automatically on an editor save.
+        output.appendLine('Scarp verify on save skipped: installed compiler does not support static verify.');
+        return;
+      }
+      if (mode === 'manual') { output.clear(); }
+      output.appendLine('Scarp ' + version + (staticVerify
+        ? ' — static verify ' : ' — legacy evaluating check ') + filename);
+      const argumentsForCheck = staticVerify
+        ? ['verify', '--diagnostic-format=json', '--', filename]
+        : ['check', ...budgets(), '--', filename];
+      const result = await executeProcess(binary, argumentsForCheck, {
+        cwd: path.dirname(filename),
+        timeoutMs: vscode.workspace.getConfiguration('scarp', doc.uri)
+          .get<number>('checkTimeoutMs', 30000),
+        maxOutputBytes: 1024 * 1024,
+        signal: controller.signal
+      });
+      if (!current()) { return; }
+      if (result.stdout) { output.append(result.stdout); }
+      if (result.stderr) { output.append(result.stderr); }
+      const count = await showProblems(doc, result.stderr, diagnostics, owners,
+        expectedVersion, current);
+      if (count === undefined) {
+        output.appendLine(revision !== compilerRevision
+          ? 'Scarp compiler changed during file verification; previous result discarded.'
+          : 'Document changed during verification; outdated diagnostics discarded.');
+        return;
+      }
+      verifiedVersions.set(filename, expectedVersion);
+      if (mode === 'save') {
+        output.appendLine(result.exitCode === 0
+          ? 'Scarp static verification on save passed.'
+          : 'Scarp static verification on save found ' + count + ' diagnostic(s).');
+        return;
+      }
+      if (result.exitCode === 0) {
+        vscode.window.showInformationMessage(staticVerify
+          ? 'Scarp static verification passed.' : 'Scarp legacy check passed.');
+      } else {
+        output.show(true);
+        vscode.window.showErrorMessage('Scarp check exited ' + String(result.exitCode)
+          + '. ' + count + ' diagnostic(s); see Scarp output.');
+      }
     } catch (error) {
       // A superseded check is not a failed check. Never show a popup or
       // replace completed Problems with its obsolete compiler result.
