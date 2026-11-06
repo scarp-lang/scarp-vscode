@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Add real VS Code Extension Host regression coverage for overlapping verify-on-save operations: an active compiler process, an expired older rerun, and a newer pending debounce must verify the newest saved source only. Verify the real pinned Scarp compiler also diagnoses the final file after rapid consecutive saves, without spawning a terminal.
+
 - Preserve the **newest** save request when an older debounced rerun is waiting on an active verification. An older rerun can no longer cancel a newer save's pending timer when the active check completes. Keep same-file verification serialized, independent files unaffected, and support generic task payloads whose value is `undefined`.
 
 - Cancel pending compiler-backed Go to Definition / Find All References requests promptly using VS Code cancellation tokens and a bounded SIGTERM/SIGKILL child-process shutdown. Abort stale inspections when `scarp.compilerPath` changes, suppress results from the previous executable, and dispose listeners on all outcomes. Cover pre-cancelled and running subprocesses, finished-process cancellation, and real Extension Host navigation races with compiler switches.
