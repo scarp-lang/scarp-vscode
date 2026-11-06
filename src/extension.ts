@@ -17,6 +17,10 @@ import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
 
 const running = new Map<string, vscode.Terminal>();
+// Reserve a filename/root before the first await so simultaneous commands
+// cannot start multiple terminals. Stop also invalidates pending launches.
+const pendingStarts = new Map<string, { cancelled: boolean }>();
+let stopGeneration = 0;
 const checks = new Map<string, Promise<void>>();
 const verifiedVersions = new Map<string, number>();
 const projectChanges = new ProjectChangeTracker();
@@ -430,23 +434,38 @@ async function browseProjectModules(
 
 async function launchProject(explicit: vscode.Uri | undefined,
   output: vscode.OutputChannel): Promise<void> {
+  // Stop can be pressed while the workspace folder picker is still open.
+  const generation = stopGeneration;
   const directory = await projectDirectory(explicit);
-  if (!directory) { return; }
+  if (!directory || generation !== stopGeneration) { return; }
   const key = directory.fsPath;
-  if (running.has(key)) {
+  if (running.has(key) || pendingStarts.has(key)) {
     running.get(key)?.show();
-    throw new Error('Scarp is already running this project. Stop it before relaunching.');
+    throw new Error('Scarp is already running or starting this project. Stop it before relaunching.');
   }
-  const { binary, version } = await validateProjectCompiler();
-  const terminal = vscode.window.createTerminal({
-    name: 'Scarp Project: ' + path.basename(key),
-    shellPath: binary,
-    shellArgs: projectArgv('launch', key, budgets()),
-    cwd: key
-  });
-  running.set(key, terminal);
-  output.appendLine('Scarp ' + version + ' — launch project ' + key);
-  terminal.show();
+  const pending = { cancelled: false };
+  pendingStarts.set(key, pending);
+  try {
+    const { binary, version } = await validateProjectCompiler();
+    if (pending.cancelled || generation !== stopGeneration) {
+      output.appendLine('Scarp project launch cancelled before terminal startup.');
+      return;
+    }
+    const terminal = vscode.window.createTerminal({
+      name: 'Scarp Project: ' + path.basename(key),
+      shellPath: binary,
+      shellArgs: projectArgv('launch', key, budgets()),
+      cwd: key
+    });
+    running.set(key, terminal);
+    output.appendLine('Scarp ' + version + ' — launch project ' + key);
+    terminal.show();
+  } catch (error) {
+    // A Stop that overlaps compiler capability detection wins over startup.
+    if (!pending.cancelled && generation === stopGeneration) { throw error; }
+  } finally {
+    if (pendingStarts.get(key) === pending) { pendingStarts.delete(key); }
+  }
 }
 
 async function createProject(output: vscode.OutputChannel): Promise<void> {
@@ -493,31 +512,50 @@ async function createProject(output: vscode.OutputChannel): Promise<void> {
 
 async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Promise<void> {
   const filename = doc.uri.fsPath;
-  if (running.has(filename)) {
+  const generation = stopGeneration;
+  if (running.has(filename) || pendingStarts.has(filename)) {
     running.get(filename)?.show();
-    throw new Error('Scarp is already running this file. Stop it before running again.');
+    throw new Error('Scarp is already running or starting this file. Stop it before running again.');
   }
-  await ensureSaved(doc);
-  const { binary, version } = await validateCompiler();
-  const command = await preferredExecutionVerb(binary);
-  // VS Code launches the compiler directly as the terminal process.
-  // shellArgs are argv entries, not interpolated source text.
-  const terminal = vscode.window.createTerminal({
-    name: 'Scarp: ' + path.basename(filename),
-    shellPath: binary,
-    shellArgs: [command, ...budgets(), '--', filename],
-    cwd: path.dirname(filename)
-  });
-  running.set(filename, terminal);
-  output.appendLine('Scarp ' + version + ' — ' + command + ' ' + filename);
-  terminal.show();
+  const pending = { cancelled: false };
+  pendingStarts.set(filename, pending);
+  try {
+    await ensureSaved(doc);
+    const { binary, version } = await validateCompiler();
+    const command = await preferredExecutionVerb(binary);
+    if (pending.cancelled || generation !== stopGeneration) {
+      output.appendLine('Scarp file run cancelled before terminal startup.');
+      return;
+    }
+    // VS Code launches the compiler directly as the terminal process.
+    // shellArgs are argv entries, not interpolated source text.
+    const terminal = vscode.window.createTerminal({
+      name: 'Scarp: ' + path.basename(filename),
+      shellPath: binary,
+      shellArgs: [command, ...budgets(), '--', filename],
+      cwd: path.dirname(filename)
+    });
+    running.set(filename, terminal);
+    output.appendLine('Scarp ' + version + ' — ' + command + ' ' + filename);
+    terminal.show();
+  } catch (error) {
+    if (!pending.cancelled && generation === stopGeneration) { throw error; }
+  } finally {
+    if (pendingStarts.get(filename) === pending) { pendingStarts.delete(filename); }
+  }
 }
 function stop(): void {
   const count = running.size;
+  const pendingCount = pendingStarts.size;
+  stopGeneration++;
+  for (const pending of pendingStarts.values()) { pending.cancelled = true; }
   for (const terminal of running.values()) { terminal.dispose(); }
   running.clear();
-  vscode.window.showInformationMessage(count ? 'Stopped ' + count + ' Scarp terminal(s).' : 'No Scarp program is running.');
+  vscode.window.showInformationMessage(count || pendingCount
+    ? 'Stopped ' + count + ' Scarp terminal(s); cancelled ' + pendingCount + ' pending start(s).'
+    : 'No Scarp program is running.');
 }
+
 async function safe(action: () => Promise<void>): Promise<void> {
   try {
     await action();
