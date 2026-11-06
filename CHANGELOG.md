@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.4 development
 
+- Add real VS Code Extension Host coverage for compiler errors in imported `.srp` files, routing Problems to the imported document, clearing them after a successful recheck, missing executable failure without false success or terminal startup, and direct argv-safe terminal launches from paths containing spaces.
+
 - Serialize in-flight **Run Current File** and **Launch Project** startup so simultaneous commands cannot open duplicate terminals. **Stop Running Program** also cancels pending compiler probes or folder selection before any terminal is created; keep independent file/project sessions intact.
 - Add real VS Code Extension Host regressions for concurrent file/project launches and Stop during a delayed compiler version probe.
 
