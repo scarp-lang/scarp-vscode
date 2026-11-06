@@ -383,6 +383,139 @@ export async function run(): Promise<void> {
         projectObserver.dispose();
       }
 
+      // Project Launch must not start a terminal for a snapshot that becomes
+      // obsolete while Scarp's version or project-capability probe is running.
+      // Also detect unobserved external disk rewrites, and retain independence
+      // from VS Code edits made in a separate project.
+      const launchRoot = path.join(projectParent, 'isolated launch race');
+      const launchUri = vscode.Uri.file(launchRoot);
+      const launchEntry = vscode.Uri.file(path.join(launchRoot, 'src', 'main.srp'));
+      const launchManifest = vscode.Uri.file(path.join(launchRoot, 'Scarp.project'));
+      const unrelatedLaunchUri = vscode.Uri.file(
+        path.join(projectParent, 'unrelated-launch-source.srp'));
+      const launchBinary = path.join(projectParent, 'blocked-project-launch-compiler');
+      const launchPhase = path.join(projectParent, 'project-launch-phase');
+      const launchPid = path.join(projectParent, 'project-launch-probe-pid');
+      const launchRelease = path.join(projectParent, 'project-launch-probe-release');
+      const launchExecuted = path.join(projectParent, 'project-launch-executed');
+      await fs.mkdir(path.join(launchRoot, 'src'), { recursive: true });
+      await fs.writeFile(launchManifest.fsPath,
+        'scarp-project: 1\nname: launch-race\nentry: src/main.srp\n');
+      await fs.writeFile(launchEntry.fsPath, 'print("original project");\n');
+      await fs.writeFile(unrelatedLaunchUri.fsPath, 'print("other project");\n');
+      const launchEntryDocument = await vscode.workspace.openTextDocument(launchEntry);
+      const launchManifestDocument = await vscode.workspace.openTextDocument(launchManifest);
+      const blockedLaunchScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const args = process.argv.slice(2);',
+        'const phase = fs.readFileSync(' + JSON.stringify(launchPhase) + ', "utf8");',
+        'if (args[0] === "launch") {',
+        '  fs.writeFileSync(' + JSON.stringify(launchExecuted) + ', "launched");',
+        '  process.exit(0);',
+        '}',
+        'if (args[0] === "--version" && phase !== "source") {',
+        '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
+        '}',
+        'if (args[0] === "diagnose" && phase === "source") {',
+        '  console.log(JSON.stringify({schema_version:1, version:"0.0.6-alpha.1", execution:"interpreter", static_verify:true, project_workflow:true}));',
+        '  process.exit(0);',
+        '}',
+        'if (!["--version", "diagnose"].includes(args[0])) process.exit(2);',
+        'process.on("SIGTERM", () => {});',
+        'fs.writeFileSync(' + JSON.stringify(launchPid) + ', String(process.pid));',
+        'const gate = setInterval(() => {',
+        '  if (!fs.existsSync(' + JSON.stringify(launchRelease) + ')) return;',
+        '  clearInterval(gate);',
+        '  if (args[0] === "--version") console.log("scarp 0.0.6-alpha.1");',
+        '  else console.log(JSON.stringify({schema_version:1, version:"0.0.6-alpha.1", execution:"interpreter", static_verify:true, project_workflow:true}));',
+        '}, 20);'
+      ].join('\n');
+      await fs.writeFile(launchBinary, blockedLaunchScript, { mode: 0o755 });
+      await fs.chmod(launchBinary, 0o755);
+      const observedLaunchTerminals: vscode.Terminal[] = [];
+      const projectLaunchObserver = vscode.window.onDidOpenTerminal(terminal => {
+        if (terminal.name === 'Scarp Project: isolated launch race') {
+          observedLaunchTerminals.push(terminal);
+        }
+      });
+      await settings.update('compilerPath', launchBinary, vscode.ConfigurationTarget.Global);
+      try {
+        for (const stage of ['source', 'manifest', 'external', 'stop', 'unrelated']) {
+          await fs.writeFile(launchPhase, stage);
+          await fs.rm(launchPid, { force: true });
+          await fs.rm(launchRelease, { force: true });
+          const openedBefore = observedLaunchTerminals.length;
+          const pending = vscode.commands.executeCommand('scarp.launchProject', launchUri);
+          await waitFor(() => fsSync.existsSync(launchPid) ? true : undefined,
+            stage + ': launch did not enter the blocked compiler probe');
+          const pid = Number(await fs.readFile(launchPid, 'utf8'));
+          const changedAt = Date.now();
+          if (stage === 'source' || stage === 'manifest') {
+            const file = stage === 'source' ? launchEntry : launchManifest;
+            const document = stage === 'source'
+              ? launchEntryDocument : launchManifestDocument;
+            const change = new vscode.WorkspaceEdit();
+            change.insert(file, document.positionAt(document.getText().length),
+              '\n// changed inside VS Code during launch\n');
+            assert.ok(await vscode.workspace.applyEdit(change));
+          } else if (stage === 'external') {
+            // This source was not opened in VS Code; the on-disk checksum is
+            // the only way to notice its rewrite during capability detection.
+            await fs.writeFile(path.join(launchRoot, 'src', 'external.srp'),
+              'print("changed on disk during project launch");\n');
+            await fs.writeFile(launchRelease, 'complete');
+          } else if (stage === 'stop') {
+            await vscode.commands.executeCommand('scarp.stopProgram');
+          } else {
+            const independent = await vscode.workspace.openTextDocument(unrelatedLaunchUri);
+            const change = new vscode.WorkspaceEdit();
+            change.insert(unrelatedLaunchUri,
+              independent.positionAt(independent.getText().length),
+              '// changed in another folder\n');
+            assert.ok(await vscode.workspace.applyEdit(change));
+            assert.ok(await independent.save());
+            await fs.writeFile(launchRelease, 'complete');
+          }
+          await pending;
+          if (stage === 'source' || stage === 'manifest' || stage === 'stop') {
+            assert.ok(Date.now() - changedAt < 3000,
+              stage + ': obsolete project startup must not wait for compiler timeout');
+            assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' },
+              stage + ': SIGTERM-resistant project probe should be killed');
+          }
+          if (stage === 'unrelated') {
+            await waitFor(() => observedLaunchTerminals.length > openedBefore
+              ? true : undefined, 'Unrelated editor edit stopped a valid project launch');
+            await vscode.commands.executeCommand('scarp.stopProgram');
+          } else {
+            assert.equal(observedLaunchTerminals.length, openedBefore,
+              stage + ': stale project must never open a Run terminal');
+          }
+          if (stage === 'source') { assert.ok(await launchEntryDocument.save()); }
+          if (stage === 'manifest') { assert.ok(await launchManifestDocument.save()); }
+        }
+        // An unsaved project source is not the on-disk program. Reject it
+        // before launching any compiler process or terminal.
+        await fs.rm(launchPid, { force: true });
+        const unsaved = new vscode.WorkspaceEdit();
+        unsaved.insert(launchEntry,
+          launchEntryDocument.positionAt(launchEntryDocument.getText().length),
+          '// unsaved local edit\n');
+        assert.ok(await vscode.workspace.applyEdit(unsaved));
+        const terminalCount = observedLaunchTerminals.length;
+        await vscode.commands.executeCommand('scarp.launchProject', launchUri);
+        assert.equal(observedLaunchTerminals.length, terminalCount,
+          'Unsaved project source must never start a terminal');
+        assert.equal(fsSync.existsSync(launchPid), false,
+          'Unsaved project source should be rejected before compiler probing');
+        assert.ok(await launchEntryDocument.save());
+      } finally {
+        projectLaunchObserver.dispose();
+        await fs.writeFile(launchRelease, 'complete');
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
+
       const broken = new vscode.WorkspaceEdit();
       broken.replace(entryUri, new vscode.Range(
         0, 0, 0, entryDocument.lineAt(0).text.length
