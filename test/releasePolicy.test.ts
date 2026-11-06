@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 function repoFile(filename: string): string {
   return fs.readFileSync(path.join(process.cwd(), filename), 'utf8');
@@ -46,6 +48,61 @@ test('release contents are verified before attaching or publishing', () => {
   assert.match(compare, /archive\.namelist\(\)/);
   assert.match(compare, /len\(names\) != len\(set\(names\)\)/);
   assert.match(compare, /sha256\(built, name\)/);
+});
+
+test('manual prerelease version tags must resolve to exact checked-out source revision', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const guard = publish.indexOf('name: Reject manual dispatch against an unrelated existing release tag');
+  const build = publish.indexOf('name: Build verified pre-release package');
+  const attach = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
+  assert.ok(guard > 0 && guard < build && build < attach,
+    'Reject conflicting release tags before packaging or any upload');
+  assert.match(publish, /git fetch --tags origin/);
+  assert.match(publish, /node scripts\\/assert-tag-provenance\\.cjs "\\$TAG"/);
+  assert.match(publish.slice(guard, build), /if: github\\.event_name == 'workflow_dispatch'/);
+
+  // Real Git fixture: exercise absent, lightweight, annotated, and stale
+  // tags rather than merely checking the workflow text for a guard.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scarp-release-tag-'));
+  const script = path.join(process.cwd(), 'scripts/assert-tag-provenance.cjs');
+  const git = (...args: string[]): string => {
+    const result = spawnSync('git', args, {
+      cwd: dir, encoding: 'utf8', timeout: 10_000, windowsHide: true
+    });
+    assert.equal(result.status, 0,
+      'Git fixture failed: git ' + args.join(' ') + ': ' + result.stderr);
+    return result.stdout.trim();
+  };
+  const verify = (tag: string) => spawnSync(process.execPath, [script, tag], {
+    cwd: dir, encoding: 'utf8', timeout: 10_000, windowsHide: true
+  });
+  try {
+    git('init', '-q');
+    git('config', 'user.email', 'ci@example.invalid');
+    git('config', 'user.name', 'Scarp CI');
+    git('config', 'commit.gpgsign', 'false');
+    fs.writeFileSync(path.join(dir, 'sample.txt'), 'first\\n');
+    git('add', 'sample.txt');
+    git('commit', '-qm', 'first');
+    assert.equal(verify('v0.1.5').status, 0, 'No tag permits a new release');
+    assert.equal(verify('not-a-version').status, 2, 'Invalid tag input must fail');
+    git('tag', 'v0.1.5');
+    assert.equal(verify('v0.1.5').status, 0, 'Matching lightweight tag is safe');
+    git('tag', '-a', 'v0.1.6', '-m', 'annotated tag');
+    assert.equal(verify('v0.1.6').status, 0, 'Annotated tag peels to HEAD');
+    fs.writeFileSync(path.join(dir, 'sample.txt'), 'second\\n');
+    git('commit', '-am', 'second');
+    const older = verify('v0.1.5');
+    assert.equal(older.status, 1,
+      'A previous commit must never be published as the current source version');
+    assert.match(older.stderr, /existing tag resolves to/);
+    assert.equal(verify('v0.1.6').status, 1,
+      'Annotated tags pointing to another commit must also fail');
+    git('tag', 'v0.1.7');
+    assert.equal(verify('v0.1.7').status, 0, 'New tag on HEAD is accepted');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('pre-release publishing reruns trusted and Restricted Mode editor tests before any asset upload', () => {
