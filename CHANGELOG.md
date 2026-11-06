@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Guard manually dispatched experimental publication against a pre-existing `vVERSION` Git tag pointing at a different commit than the verified `main` checkout. Refresh remote tags and reject mismatched lightweight or annotated tags **before packaging or attaching a VSIX**. A missing tag may be created from the approved SHA; a matching tag can be reused. Exercise real temporary Git repositories in cross-platform release-policy tests.
+
 - Stop obsolete **project** verification subprocesses on in-editor Scarp source/manifest edits or `scarp.compilerPath` changes. Scope cancellation to the affected explicit project root, including version and capability probes, while retaining disk-snapshot verification for external edits and keeping unrelated files, projects and Run terminals independent. Test a SIGTERM-resistant project compiler inside a real VS Code Extension Host and preserve unrelated completed Problems.
 
 - Terminate obsolete file-verification subprocesses promptly when the checked document is edited/closed or `scarp.compilerPath` changes. Wire a scoped `AbortSignal` through executable validation, static capability probing and actual verify/check execution. Prevent cancelled checks from publishing Problems, suppress spurious cancellation popups, and leave project checks, terminals and other files' completed diagnostics untouched. Add real VS Code Extension Host regression coverage using a stubborn compiler wrapper.

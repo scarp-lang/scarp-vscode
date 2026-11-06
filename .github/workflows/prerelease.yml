@@ -133,6 +133,18 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "vsix=scarp-$version.vsix" >> "$GITHUB_OUTPUT"
 
+      - name: Reject manual dispatch against an unrelated existing release tag
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Checkout has full history; refresh tags before testing their
+          # resolved commits. Matching files are not enough for provenance.
+          git fetch --tags origin
+          node scripts/assert-tag-provenance.cjs "$TAG"
+
       - name: Build verified pre-release package
         run: npm run package:pre
 
