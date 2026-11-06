@@ -152,8 +152,8 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "vsix=scarp-$version.vsix" >> "$GITHUB_OUTPUT"
 
-      - name: Reject manual dispatch against an unrelated existing release tag
-        if: github.event_name == 'workflow_dispatch'
+      - name: Reject manual publication against an unrelated existing release tag
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_github
         shell: bash
         env:
           TAG: ${{ steps.release.outputs.tag }}
