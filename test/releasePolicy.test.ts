@@ -81,9 +81,11 @@ test('release safety scripts stay out of published package', () => {
   const ignore = repoFile('.vscodeignore');
   assert.match(ignore, /^scripts\/\*\*$/m);
   assert.match(ignore, /^compiler\/\*\*$/m);
+  assert.match(ignore, /^\.vscode-test\/\*\*$/m);
   assert.match(ignore, /^release-requests\/\*\*$/m);
   const verify = repoFile('scripts/verify-vsix.sh');
   assert.match(verify, /Microsoft\.VisualStudio\.Code\.PreRelease/);
   assert.match(verify, /extension\/dist\/src\/extension\.js/);
+  assert.match(verify, /\\\.vscode-test/);
   assert.match(verify, /p\.publisher !== "ScarpLang"/);
 });
