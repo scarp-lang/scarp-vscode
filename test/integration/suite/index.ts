@@ -716,6 +716,26 @@ export async function run(): Promise<void> {
       assert.equal(vscode.window.terminals.length, terminalsBeforeSave,
         'Static verify on save must not launch a Scarp run terminal');
 
+      // With the *published* compiler, make rapid successive edits and saves.
+      // The final saved file is invalid; only the newest version may populate
+      // Problems, without opening a terminal or running program statements.
+      for (const source of [
+        'print("intermediate repair");\\n',
+        'print("newest source is missing its semicolon")\\n'
+      ]) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(autoUri, new vscode.Range(autoDocument.positionAt(0),
+          autoDocument.positionAt(autoDocument.getText().length)), source);
+        assert.ok(await vscode.workspace.applyEdit(edit));
+        assert.ok(await autoDocument.save(), 'Rapid consecutive save must succeed');
+      }
+      await waitFor(() => vscode.languages.getDiagnostics(autoUri).some(
+        item => item.source === 'Scarp' &&
+          item.severity === vscode.DiagnosticSeverity.Error) ? true : undefined,
+      'Latest rapidly saved file did not receive real compiler Problems');
+      assert.equal(vscode.window.terminals.length, terminalsBeforeSave,
+        'Rapid static checks must never launch a terminal');
+
       // End-to-end regression for the save queue: while an existing static
       // verify is blocked, save #2 expires into a rerun, then save #3 arrives
       // with a fresh debounce timer. Completing #1 must not reschedule #2
