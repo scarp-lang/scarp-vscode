@@ -826,6 +826,100 @@ export async function run(): Promise<void> {
       await fs.rm(importParent, { recursive: true, force: true });
     }
 
+    // Standalone checks must not publish compiler output produced from a
+    // different saved file version when an external tool rewrites source.
+    // The editor may not emit a document-version change for external edits.
+    const externalRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-check-external-'));
+    const externalUri = vscode.Uri.file(path.join(externalRoot, 'verified.srp'));
+    const siblingPath = path.join(externalRoot, 'sibling.srp');
+    const externalBinary = path.join(externalRoot, 'delayed-verify');
+    const checkMode = path.join(externalRoot, 'check-mode');
+    const checkStarted = path.join(externalRoot, 'check-started');
+    const checkReleased = path.join(externalRoot, 'check-release');
+    const externalScript = [
+      '#!/usr/bin/env node',
+      'const fs = require("node:fs");',
+      'const args = process.argv.slice(2);',
+      'if (args[0] === "--version") {',
+      '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
+      '}',
+      'if (args[0] === "verify" && args[1] === "--help") {',
+      '  console.log("Usage: scarp verify [OPTIONS]"); process.exit(0);',
+      '}',
+      'if (args[0] !== "verify") process.exit(2);',
+      'const mode = fs.readFileSync(' + JSON.stringify(checkMode) + ', "utf8");',
+      'const diagnostic = { schema_version:1, severity:"error", code:"E0004",',
+      '  message: mode === "initial" ? "initial checked source" :',
+      '    mode === "external" ? "stale source result" : "fresh verified source",',
+      '  primary: { path:' + JSON.stringify(externalUri.fsPath) + ',',
+      '    start:{line:1,column:1}, end:{line:1,column:2} }, help:null };',
+      'const report = () => {',
+      '  process.stderr.write(JSON.stringify(diagnostic)); process.exit(1);',
+      '};',
+      'if (mode === "external" || mode === "sibling") {',
+      '  fs.writeFileSync(' + JSON.stringify(checkStarted) + ', "started");',
+      '  const timer = setInterval(() => {',
+      '    if (fs.existsSync(' + JSON.stringify(checkReleased) + ')) {',
+      '      clearInterval(timer); report();',
+      '    }',
+      '  }, 20);',
+      '} else report();'
+    ].join('\n');
+    try {
+      await fs.writeFile(externalBinary, externalScript, { mode: 0o755 });
+      await fs.chmod(externalBinary, 0o755);
+      await fs.writeFile(externalUri.fsPath, 'print("original saved source");\n');
+      await fs.writeFile(siblingPath, 'pub bind other = 1;\n');
+      const source = await vscode.workspace.openTextDocument(externalUri);
+      await vscode.window.showTextDocument(source);
+      await settings.update('compilerPath', externalBinary, vscode.ConfigurationTarget.Global);
+      await fs.writeFile(checkMode, 'initial');
+      await vscode.commands.executeCommand('scarp.checkFile');
+      assert.ok(vscode.languages.getDiagnostics(externalUri).some(d =>
+        d.message.includes('initial checked source')),
+      'A completed static check must first establish an authoritative diagnostic');
+
+      await fs.writeFile(checkMode, 'external');
+      const obsolete = vscode.commands.executeCommand('scarp.checkFile');
+      await waitFor(() => fsSync.existsSync(checkStarted) ? true : undefined,
+        'External source freshness check did not begin');
+      // External disk edit: unlike WorkspaceEdit, this may leave the editor
+      // version unchanged. No stale compiler result is permitted either way.
+      await fs.writeFile(externalUri.fsPath, 'print("externally changed source");\n');
+      await fs.writeFile(checkReleased, 'go');
+      await obsolete;
+      assert.ok(!vscode.languages.getDiagnostics(externalUri).some(d =>
+        d.message.includes('stale source result')),
+      'Disk rewrite must suppress obsolete compiler diagnostics');
+
+      // A later check against the new saved bytes must still work, not leave
+      // the file permanently marked as checked for the older snapshot.
+      await fs.writeFile(checkMode, 'final');
+      await vscode.commands.executeCommand('scarp.checkFile');
+      assert.ok(vscode.languages.getDiagnostics(externalUri).some(d =>
+        d.message.includes('fresh verified source')),
+      'Rechecking the current saved disk source must publish fresh Problems');
+
+      // A sibling file not part of this standalone entrypoint should not
+      // invalidate a file-only fingerprint or block a normal check.
+      await fs.rm(checkStarted, { force: true });
+      await fs.rm(checkReleased, { force: true });
+      await fs.writeFile(checkMode, 'sibling');
+      const independent = vscode.commands.executeCommand('scarp.checkFile');
+      await waitFor(() => fsSync.existsSync(checkStarted) ? true : undefined,
+        'Independent file verification did not begin');
+      await fs.writeFile(siblingPath, 'pub bind other = 2;\n');
+      await fs.writeFile(checkReleased, 'go');
+      await independent;
+      assert.ok(vscode.languages.getDiagnostics(externalUri).some(d =>
+        d.message.includes('fresh verified source')),
+      'Unrelated sibling source rewrite must not invalidate standalone verification');
+    } finally {
+      await fs.writeFile(checkReleased, 'go');
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await fs.rm(externalRoot, { recursive: true, force: true });
+    }
+
     const invalidUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/invalid.srp'));
     const invalid = await vscode.workspace.openTextDocument(invalidUri);
     assert.equal(invalid.languageId, 'scarp');
