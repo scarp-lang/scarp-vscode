@@ -20,6 +20,12 @@ Because a trusted publisher is identified by GitHub repository/workflow identity
 - Existing releases v0.1.0 through v0.1.4 are experimental pre-releases. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
 
 ## Tag origin and release-asset integrity
+- Manually dispatched publishing from `main` also fetches current remote
+  tags and refuses to package when an existing version tag points at a
+  different commit. Both lightweight and annotated tags resolve to their
+  underlying commit. If no version tag exists, the reviewed workflow can
+  create it from its exact checked-out commit. An old pre-release tag must
+  never silently be reused for a later untagged build.
 
 - For an approved published GitHub **pre-release**, the workflow explicitly
   checks out the release's **tagged commit**, not the current tip of `main`.
