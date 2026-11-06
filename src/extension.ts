@@ -25,6 +25,9 @@ let stopGeneration = 0;
 // Previous verified Problems remain until the user checks again.
 let compilerRevision = 0;
 const checks = new Map<string, Promise<void>>();
+// Only file verification is cancellable; project operations and Run terminals
+// must stay independent of another document's edits.
+const activeFileCheckAborts = new Map<string, AbortController>();
 const verifiedVersions = new Map<string, number>();
 const projectChanges = new ProjectChangeTracker();
 const activeProjectChecks = new Set<string>();
@@ -46,12 +49,14 @@ function selectedFile(): vscode.TextDocument {
 async function ensureSaved(doc: vscode.TextDocument): Promise<void> {
   if (doc.isDirty && !(await doc.save())) { throw new Error('Save the source file first.'); }
 }
-async function validateCompiler(): Promise<{ binary: string; version: string }> {
+async function validateCompiler(signal?: AbortSignal): Promise<{ binary: string; version: string }> {
   const binary = config().get<string>('compilerPath', 'scarp').trim();
   if (!binary) { throw new Error('Set scarp.compilerPath to an executable.'); }
   let result;
   try {
-    result = await executeProcess(binary, ['--version'], { timeoutMs: 5000, maxOutputBytes: 65536 });
+    result = await executeProcess(binary, ['--version'], {
+      timeoutMs: 5000, maxOutputBytes: 65536, signal
+    });
   } catch (error) {
     throw new Error('Scarp compiler not found at ' + binary + ': ' + String(error));
   }
@@ -64,11 +69,11 @@ async function validateCompiler(): Promise<{ binary: string; version: string }> 
  * Alpha.3 introduces a non-executing verify route. Older releases use check,
  * which may evaluate code; we document this important distinction.
  */
-async function supportsStaticVerify(binary: string): Promise<boolean> {
+async function supportsStaticVerify(binary: string, signal?: AbortSignal): Promise<boolean> {
   try {
     const result = await executeProcess(binary, ['verify', '--help'], {
       timeoutMs: 5000,
-      maxOutputBytes: 32768
+      maxOutputBytes: 32768, signal
     });
     return result.exitCode === 0 && /Usage:\s*scarp verify\b/.test(result.stdout);
   } catch {
@@ -152,14 +157,19 @@ async function check(
     }
   }
 
+  const controller = new AbortController();
   const work = (async () => {
+    try {
     if (mode === 'manual') { await ensureSaved(doc); }
-    if (revision !== compilerRevision) { return; }
     const expectedVersion = doc.version;
-    const { binary, version } = await validateCompiler();
-    if (revision !== compilerRevision) { return; }
-    const staticVerify = await supportsStaticVerify(binary);
-    if (revision !== compilerRevision) { return; }
+    const current = (): boolean => !controller.signal.aborted &&
+      revision === compilerRevision && vscode.workspace.isTrusted &&
+      !doc.isClosed && !doc.isDirty && doc.version === expectedVersion;
+    if (!current()) { return; }
+    const { binary, version } = await validateCompiler(controller.signal);
+    if (!current()) { return; }
+    const staticVerify = await supportsStaticVerify(binary, controller.signal);
+    if (!current()) { return; }
     if (mode === 'save' && !staticVerify) {
       // Never run the older evaluating check automatically on an editor save.
       output.appendLine('Scarp verify on save skipped: installed compiler does not support static verify.');
@@ -175,12 +185,14 @@ async function check(
       cwd: path.dirname(filename),
       timeoutMs: vscode.workspace.getConfiguration('scarp', doc.uri)
         .get<number>('checkTimeoutMs', 30000),
-      maxOutputBytes: 1024 * 1024
+      maxOutputBytes: 1024 * 1024,
+      signal: controller.signal
     });
+    if (!current()) { return; }
     if (result.stdout) { output.append(result.stdout); }
     if (result.stderr) { output.append(result.stderr); }
     const count = await showProblems(doc, result.stderr, diagnostics, owners,
-      expectedVersion, () => revision === compilerRevision);
+      expectedVersion, current);
     if (count === undefined) {
       output.appendLine(revision !== compilerRevision
         ? 'Scarp compiler changed during file verification; previous result discarded.'
@@ -202,12 +214,21 @@ async function check(
       vscode.window.showErrorMessage('Scarp check exited ' + String(result.exitCode)
         + '. ' + count + ' diagnostic(s); see Scarp output.');
     }
+    } catch (error) {
+      // A superseded check is not a failed check. Never show a popup or
+      // replace completed Problems with its obsolete compiler result.
+      if (!controller.signal.aborted) { throw error; }
+    }
   })();
   checks.set(filename, work);
+  activeFileCheckAborts.set(filename, controller);
   try {
     await work;
   } finally {
     if (checks.get(filename) === work) { checks.delete(filename); }
+    if (activeFileCheckAborts.get(filename) === controller) {
+      activeFileCheckAborts.delete(filename);
+    }
   }
 }
 /** Never assume project support from a version string or from the old evaluating check. */
@@ -717,6 +738,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeTextDocument(event => {
       if (event.contentChanges.length === 0) { return; }
       if (event.document.uri.scheme === 'file') {
+        // A changed buffer makes the running file check obsolete. Cancel its
+        // process, not independent project checks or other file operations.
+        activeFileCheckAborts.get(event.document.uri.fsPath)?.abort();
         // Scarp.project is normally not assigned the 'scarp' language ID.
         // A file with no previous errors can still invalidate the project.
         invalidateProject(event.document.uri.fsPath);
@@ -726,6 +750,7 @@ export function activate(context: vscode.ExtensionContext): void {
       applyProblems(diagnostics, owners.invalidateChanged(event.document.uri.toString()));
     }),
     vscode.workspace.onDidCloseTextDocument(doc => {
+      activeFileCheckAborts.get(doc.uri.fsPath)?.abort();
       verifiedVersions.delete(doc.uri.fsPath);
     }),
     vscode.workspace.onDidChangeConfiguration(event => {
@@ -733,6 +758,9 @@ export function activate(context: vscode.ExtensionContext): void {
         // A delayed probe/check from the previous executable must never
         // publish new Problems or open a terminal after this setting changes.
         compilerRevision++;
+        for (const controller of activeFileCheckAborts.values()) {
+          controller.abort();
+        }
         for (const pending of pendingStarts.values()) { pending.cancelled = true; }
         output.appendLine('Scarp compiler changed; in-flight results and pending launches invalidated.');
       }
