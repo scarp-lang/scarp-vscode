@@ -247,6 +247,23 @@ export async function run(): Promise<void> {
         const staleNavigation = await pendingNavigation;
         assert.equal(staleNavigation?.length ?? 0, 0,
           'External rewrite of another source must suppress stale definition results');
+
+        // A compiler-path switch while navigation runs must cancel the old
+        // subprocess and discard its index for both navigation entry points.
+        for (const command of ['vscode.executeDefinitionProvider',
+          'vscode.executeReferenceProvider']) {
+          await fs.rm(navMarker);
+          await settings.update('compilerPath', navCompiler,
+            vscode.ConfigurationTarget.Global);
+          const pending = vscode.commands.executeCommand<vscode.Location[]>(
+            command, navUri, new vscode.Position(1, 8));
+          await waitFor(() => fsSync.existsSync(navMarker) ? true : undefined,
+            'Delayed navigation did not begin before the compiler-path change');
+          await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+          const stale = await pending;
+          assert.equal(stale?.length ?? 0, 0,
+            command + ' must not publish references from a previous compiler');
+        }
       } finally {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
