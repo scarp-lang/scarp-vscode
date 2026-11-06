@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Stop stale **Run Current File** startups if the saved editor document is edited or closed during compiler version or execution-command probing. Cancel the actual pending child process (including SIGTERM-resistant probes) on source changes, Stop and compiler switches, and prevent a terminal from launching an older saved version. Keep running terminals and unrelated documents unaffected; add real VS Code Extension Host regressions for edits during both probes and Stop.
+
 - Stop active **automatic verify-on-save** compiler processes when `scarp.verifyOnSave` is switched off, respecting resource-scoped overrides and skipping any stale automatic diagnostics. Explicit **Verify Current File** checks continue independently when that setting changes. Add a real VS Code Extension Host test with a SIGTERM-resistant compiler for both cases.
 
 - Make manual pre-release workflow invocations **qualification-only by default**, without creating a public GitHub release. After compiler, trusted/Restricted Mode editor, unit, packaging and VSIX safety checks, upload the validated VSIX as a short-lived Actions artifact. Creating a public pre-release requires an explicit `publish_github` opt-in, and either registry option requires that GitHub release approval. Preserve the existing approved GitHub pre-release event publishing behavior.

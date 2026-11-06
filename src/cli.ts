@@ -123,10 +123,12 @@ export function compilerVersion(output: string): string | undefined {
  * Historical binaries that lack `guide exec` continue to use `run`.
  * Probe command support rather than guessing from unstable alpha version strings.
  */
-export async function preferredExecutionVerb(executable: string): Promise<'exec' | 'run'> {
+export async function preferredExecutionVerb(
+  executable: string, signal?: AbortSignal
+): Promise<'exec' | 'run'> {
   try {
     const help = await executeProcess(executable, ['guide', 'exec'], {
-      timeoutMs: 5000, maxOutputBytes: 32768
+      timeoutMs: 5000, maxOutputBytes: 32768, signal
     });
     if (help.exitCode === 0 && /^Usage:\s*scarp exec\b/m.test(help.stdout)) {
       return 'exec';

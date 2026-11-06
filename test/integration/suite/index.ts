@@ -760,6 +760,88 @@ export async function run(): Promise<void> {
       await fs.rm(slowRoot, { recursive: true, force: true });
     }
 
+    // A pending Run Current File must never launch an old saved version after
+    // the user edits its buffer during the version or execution-verb probe.
+    // Cancel its actual compiler process, including a stubborn SIGTERM child.
+    // Stop must likewise terminate a still-pending file Run probe.
+    const startupRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-run-stale-'));
+    const startupUri = vscode.Uri.file(path.join(startupRoot, 'edited-before-run.srp'));
+    const startupBinary = path.join(startupRoot, 'stubborn-run-probe');
+    const blockVersion = path.join(startupRoot, 'hang-version');
+    const versionPidFile = path.join(startupRoot, 'version-pid');
+    const guidePidFile = path.join(startupRoot, 'guide-pid');
+    const unexpectedStartup = path.join(startupRoot, 'unexpected-execution');
+    const startupScript = [
+      '#!/usr/bin/env node',
+      'const fs = require("node:fs");',
+      'const args = process.argv.slice(2);',
+      'if (args[0] === "--version" && !fs.existsSync('
+        + JSON.stringify(blockVersion) + ')) {',
+      '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
+      '}',
+      'if (args[0] === "exec" || args[0] === "run") {',
+      '  fs.writeFileSync(' + JSON.stringify(unexpectedStartup) + ', "executed");',
+      '  process.exit(1);',
+      '}',
+      'process.on("SIGTERM", () => {});',
+      'if (args[0] === "--version") {',
+      '  fs.writeFileSync(' + JSON.stringify(versionPidFile) + ', String(process.pid));',
+      '} else if (args[0] === "guide" && args[1] === "exec") {',
+      '  fs.writeFileSync(' + JSON.stringify(guidePidFile) + ', String(process.pid));',
+      '} else { process.exit(2); }',
+      'setInterval(() => {}, 1000);'
+    ].join('\n');
+    const observedStartups: vscode.Terminal[] = [];
+    const startupObserver = vscode.window.onDidOpenTerminal(terminal => {
+      if (terminal.name === 'Scarp: edited-before-run.srp') {
+        observedStartups.push(terminal);
+      }
+    });
+    try {
+      await fs.writeFile(startupBinary, startupScript, { mode: 0o755 });
+      await fs.chmod(startupBinary, 0o755);
+      await fs.writeFile(startupUri.fsPath, 'print("original saved source");\n');
+      const startupDoc = await vscode.workspace.openTextDocument(startupUri);
+      await vscode.window.showTextDocument(startupDoc);
+      await settings.update('compilerPath', startupBinary, vscode.ConfigurationTarget.Global);
+      for (const stage of ['version', 'guide', 'stop']) {
+        if (startupDoc.isDirty) { assert.ok(await startupDoc.save()); }
+        await fs.rm(versionPidFile, { force: true });
+        await fs.rm(guidePidFile, { force: true });
+        if (stage === 'guide') { await fs.rm(blockVersion, { force: true }); }
+        else { await fs.writeFile(blockVersion, 'yes'); }
+        const pidFile = stage === 'guide' ? guidePidFile : versionPidFile;
+        const pending = vscode.commands.executeCommand('scarp.runFile');
+        await waitFor(() => fsSync.existsSync(pidFile) ? true : undefined,
+          'File Run did not reach the delayed ' + stage + ' compiler probe');
+        const pid = Number(await fs.readFile(pidFile, 'utf8'));
+        const cancelledAt = Date.now();
+        if (stage === 'stop') {
+          await vscode.commands.executeCommand('scarp.stopProgram');
+        } else {
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(startupUri, new vscode.Position(0, 0),
+            '// unsaved source change during ' + stage + ' probe\n');
+          assert.ok(await vscode.workspace.applyEdit(edit));
+          assert.equal(startupDoc.isDirty, true,
+            'Test must change the editor buffer without saving');
+        }
+        await pending;
+        assert.ok(Date.now() - cancelledAt < 3000,
+          stage + ': cancelled Run startup must not wait for compiler timeout');
+        assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' },
+          stage + ': obsolete compiler probe must be terminated');
+        assert.equal(observedStartups.length, 0,
+          stage + ': canceled Run must never open a stale source terminal');
+        assert.equal(fsSync.existsSync(unexpectedStartup), false,
+          stage + ': canceled Run must not execute Scarp source');
+      }
+    } finally {
+      startupObserver.dispose();
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await fs.rm(startupRoot, { recursive: true, force: true });
+    }
+
     // Cancelling a stale manual file check must actually terminate only its
     // compiler subprocess, not wait for the configured timeout or erase other
     // files' completed Problems. Also cancel on an in-editor source edit.

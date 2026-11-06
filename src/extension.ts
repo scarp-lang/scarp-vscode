@@ -20,6 +20,9 @@ const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
 // cannot start multiple terminals. Stop also invalidates pending launches.
 const pendingStarts = new Map<string, { cancelled: boolean }>();
+// Cancel obsolete file Run startup compiler probes on source edits, closes,
+// Stop, and compiler switches; never affect already-started terminals.
+const activeFileRunProbes = new Map<string, AbortController>();
 let stopGeneration = 0;
 // Discard in-flight results if scarp.compilerPath changes.
 // Previous verified Problems remain until the user checks again.
@@ -588,23 +591,29 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
     throw new Error('Scarp is already running or starting this file. Stop it before running again.');
   }
   const pending = { cancelled: false };
+  const controller = new AbortController();
   pendingStarts.set(filename, pending);
+  activeFileRunProbes.set(filename, controller);
+  let savedVersion: number | undefined;
+  const isCurrent = (): boolean => !pending.cancelled &&
+    !controller.signal.aborted && generation === stopGeneration &&
+    revision === compilerRevision && vscode.workspace.isTrusted &&
+    !doc.isClosed && (savedVersion === undefined ||
+      (!doc.isDirty && doc.version === savedVersion));
   try {
     await ensureSaved(doc);
-    if (pending.cancelled || generation !== stopGeneration ||
-        revision !== compilerRevision) {
+    savedVersion = doc.version;
+    if (!isCurrent()) {
       output.appendLine('Scarp file run cancelled before compiler detection.');
       return;
     }
-    const { binary, version } = await validateCompiler();
-    if (pending.cancelled || generation !== stopGeneration ||
-        revision !== compilerRevision) {
+    const { binary, version } = await validateCompiler(controller.signal);
+    if (!isCurrent()) {
       output.appendLine('Scarp file run cancelled during compiler detection.');
       return;
     }
-    const command = await preferredExecutionVerb(binary);
-    if (pending.cancelled || generation !== stopGeneration ||
-        revision !== compilerRevision) {
+    const command = await preferredExecutionVerb(binary, controller.signal);
+    if (!isCurrent()) {
       output.appendLine('Scarp file run cancelled before terminal startup.');
       return;
     }
@@ -620,10 +629,14 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
     output.appendLine('Scarp ' + version + ' — ' + command + ' ' + filename);
     terminal.show();
   } catch (error) {
-    if (!pending.cancelled && generation === stopGeneration &&
-        revision === compilerRevision) { throw error; }
+    // An edited/closed document or a canceled probe cannot open a terminal
+    // and is not a failed Run command.
+    if (isCurrent()) { throw error; }
   } finally {
     if (pendingStarts.get(filename) === pending) { pendingStarts.delete(filename); }
+    if (activeFileRunProbes.get(filename) === controller) {
+      activeFileRunProbes.delete(filename);
+    }
   }
 }
 function stop(): void {
@@ -631,6 +644,7 @@ function stop(): void {
   const pendingCount = pendingStarts.size;
   stopGeneration++;
   for (const pending of pendingStarts.values()) { pending.cancelled = true; }
+  for (const controller of activeFileRunProbes.values()) { controller.abort(); }
   for (const terminal of running.values()) { terminal.dispose(); }
   running.clear();
   vscode.window.showInformationMessage(count || pendingCount
@@ -774,6 +788,7 @@ export function activate(context: vscode.ExtensionContext): void {
         // A changed buffer makes the running file check obsolete. Cancel its
         // process, not independent project checks or other file operations.
         activeFileCheckAborts.get(event.document.uri.fsPath)?.abort();
+        activeFileRunProbes.get(event.document.uri.fsPath)?.abort();
         // Scarp.project is normally not assigned the 'scarp' language ID.
         // A file with no previous errors can still invalidate the project.
         invalidateProject(event.document.uri.fsPath);
@@ -784,6 +799,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidCloseTextDocument(doc => {
       activeFileCheckAborts.get(doc.uri.fsPath)?.abort();
+      activeFileRunProbes.get(doc.uri.fsPath)?.abort();
       verifiedVersions.delete(doc.uri.fsPath);
     }),
     vscode.workspace.onDidChangeConfiguration(event => {
@@ -792,6 +808,9 @@ export function activate(context: vscode.ExtensionContext): void {
         // publish new Problems or open a terminal after this setting changes.
         compilerRevision++;
         for (const controller of activeFileCheckAborts.values()) {
+          controller.abort();
+        }
+        for (const controller of activeFileRunProbes.values()) {
           controller.abort();
         }
         for (const controller of activeProjectCheckAborts.values()) {
