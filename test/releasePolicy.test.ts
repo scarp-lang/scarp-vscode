@@ -58,8 +58,8 @@ test('manual prerelease version tags must resolve to exact checked-out source re
   assert.ok(guard > 0 && guard < build && build < attach,
     'Reject conflicting release tags before packaging or any upload');
   assert.match(publish, /git fetch --tags origin/);
-  assert.match(publish, /node scripts\\/assert-tag-provenance\\.cjs "\\$TAG"/);
-  assert.match(publish.slice(guard, build), /if: github\\.event_name == 'workflow_dispatch'/);
+  assert.ok(publish.includes('node scripts/assert-tag-provenance.cjs "$TAG"'));
+  assert.ok(publish.slice(guard, build).includes("if: github.event_name == 'workflow_dispatch'"));
 
   // Real Git fixture: exercise absent, lightweight, annotated, and stale
   // tags rather than merely checking the workflow text for a guard.
