@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { executeProcess, compilerVersion, preferredExecutionVerb } from '../src/cli';
 
 test('parses actual compiler version format', () => {
@@ -74,6 +77,62 @@ test('forces shutdown on excessive compiler output even if SIGTERM is ignored', 
   );
   assert.ok(Date.now() - startedAt < 2400,
     'Output overflow must force-stop a SIGTERM-resistant compiler');
+});
+
+test('pre-cancelled Scarp checks never spawn a compiler', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    executeProcess('scarp-not-installed-391722', [], { signal: controller.signal }),
+    /Scarp process cancelled/
+  );
+});
+
+test('cancelling a running inspection force-stops SIGTERM-resistant compilers', {
+  skip: process.platform === 'win32'
+}, async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-cancel-test-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const marker = path.join(root, 'compiler-started');
+  const script = [
+    'const fs = require("node:fs");',
+    'process.on("SIGTERM", () => {});',
+    'fs.writeFileSync(' + JSON.stringify(marker) + ', String(process.pid));',
+    'setInterval(() => {}, 1000);'
+  ].join('\n');
+  const controller = new AbortController();
+  const pending = executeProcess(process.execPath, ['-e', script], {
+    timeoutMs: 5000, signal: controller.signal
+  });
+  // Observe rejections immediately even if an early child error occurs.
+  const settled = pending.then(() => undefined, error => error);
+  try {
+    let started = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      try { await fs.stat(marker); started = true; break; }
+      catch { await new Promise(resolve => setTimeout(resolve, 20)); }
+    }
+    assert.ok(started, 'The test compiler must be running before cancellation');
+    const at = Date.now();
+    controller.abort();
+    const error = await settled;
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /Scarp process cancelled/);
+    assert.ok(Date.now() - at < 2000,
+      'Cancellation must not wait for the configured compiler timeout');
+  } finally {
+    controller.abort();
+    await settled;
+  }
+});
+
+test('aborting after compiler completion does not alter the result', async () => {
+  const controller = new AbortController();
+  const result = await executeProcess(process.execPath,
+    ['-e', 'process.stdout.write("verified")'], { signal: controller.signal });
+  controller.abort();
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, 'verified');
 });
 
 test('decodes Unicode correctly across split stdout/stderr UTF-8 chunks', async () => {

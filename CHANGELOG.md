@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Cancel pending compiler-backed Go to Definition / Find All References requests promptly using VS Code cancellation tokens and a bounded SIGTERM/SIGKILL child-process shutdown. Abort stale inspections when `scarp.compilerPath` changes, suppress results from the previous executable, and dispose listeners on all outcomes. Cover pre-cancelled and running subprocesses, finished-process cancellation, and real Extension Host navigation races with compiler switches.
+
 - Fix ZIP archive release comparison for literal names such as `[Content_Types].xml`, and reject duplicate member names. The old `unzip -p` wildcard behavior could silently compare empty outputs for a required VSIX metadata file. Compare all exact uncompressed bytes with a bounded-memory streaming SHA-256 check instead, and exercise both tampered XML and duplicate-member regressions in CI.
 
 ## v0.1.4 — Experimental pre-release (2026-11-06)

@@ -12,6 +12,8 @@ export interface ProcessOptions {
   cwd?: string;
   timeoutMs?: number;
   maxOutputBytes?: number;
+  /** Optional cancellation of a running compiler inspection or check. */
+  signal?: AbortSignal;
 }
 
 /** Execute the real compiler directly, never through a shell. */
@@ -28,6 +30,10 @@ export function executeProcess(
   if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1) {
     return Promise.reject(new Error('Invalid process output limit'));
   }
+  // A cancelled navigation request must not start a compiler at all.
+  if (options.signal?.aborted) {
+    return Promise.reject(new Error('Scarp process cancelled'));
+  }
   return new Promise((resolve, reject) => {
     const child = spawn(executable, [...args], {
       cwd: options.cwd,
@@ -42,17 +48,19 @@ export function executeProcess(
     let byteCount = 0;
     let exceeded = false;
     let timedOut = false;
+    let cancelled = false;
     let settled = false;
     let forcedTermination: ReturnType<typeof setTimeout> | undefined;
-    const clearTimers = (): void => {
+    const clearResources = (): void => {
       clearTimeout(timer);
       if (forcedTermination) { clearTimeout(forcedTermination); }
+      options.signal?.removeEventListener('abort', onAbort);
     };
     const finishError = (error: Error): void => {
       if (settled) { return; }
       settled = true;
-      clearTimers();
-      reject(error);
+      clearResources();
+      reject(cancelled ? new Error('Scarp process cancelled') : error);
     };
     const terminate = (): void => {
       if (settled || forcedTermination) { return; }
@@ -68,6 +76,16 @@ export function executeProcess(
       timedOut = true;
       terminate();
     }, timeoutMs);
+    const onAbort = (): void => {
+      if (settled || cancelled) { return; }
+      cancelled = true;
+      // Do not let a later wall-clock timeout obscure a user cancellation.
+      clearTimeout(timer);
+      terminate();
+    };
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    // Covers a signal aborted after the initial guard but before subscription.
+    if (options.signal?.aborted) { onAbort(); }
     const addOutput = (stream: 'stdout' | 'stderr', chunk: Buffer): void => {
       byteCount += chunk.length;
       if (byteCount > maxOutputBytes) {
@@ -84,8 +102,9 @@ export function executeProcess(
     child.on('close', (code, signal) => {
       if (settled) { return; }
       settled = true;
-      clearTimers();
+      clearResources();
       if (timedOut) { reject(new Error('Scarp process timed out')); return; }
+      if (cancelled) { reject(new Error('Scarp process cancelled')); return; }
       if (exceeded) { reject(new Error('Scarp output exceeded the safety limit')); return; }
       // Data events can split UTF-8 code points across arbitrary pipe chunks.
       stdout += stdoutDecoder.end();
