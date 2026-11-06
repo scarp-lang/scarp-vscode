@@ -77,6 +77,57 @@ test('serializes slow verification and coalesces later saves to the newest one',
   }
 });
 
+test('an older rerun must not overwrite a newer save still debouncing', async () => {
+  let releaseFirst!: () => void;
+  const blocked = new Promise<void>(resolve => { releaseFirst = resolve; });
+  const started: number[] = [];
+  const queue = new DebouncedSerialTasks<number>(40,
+    async (_key, version) => {
+      started.push(version);
+      if (version === 1) { await blocked; }
+    }, error => { throw error; });
+  try {
+    queue.request('file:///race.srp', 1);
+    await eventually(() => started.length === 1);
+    queue.request('file:///race.srp', 2);
+    // The second request finishes debouncing while verification #1 is busy,
+    // so it becomes a queued rerun rather than starting in parallel.
+    await sleep(90);
+    queue.request('file:///race.srp', 3);
+    // Request #3 is newer and its debounce timer is still pending. The
+    // finishing worker must not call request(#2), which would cancel #3.
+    releaseFirst();
+    await eventually(() => started.length === 2);
+    await sleep(65);
+    assert.deepEqual(started, [1, 3]);
+  } finally {
+    releaseFirst();
+    queue.dispose();
+  }
+});
+
+test('serial queue supports undefined values as valid reruns', async () => {
+  let releaseFirst!: () => void;
+  const blocked = new Promise<void>(resolve => { releaseFirst = resolve; });
+  let calls = 0;
+  const queue = new DebouncedSerialTasks<undefined>(5, async () => {
+    calls++;
+    if (calls === 1) { await blocked; }
+  }, error => { throw error; });
+  try {
+    queue.request('file:///optional.srp', undefined);
+    await eventually(() => calls === 1);
+    queue.request('file:///optional.srp', undefined);
+    await sleep(25);
+    releaseFirst();
+    await eventually(() => calls === 2);
+    assert.equal(calls, 2);
+  } finally {
+    releaseFirst();
+    queue.dispose();
+  }
+});
+
 test('reports failures and continues to accept new save requests', async () => {
   const errors: unknown[] = [];
   const completed: number[] = [];
