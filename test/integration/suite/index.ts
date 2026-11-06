@@ -267,6 +267,87 @@ export async function run(): Promise<void> {
       } finally {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
+
+      // A source buffer change must terminate obsolete navigation promptly,
+      // including a compiler that ignores SIGTERM. Different source roots
+      // must remain independent and still produce correct navigation.
+      const cancellableNav = path.join(projectParent, 'stubborn-navigation-compiler');
+      const navigationPid = path.join(projectParent, 'navigation-inspection-pid');
+      const navigationGate = path.join(projectParent, 'navigation-inspection-release');
+      const unrelatedNavUri = vscode.Uri.file(
+        path.join(projectParent, 'independent-navigation.srp'));
+      const stubbornNavigationScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const argv = process.argv.slice(2);',
+        'if (argv[0] !== "inspect" || argv[1] !== "references") process.exit(2);',
+        'process.on("SIGTERM", () => {});',
+        'fs.writeFileSync(' + JSON.stringify(navigationPid) + ', String(process.pid));',
+        'const gate = setInterval(() => {',
+        '  if (!fs.existsSync(' + JSON.stringify(navigationGate) + ')) return;',
+        '  clearInterval(gate);',
+        '  process.stdout.write(' + JSON.stringify(JSON.stringify(navIndex)) + ');',
+        '}, 20);'
+      ].join('\n');
+      await fs.writeFile(cancellableNav, stubbornNavigationScript, { mode: 0o755 });
+      await fs.chmod(cancellableNav, 0o755);
+      await fs.writeFile(unrelatedNavUri.fsPath, 'print("not part of navigation");\n');
+      await settings.update('compilerPath', cancellableNav,
+        vscode.ConfigurationTarget.Global);
+      try {
+        for (const [command, changedUri] of [
+          ['vscode.executeDefinitionProvider', vscode.Uri.file(navImport)],
+          ['vscode.executeReferenceProvider', navUri]
+        ] as const) {
+          await fs.rm(navigationPid, { force: true });
+          await fs.rm(navigationGate, { force: true });
+          const pending = vscode.commands.executeCommand<vscode.Location[]>(
+            command, navUri, new vscode.Position(1, 8));
+          await waitFor(() => fsSync.existsSync(navigationPid) ? true : undefined,
+            'Static navigation did not start the stubborn compiler process');
+          const pid = Number(await fs.readFile(navigationPid, 'utf8'));
+          const modified = await vscode.workspace.openTextDocument(changedUri);
+          const change = new vscode.WorkspaceEdit();
+          change.insert(changedUri, modified.positionAt(modified.getText().length),
+            '// editor edit invalidates compiler navigation\n');
+          const changedAt = Date.now();
+          assert.ok(await vscode.workspace.applyEdit(change),
+            'Editor must change project source during a running inspection');
+          const result = await pending;
+          assert.equal(result?.length ?? 0, 0,
+            command + ': source edit must not publish stale results');
+          assert.ok(Date.now() - changedAt < 3000,
+            command + ': source edit must stop the old compiler promptly');
+          assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' },
+            command + ': SIGTERM-resistant navigation process must be killed');
+          assert.ok(await modified.save(), 'Save navigation source for next test');
+        }
+
+        // An unrelated editor change must NOT abort a navigation request;
+        // release the compiler normally and verify that it returns the symbol.
+        await fs.rm(navigationPid, { force: true });
+        await fs.rm(navigationGate, { force: true });
+        const pending = vscode.commands.executeCommand<vscode.Location[]>(
+          'vscode.executeDefinitionProvider', navUri, new vscode.Position(1, 8));
+        await waitFor(() => fsSync.existsSync(navigationPid) ? true : undefined,
+          'Unrelated-edit navigation did not start the compiler');
+        const independent = await vscode.workspace.openTextDocument(unrelatedNavUri);
+        const editOther = new vscode.WorkspaceEdit();
+        editOther.insert(unrelatedNavUri,
+          independent.positionAt(independent.getText().length),
+          '// independent editor edit\n');
+        assert.ok(await vscode.workspace.applyEdit(editOther));
+        assert.ok(await independent.save());
+        await fs.writeFile(navigationGate, 'complete');
+        const fresh = await pending;
+        assert.ok(fresh?.some(item => item.uri.fsPath === navSource &&
+          item.range.start.line === 0 && item.range.start.character === 5),
+        'Editing another directory must not abort a valid definition lookup');
+      } finally {
+        await fs.writeFile(navigationGate, 'complete');
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
+
       const projectTerminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {
         const timer = setTimeout(() => {
           disposable.dispose();
