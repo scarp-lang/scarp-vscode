@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Serialize in-flight **Run Current File** and **Launch Project** startup so simultaneous commands cannot open duplicate terminals. **Stop Running Program** also cancels pending compiler probes or folder selection before any terminal is created; keep independent file/project sessions intact.
+- Add real VS Code Extension Host regressions for concurrent file/project launches and Stop during a delayed compiler version probe.
+
 - Harden **Scarp: Browse Project Modules** with bounded source snapshots before CLI capability detection, after static inspection, after Quick Pick selection and immediately before editor opening. Reject externally modified imports/manifest, dirty buffers and stale clean editor documents rather than opening an invalid source inventory.
 - Add a real VS Code Extension Host regression that wraps the released Scarp compiler, holds a valid static module inventory and modifies another saved source during the response; no stale Quick Pick may be shown.
 
