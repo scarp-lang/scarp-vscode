@@ -48,6 +48,20 @@ test('release contents are verified before attaching or publishing', () => {
   assert.match(compare, /archive\.namelist\(\)/);
   assert.match(compare, /len\(names\) != len\(set\(names\)\)/);
   assert.match(compare, /sha256\(built, name\)/);
+
+  // A brand-new release has no existing GitHub VSIX to compare against.
+  // Validate each uploaded candidate structurally before the first upload.
+  const validator = repoFile('scripts/verify-vsix.sh');
+  assert.match(validator, /zipfile\.ZipFile/);
+  assert.match(validator, /Duplicate VSIX ZIP member/);
+  assert.match(validator, /Unsafe VSIX ZIP member path/);
+  assert.match(validator, /Symlinked VSIX ZIP member/);
+  assert.match(validator, /Encrypted VSIX ZIP member/);
+  assert.match(validator, /Required VSIX metadata missing/);
+  assert.match(ci, /if bash scripts\/verify-vsix\.sh "\$tampered" "\$version"; then/);
+  assert.match(ci, /traversal ZIP path/);
+  assert.match(ci, /symlink ZIP member/);
+  assert.match(ci, /missing VSIX metadata/);
 });
 
 test('manual prerelease version tags must resolve to exact checked-out source revision', () => {

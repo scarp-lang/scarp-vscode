@@ -85,6 +85,61 @@ jobs:
             echo "Unsafe VSIX comparison accepted a duplicate ZIP member." >&2
             exit 1
           fi
+          if bash scripts/verify-vsix.sh "$tampered" "$version"; then
+            echo "Unsafe first-upload validator accepted a duplicate ZIP member." >&2
+            exit 1
+          fi
+
+          # A well-formed archive with otherwise correct package contents
+          # must not smuggle traversal paths into a new GitHub release.
+          python3 - "$vsix" "$tampered" <<'PY'
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
+              for entry in verified.infolist():
+                  altered.writestr(entry.filename, verified.read(entry.filename), compress_type=entry.compress_type)
+              altered.writestr('../outside.srp', 'print("unsafe");')
+          PY
+          if bash scripts/verify-vsix.sh "$tampered" "$version"; then
+            echo "Unsafe first-upload validator accepted a traversal ZIP path." >&2
+            exit 1
+          fi
+
+          # Reject symlinks in ZIP metadata regardless of their destination.
+          python3 - "$vsix" "$tampered" <<'PY'
+          import stat
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
+              for entry in verified.infolist():
+                  altered.writestr(entry.filename, verified.read(entry.filename), compress_type=entry.compress_type)
+              link = zipfile.ZipInfo('extension/linked-source.srp')
+              link.create_system = 3
+              link.external_attr = (stat.S_IFLNK | 0o777) << 16
+              altered.writestr(link, 'source.srp')
+          PY
+          if bash scripts/verify-vsix.sh "$tampered" "$version"; then
+            echo "Unsafe first-upload validator accepted a symlink ZIP member." >&2
+            exit 1
+          fi
+
+          # Missing mandatory ZIP-level metadata must fail even if the
+          # extension itself contains the expected manifest and entrypoint.
+          python3 - "$vsix" "$tampered" <<'PY'
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
+              for entry in verified.infolist():
+                  if entry.filename != '[Content_Types].xml':
+                      altered.writestr(entry.filename, verified.read(entry.filename), compress_type=entry.compress_type)
+          PY
+          if bash scripts/verify-vsix.sh "$tampered" "$version"; then
+            echo "Unsafe first-upload validator accepted missing VSIX metadata." >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:

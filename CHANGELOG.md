@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Strengthen the **first-upload** experimental VSIX verifier: reject duplicate ZIP entries, path traversal or absolute member names, symlinked/encrypted members, and missing `[Content_Types].xml` before GitHub attachment or registry publication. The older byte-for-byte comparator still protects pre-attached release assets. CI rebuilds tampered candidate archives to prove each refusal.
+
 - Guard manually dispatched experimental publication against a pre-existing `vVERSION` Git tag pointing at a different commit than the verified `main` checkout. Refresh remote tags and reject mismatched lightweight or annotated tags **before packaging or attaching a VSIX**. A missing tag may be created from the approved SHA; a matching tag can be reused. Exercise real temporary Git repositories in cross-platform release-policy tests.
 
 - Stop obsolete **project** verification subprocesses on in-editor Scarp source/manifest edits or `scarp.compilerPath` changes. Scope cancellation to the affected explicit project root, including version and capability probes, while retaining disk-snapshot verification for external edits and keeping unrelated files, projects and Run terminals independent. Test a SIGTERM-resistant project compiler inside a real VS Code Extension Host and preserve unrelated completed Problems.

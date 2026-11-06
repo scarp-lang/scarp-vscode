@@ -14,6 +14,38 @@ test -f "$vsix"
   exit 1
 }
 
+# Validate the first-upload archive itself, not just the comparator for an
+# existing GitHub release asset. ZIP readers disagree on duplicate member
+# names, and unsafe paths must never reach package consumers.
+python3 - "$vsix" <<'PY'
+import stat
+import sys
+import zipfile
+
+try:
+    with zipfile.ZipFile(sys.argv[1]) as archive:
+        seen = set()
+        for entry in archive.infolist():
+            name = entry.filename
+            if name in seen:
+                raise ValueError("Duplicate VSIX ZIP member: " + name)
+            seen.add(name)
+            pieces = name.rstrip("/").split("/")
+            if (not name or name.startswith("/") or "\\" in name or
+                    any(part in ("", ".", "..") for part in pieces) or
+                    ":" in pieces[0]):
+                raise ValueError("Unsafe VSIX ZIP member path: " + name)
+            if entry.flag_bits & 1:
+                raise ValueError("Encrypted VSIX ZIP member: " + name)
+            if stat.S_ISLNK(entry.external_attr >> 16):
+                raise ValueError("Symlinked VSIX ZIP member: " + name)
+        if "[Content_Types].xml" not in seen:
+            raise ValueError("Required VSIX metadata missing: [Content_Types].xml")
+except (OSError, ValueError, zipfile.BadZipFile, RuntimeError, EOFError) as error:
+    print("Refusing unsafe VSIX archive: " + str(error), file=sys.stderr)
+    sys.exit(1)
+PY
+
 entries="$(unzip -Z1 "$vsix")"
 for required in \
   'extension.vsixmanifest' \

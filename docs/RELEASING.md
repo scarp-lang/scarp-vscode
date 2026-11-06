@@ -20,6 +20,11 @@ Because a trusted publisher is identified by GitHub repository/workflow identity
 - Existing releases v0.1.0 through v0.1.4 are experimental pre-releases. Do not re-publish an already uploaded version: increment the three-part extension version for each new release.
 
 ## Tag origin and release-asset integrity
+- Independently validate every new VSIX **before its first GitHub upload**,
+  including the ZIP member inventory, duplicate member names, traversal paths,
+  symlinks, encrypted entries and required `[Content_Types].xml` metadata.
+  The release asset comparator checks existing uploads separately. CI proves
+  that malicious archive mutations are rejected by the first-upload validator.
 - Manually dispatched publishing from `main` also fetches current remote
   tags and refuses to package when an existing version tag points at a
   different commit. Both lightweight and annotated tags resolve to their
