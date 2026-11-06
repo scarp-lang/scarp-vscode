@@ -796,11 +796,12 @@ export async function run(): Promise<void> {
       assert.equal(vscode.window.terminals.length, terminalsBeforeSave,
         'Rapid static checks must never launch a terminal');
 
-      // End-to-end regression for the save queue: while an existing static
-      // verify is blocked, save #2 expires into a rerun, then save #3 arrives
-      // with a fresh debounce timer. Completing #1 must not reschedule #2
-      // and cancel the newer #3 timer. The real VS Code save notification,
-      // compiler process runner and diagnostic collection are all exercised.
+      // End-to-end regression for the save queue: three saves while a slow
+      // compiler check is active must ultimately report only the newest
+      // source's Problems. Since edits now cancel stale checks immediately,
+      // save #2 may run if #1 has already stopped before save #3 arrives.
+      // The isolated DebouncedSerialTasks unit test still proves the strict
+      // [one, three] ordering when the first worker remains active.
       const raceUri = vscode.Uri.file(path.join(tempDir, 'save-race.srp'));
       const raceBinary = path.join(tempDir, 'save-race-compiler');
       const raceStarted = path.join(tempDir, 'save-race-started');
@@ -873,8 +874,14 @@ export async function run(): Promise<void> {
             item.message.includes('newest saved source verified')) ? true : undefined,
         'Newest save was not verified after the older check completed');
         const stages = (await fs.readFile(raceLog, 'utf8')).trim().split(/\r?\n/);
-        assert.deepEqual(stages, ['one', 'three'],
-          'Older queued save must not supersede the newest VS Code save');
+        assert.equal(stages[0], 'one',
+          'The first verification must start before later saves');
+        assert.equal(stages.at(-1), 'three',
+          'No obsolete verification may start after the newest save');
+        assert.equal(stages.filter(stage => stage === 'three').length, 1,
+          'The newest saved version should be verified exactly once');
+        assert.ok(stages.every(stage => ['one', 'two', 'three'].includes(stage)),
+          'Only the expected three saved versions may be compiled');
       } finally {
         await fs.writeFile(raceReleased, 'go');
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
