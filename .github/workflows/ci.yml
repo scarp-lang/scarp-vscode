@@ -140,3 +140,16 @@ jobs:
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
+
+  editor-untrusted:
+    name: VS Code Restricted Mode (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - name: Exercise real untrusted VS Code Extension Host
+        run: xvfb-run -a npm run test:untrusted

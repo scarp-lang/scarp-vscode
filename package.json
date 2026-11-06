@@ -115,13 +115,51 @@
       "editor/title": [
         {
           "command": "scarp.runFile",
-          "when": "resourceExtname == .srp",
+          "when": "resourceExtname == .srp && isWorkspaceTrusted",
           "group": "navigation@1"
         },
         {
           "command": "scarp.checkFile",
-          "when": "resourceExtname == .srp",
+          "when": "resourceExtname == .srp && isWorkspaceTrusted",
           "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "scarp.runFile",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.checkFile",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.showVersion",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.createProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.verifyProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.browseProjectModules",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.browseProjectSymbols",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.reconcileProjects",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.launchProject",
+          "when": "isWorkspaceTrusted"
         }
       ]
     },
@@ -205,7 +243,8 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "vscode:prepublish": "npm run build",
     "package:pre": "vsce package --pre-release --no-dependencies",
-    "test:integration": "npm run build && node dist/test/integration/runTest.js"
+    "test:integration": "npm run build && node dist/test/integration/runTest.js",
+    "test:untrusted": "npm run build && node dist/test/integration/runUntrustedTest.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
@@ -217,5 +256,11 @@
     "@vscode/test-electron": "^3.1.0",
     "vscode-textmate": "^9.2.0",
     "vscode-oniguruma": "^2.0.1"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Syntax highlighting and local Outline remain available in Restricted Mode. Compiler verification, execution, project commands and compiler-backed navigation require a trusted workspace."
+    }
   }
 }
