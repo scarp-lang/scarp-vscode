@@ -217,5 +217,11 @@
     "@vscode/test-electron": "^3.1.0",
     "vscode-textmate": "^9.2.0",
     "vscode-oniguruma": "^2.0.1"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Syntax highlighting and local Outline remain available in Restricted Mode. Compiler verification, execution, project commands and compiler-backed navigation require a trusted workspace."
+    }
   }
 }
