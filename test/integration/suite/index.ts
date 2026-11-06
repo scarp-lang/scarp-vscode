@@ -716,6 +716,90 @@ export async function run(): Promise<void> {
       assert.equal(vscode.window.terminals.length, terminalsBeforeSave,
         'Static verify on save must not launch a Scarp run terminal');
 
+      // End-to-end regression for the save queue: while an existing static
+      // verify is blocked, save #2 expires into a rerun, then save #3 arrives
+      // with a fresh debounce timer. Completing #1 must not reschedule #2
+      // and cancel the newer #3 timer. The real VS Code save notification,
+      // compiler process runner and diagnostic collection are all exercised.
+      const raceUri = vscode.Uri.file(path.join(tempDir, 'save-race.srp'));
+      const raceBinary = path.join(tempDir, 'save-race-compiler');
+      const raceStarted = path.join(tempDir, 'save-race-started');
+      const raceReleased = path.join(tempDir, 'save-race-released');
+      const raceLog = path.join(tempDir, 'save-race-log');
+      const latestError = {
+        schema_version: 1, severity: 'error', code: 'E0004',
+        message: 'newest saved source verified',
+        primary: {
+          path: raceUri.fsPath,
+          start: { line: 2, column: 1 }, end: { line: 2, column: 2 }
+        }, help: null
+      };
+      const raceScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const args = process.argv.slice(2);',
+        'if (args[0] === "--version") {',
+        '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
+        '}',
+        'if (args[0] === "verify" && args[1] === "--help") {',
+        '  console.log("Usage: scarp verify [OPTIONS]"); process.exit(0);',
+        '}',
+        'if (args[0] !== "verify") { process.exit(2); }',
+        'const filename = args[args.length - 1];',
+        'const content = fs.readFileSync(filename, "utf8");',
+        'const stage = content.includes("stage-one") ? "one" :',
+        '  content.includes("stage-two") ? "two" : "three";',
+        'fs.appendFileSync(' + JSON.stringify(raceLog) + ', stage + "\n");',
+        'if (stage === "one") {',
+        '  fs.writeFileSync(' + JSON.stringify(raceStarted) + ', "ready");',
+        '  const gate = setInterval(() => {',
+        '    if (fs.existsSync(' + JSON.stringify(raceReleased) + ')) {',
+        '      clearInterval(gate); process.exit(0);',
+        '    }',
+        '  }, 20);',
+        '} else if (stage === "three") {',
+        '  process.stderr.write(' + JSON.stringify(JSON.stringify(latestError)) + ');',
+        '  process.exitCode = 1;',
+        '}'
+      ].join('\n');
+      await fs.writeFile(raceBinary, raceScript, { mode: 0o755 });
+      await fs.chmod(raceBinary, 0o755);
+      await fs.writeFile(raceUri.fsPath, 'print("initial");\n');
+      const raceDocument = await vscode.workspace.openTextDocument(raceUri);
+      assert.equal(raceDocument.languageId, 'scarp');
+      await vscode.window.showTextDocument(raceDocument);
+      const saveRaceStage = async (stage: string): Promise<void> => {
+        const replacement = new vscode.WorkspaceEdit();
+        replacement.replace(raceUri, new vscode.Range(
+          raceDocument.positionAt(0),
+          raceDocument.positionAt(raceDocument.getText().length)
+        ), '// stage-' + stage + '\nprint("source");\n');
+        assert.ok(await vscode.workspace.applyEdit(replacement));
+        assert.ok(await raceDocument.save(), 'Save ' + stage + ' should succeed');
+      };
+      await settings.update('compilerPath', raceBinary, vscode.ConfigurationTarget.Global);
+      try {
+        await saveRaceStage('one');
+        await waitFor(() => fsSync.existsSync(raceStarted) ? true : undefined,
+          'Blocked first static verification did not start');
+        await saveRaceStage('two');
+        // Save #2 must finish its 300-ms debounce *before* save #3 arrives.
+        await new Promise(resolve => setTimeout(resolve, 450));
+        await saveRaceStage('three');
+        // Let the first CLI exit before save #3's timer expires.
+        await fs.writeFile(raceReleased, 'go');
+        await waitFor(() => vscode.languages.getDiagnostics(raceUri).some(
+          item => item.source === 'Scarp' &&
+            item.message.includes('newest saved source verified')) ? true : undefined,
+        'Newest save was not verified after the older check completed');
+        const stages = (await fs.readFile(raceLog, 'utf8')).trim().split(/\r?\n/);
+        assert.deepEqual(stages, ['one', 'three'],
+          'Older queued save must not supersede the newest VS Code save');
+      } finally {
+        await fs.writeFile(raceReleased, 'go');
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      }
+
       // Simulate an older compiler with no static verification. Its
       // evaluating check command would create a marker if invoked.
       const legacyBinary = path.join(tempDir, 'legacy-scarp');
