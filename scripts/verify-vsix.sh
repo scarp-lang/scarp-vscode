@@ -29,7 +29,7 @@ done
 
 # Never leak source files, test fixtures, CI workflows, release approvals or
 # developer-side scripts into the installable VSIX.
-if grep -E '^extension/(release-requests|compiler|test|\.github|\.vscode|site|docs|src|scripts|node_modules)/|\.(ts|map)$|^extension/package-lock\.json$' <<< "$entries"; then
+if grep -E '^extension/(release-requests|compiler|test|\.github|\.vscode|\.vscode-test|site|docs|src|scripts|node_modules)/|\.(ts|map)$|^extension/package-lock\.json$' <<< "$entries"; then
   echo "Refusing VSIX containing internal source, test or workflow files." >&2
   exit 1
 fi

@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.4 development
 
+- Require both **trusted** and **Restricted Mode** real VS Code Extension Host suites to pass on the exact approved release/tag checkout before VSIX packaging, GitHub release attachment or registry publication. The workflow no longer relies exclusively on earlier PR CI for editor integration.
+- Exclude downloaded `.vscode-test/` editor binaries from installable VSIX packages and reject archives containing them; cover the release gating order and package exclusions with policy regression tests.
+
 - Add explicitly limited Workspace Trust support: read-only syntax and local Outline remain available in Restricted Mode while compiler and execution commands stay blocked (including direct invocation) and their editor/Command Palette entries are hidden. Add a separate Linux VS Code Extension Host run with fresh user data that proves the workspace is genuinely untrusted and no executable or terminal is started.
 
 - Add real VS Code Extension Host coverage for compiler errors in imported `.srp` files, routing Problems to the imported document, clearing them after a successful recheck, missing executable failure without false success or terminal startup, and direct argv-safe terminal launches from paths containing spaces.
