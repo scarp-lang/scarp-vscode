@@ -198,11 +198,27 @@ test('pre-release publishing reruns trusted and Restricted Mode editor tests bef
   'CI must package and verify a VSIX after the Restricted Mode editor download');
 });
 
-test('published compiler 0.0.6-alpha.1 is pinned in both verification workflows', () => {
+test('both published alpha.1 baseline and alpha.2 release compiler are tested before publishing', () => {
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
+  // Preserve original protected-branch check names for alpha.1 compatibility.
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.1/g) ?? []).length, 2);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.1/g) ?? []).length, 1);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.2/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.2/g) ?? []).length, 1);
+  assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.1/);
+  const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
+    ci.indexOf('  editor-untrusted:'));
+  assert.match(alpha2, /name: Official Scarp alpha\.2 compatibility \(Linux\)/);
+  assert.match(alpha2, /ref: v0\.0\.6-alpha\.2/);
+  assert.match(alpha2, /grep -F '0\.0\.6-alpha\.2'/);
+  assert.match(alpha2, /scarp verify test\/fixtures\/hello\.srp/);
+  assert.match(alpha2, /scarp exec test\/fixtures\/hello\.srp/);
+  assert.match(alpha2, /scarp inspect modules --json/);
+  assert.match(alpha2, /scarp inspect references --json/);
+  assert.match(alpha2, /scarp launch --/);
+  assert.match(alpha2, /xvfb-run -a npm run test:integration/);
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.2'/);
+  // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
     assert.match(workflow, /scarp exec test\/fixtures\/hello\.srp/);

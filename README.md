@@ -36,7 +36,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 The latest **published** experimental pre-release is [v0.1.4](https://github.com/scarp-lang/scarp-vscode/releases/tag/v0.1.4). On 2026-11-06 the approved publishing workflow successfully uploaded the verified VSIX to GitHub Releases, Visual Studio Marketplace and Open VSX. [Read the v0.1.4 release notes](docs/releases/v0.1.4.md).
 
-**Next planned experimental version:** v0.1.5 is in development. Pending Run Current File startups stop their compiler probes if the checked source changes before a terminal opens. Release asset comparisons now validate literal ZIP entries including `[Content_Types].xml`, and Go to Definition / Find References requests gain cancellable compiler inspections. The released extension supports Scarp compiler **v0.0.6-alpha.1** static project/module inspection, symbol navigation and source verification; it is not a graphical dependency editor or full language server.
+**Next planned experimental version:** v0.1.5 is in development. Pending Run Current File startups stop their compiler probes if the checked source changes before a terminal opens. Release asset comparisons now validate literal ZIP entries including `[Content_Types].xml`, and Go to Definition / Find References requests gain cancellable compiler inspections. The released extension's source-navigation baseline remains **v0.0.6-alpha.1+**, while v0.1.5 CI now independently checks the newer, published **v0.0.6-alpha.2** compiler and retains alpha.1 coverage. Alpha.2 adds opt-in Rust embedding caches, not a CLI language server or general native compilation; this extension does not enable those caches automatically.
 
 ## Install and run
 

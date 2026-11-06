@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.5 development
 
+- Qualify the newly published Scarp **v0.0.6-alpha.2** compiler against the VS Code extension's real CLI contract and trusted VS Code Extension Host, without removing pinned alpha.1 backwards-compatibility CI checks or changing protected-branch check names. Update the experimental-only release gate to build and verify alpha.2, retain module/reference JSON shape verification and version assertions, and clarify that alpha.2's new optional Rust embedding caches do not implement a language server or CLI native compilation. No extension release is published by this work.
+
+
 - Guard standalone **Verify Current File** and opt-in **Verify on Save** against external changes to the selected saved `.srp` source during a compiler run. Compute a bounded, streaming SHA-256 source fingerprint with stable file metadata before compiler detection, again before accepting results, and while applying Problems. Discard obsolete output rather than trusting an unchanged VS Code document version. A single-file scope avoids recursively traversing unrelated monorepos; other sibling files and unrelated verifications remain independent. Unit and real Extension Host tests exercise external rewrites, restored mtimes, symlinks and recovery after a fresh verification.
 
 
