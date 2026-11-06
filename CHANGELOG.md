@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.4 development
 
+- Bound runaway Scarp CLI subprocesses: after a timeout or output-size violation, request graceful termination and then force-kill a stubborn compiler that ignores the first signal. Reject invalid output-byte limits before spawning. Add regression tests for both timeout and output overflow with SIGTERM-resistant children.
+
 - Require both **trusted** and **Restricted Mode** real VS Code Extension Host suites to pass on the exact approved release/tag checkout before VSIX packaging, GitHub release attachment or registry publication. The workflow no longer relies exclusively on earlier PR CI for editor integration.
 - Exclude downloaded `.vscode-test/` editor binaries from installable VSIX packages and reject archives containing them; cover the release gating order and package exclusions with policy regression tests.
 
