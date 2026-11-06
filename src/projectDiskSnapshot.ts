@@ -54,6 +54,42 @@ async function fingerprint(file: string, before: BigIntStats): Promise<string> {
   return signature(after) + ':' + hash.digest('hex');
 }
 
+/**
+ * Fingerprint only a selected standalone file for manual/verify-on-save
+ * checks. Hash its actual bytes plus metadata before/after the read, without
+ * recursively enumerating an unrelated workspace or its dependencies.
+ *
+ * An explicitly opened symlink is supported, but both the link and its
+ * target are fingerprinted so swapping the link cannot validate an old result.
+ * The compiler can report errors in imported sources; callers use this
+ * fingerprint only to prove the selected entrypoint stayed on disk unchanged.
+ */
+export async function snapshotScarpSourceFile(filename: string): Promise<string> {
+  const before = await fs.lstat(filename, { bigint: true });
+  if (before.isSymbolicLink()) {
+    const target = await fs.stat(filename, { bigint: true });
+    if (!target.isFile()) {
+      throw new Error('Scarp selected source symlink is not a file: ' + filename);
+    }
+    if (target.size > BigInt(MAX_SOURCE_BYTES)) {
+      throw new Error('Scarp selected source exceeds the snapshot byte limit: ' + filename);
+    }
+    const digest = await fingerprint(filename, target);
+    const after = await fs.lstat(filename, { bigint: true });
+    if (signature(before) !== signature(after)) {
+      throw new Error('Scarp selected source symlink changed during snapshot: ' + filename);
+    }
+    return 'link:' + signature(after) + ' -> ' + digest;
+  }
+  if (!before.isFile()) {
+    throw new Error('Scarp selected source is not a regular file: ' + filename);
+  }
+  if (before.size > BigInt(MAX_SOURCE_BYTES)) {
+    throw new Error('Scarp selected source exceeds the snapshot byte limit: ' + filename);
+  }
+  return 'file:' + await fingerprint(filename, before);
+}
+
 export async function snapshotProjectDisk(
   root: string, requireManifest = true
 ): Promise<ProjectDiskSnapshot> {
