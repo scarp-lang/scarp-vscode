@@ -521,7 +521,15 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
   pendingStarts.set(filename, pending);
   try {
     await ensureSaved(doc);
+    if (pending.cancelled || generation !== stopGeneration) {
+      output.appendLine('Scarp file run cancelled before compiler detection.');
+      return;
+    }
     const { binary, version } = await validateCompiler();
+    if (pending.cancelled || generation !== stopGeneration) {
+      output.appendLine('Scarp file run cancelled during compiler detection.');
+      return;
+    }
     const command = await preferredExecutionVerb(binary);
     if (pending.cancelled || generation !== stopGeneration) {
       output.appendLine('Scarp file run cancelled before terminal startup.');
