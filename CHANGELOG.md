@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.1.5 development
 
+- Guard standalone **Verify Current File** and opt-in **Verify on Save** against external changes to the selected saved `.srp` source during a compiler run. Compute a bounded, streaming SHA-256 source fingerprint with stable file metadata before compiler detection, again before accepting results, and while applying Problems. Discard obsolete output rather than trusting an unchanged VS Code document version. A single-file scope avoids recursively traversing unrelated monorepos; other sibling files and unrelated verifications remain independent. Unit and real Extension Host tests exercise external rewrites, restored mtimes, symlinks and recovery after a fresh verification.
+
+
 - Prevent stale **Launch Project** terminals: reject unsaved Scarp source/manifest buffers, snapshot the explicitly selected project before compiler capability detection and recheck the saved source tree immediately before opening a terminal. Abort in-flight version/capability probes on source edits, Stop or compiler changes; detect external filesystem rewrites using bounded SHA-256 snapshots, while unrelated projects remain independent. Test all paths in a real VS Code Extension Host with a SIGTERM-resistant fake compiler.
 
 
