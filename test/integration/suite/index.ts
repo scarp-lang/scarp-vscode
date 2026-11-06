@@ -769,7 +769,7 @@ export async function run(): Promise<void> {
         'const content = fs.readFileSync(filename, "utf8");',
         'const stage = content.includes("stage-one") ? "one" :',
         '  content.includes("stage-two") ? "two" : "three";',
-        'fs.appendFileSync(' + JSON.stringify(raceLog) + ', stage + "\n");',
+        'fs.appendFileSync(' + JSON.stringify(raceLog) + ', stage + "\\n");',
         'if (stage === "one") {',
         '  fs.writeFileSync(' + JSON.stringify(raceStarted) + ', "ready");',
         '  const gate = setInterval(() => {',
