@@ -47,7 +47,7 @@ test('forces shutdown when a compiler ignores graceful termination', {
     'process.on("SIGTERM", () => {});',
     'process.stdout.write("compiler ready\\n");',
     'setInterval(() => {}, 1000);'
-  ].join('\\n');
+  ].join('\n');
   const startedAt = Date.now();
   await assert.rejects(
     executeProcess(process.execPath, ['-e', script], { timeoutMs: 350 }),
@@ -64,7 +64,7 @@ test('forces shutdown on excessive compiler output even if SIGTERM is ignored', 
     'process.on("SIGTERM", () => {});',
     'process.stdout.write("x".repeat(8192));',
     'setInterval(() => {}, 1000);'
-  ].join('\\n');
+  ].join('\n');
   const startedAt = Date.now();
   await assert.rejects(
     executeProcess(process.execPath, ['-e', script], {
