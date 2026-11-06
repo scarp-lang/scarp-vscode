@@ -28,6 +28,8 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 **Browse Project Symbols** is available in the Command Palette for a Scarp project folder containing `Scarp.project`. The compiler's static `inspect symbols --json` view includes lexical declarations from the valid project graph; builtins without source definitions are excluded. Save project files before browsing. Select a declaration to jump to its actual source; invalid or changing source metadata is rejected.
 
+**Restricted Mode:** When a folder is untrusted, Scarp offers syntax highlighting and local read-only Outline only. The Run, Verify, compiler version, compiler-backed navigation and project commands require Workspace Trust; their command-palette/editor menu entries are hidden until trust is granted, and direct command invocation is rejected. The configured compiler is not launched by verification-on-save in Restricted Mode. A separate real VS Code Extension Host test validates this behavior.
+
 **Outline navigation** is intentionally limited to file-scope declarations. It uses a tolerant editor scanner; definitive syntax and semantics remain the official compiler's responsibility. Local variables are not shown in the Outline. No compiler installation or workspace trust is needed to navigate a document.
 
 **Not yet supported:** native executable compilation, project builds that emit executables, package registries or dependency management. Scarp compiler v0.0.5-alpha.4 supports interpreter-backed project creation, static verification and launching only. No fictional implementation is provided.
