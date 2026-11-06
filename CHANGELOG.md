@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.4 development
 
+- Cancel in-flight static verification and pending file/project Run startups when `scarp.compilerPath` changes. Prevent the previous executable from adding fresh Problems or opening a delayed terminal after the setting changes. Preserve previously completed Problems when a compiler is missing until a new check or source edit updates them.
+
 - Bound runaway Scarp CLI subprocesses: after a timeout or output-size violation, request graceful termination and then force-kill a stubborn compiler that ignores the first signal. Reject invalid output-byte limits before spawning. Add regression tests for both timeout and output overflow with SIGTERM-resistant children.
 
 - Require both **trusted** and **Restricted Mode** real VS Code Extension Host suites to pass on the exact approved release/tag checkout before VSIX packaging, GitHub release attachment or registry publication. The workflow no longer relies exclusively on earlier PR CI for editor integration.

@@ -427,6 +427,19 @@ export async function run(): Promise<void> {
         assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
           diagnostic => diagnostic.message.includes('stale verification error')
         ), 'External disk rewrites must suppress outdated project diagnostics');
+
+        // A compiler-path change during a delayed project verification must
+        // invalidate its old result, even if none of the source files changed.
+        await fs.rm(started);
+        const switchedCompilerCheck = vscode.commands.executeCommand(
+          'scarp.verifyProject', projectUri);
+        await waitFor(() => fsSync.existsSync(started) ? true : undefined,
+          'Compiler-switch project verification did not start');
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+        await switchedCompilerCheck;
+        assert.ok(!vscode.languages.getDiagnostics(entryUri).some(
+          diagnostic => diagnostic.message.includes('stale verification error')
+        ), 'Project checks must discard results from the previous compiler');
       } finally {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
@@ -597,6 +610,7 @@ export async function run(): Promise<void> {
     const slowBinary = path.join(slowRoot, 'slow-version-scarp');
     const versionMarker = path.join(slowRoot, 'version-started');
     const unexpectedRun = path.join(slowRoot, 'unexpected-run');
+    const unexpectedCheck = path.join(slowRoot, 'unexpected-check');
     const slowScript = [
       '#!/usr/bin/env node',
       'const fs = require("node:fs");',
@@ -606,6 +620,9 @@ export async function run(): Promise<void> {
       '  setTimeout(() => process.stdout.write("scarp 0.0.6-alpha.1\\n"), 650);',
       '} else if (["exec", "run", "launch"].includes(args[0])) {',
       '  fs.writeFileSync(' + JSON.stringify(unexpectedRun) + ', args.join(" "));',
+      '  process.exitCode = 1;',
+      '} else if (["verify", "check"].includes(args[0])) {',
+      '  fs.writeFileSync(' + JSON.stringify(unexpectedCheck) + ', args.join(" "));',
       '  process.exitCode = 1;',
       '} else { process.exitCode = 1; }'
     ].join('\n');
@@ -626,6 +643,31 @@ export async function run(): Promise<void> {
         'Stop during startup must prevent a late Run terminal');
       assert.equal(fsSync.existsSync(unexpectedRun), false,
         'Cancelled startup must not execute the source file');
+
+      // A compiler setting change must also cancel a pending Run, without
+      // requiring Stop or letting the previous binary open a late terminal.
+      await fs.rm(versionMarker);
+      const switchedRun = vscode.commands.executeCommand('scarp.runFile');
+      await waitFor(() => fsSync.existsSync(versionMarker) ? true : undefined,
+        'Compiler-switch Run did not start probing the previous executable');
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await switchedRun;
+      assert.equal(cancelledTerminals.length, 0,
+        'Changing the compiler must prevent stale Run terminal startup');
+      assert.equal(fsSync.existsSync(unexpectedRun), false,
+        'The previous compiler must not execute the file after a setting change');
+
+      // An old in-flight file verification must stop after its version probe,
+      // not continue into the old compiler's verify/check action.
+      await fs.rm(versionMarker);
+      await settings.update('compilerPath', slowBinary, vscode.ConfigurationTarget.Global);
+      const switchedCheck = vscode.commands.executeCommand('scarp.checkFile');
+      await waitFor(() => fsSync.existsSync(versionMarker) ? true : undefined,
+        'Compiler-switch file verification did not start probing');
+      await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+      await switchedCheck;
+      assert.equal(fsSync.existsSync(unexpectedCheck), false,
+        'Stale verification must not proceed to the previous compiler');
     } finally {
       pendingObserver.dispose();
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
