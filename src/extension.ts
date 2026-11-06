@@ -21,6 +21,9 @@ const running = new Map<string, vscode.Terminal>();
 // cannot start multiple terminals. Stop also invalidates pending launches.
 const pendingStarts = new Map<string, { cancelled: boolean }>();
 let stopGeneration = 0;
+// Discard in-flight results if scarp.compilerPath changes.
+// Previous verified Problems remain until the user checks again.
+let compilerRevision = 0;
 const checks = new Map<string, Promise<void>>();
 const verifiedVersions = new Map<string, number>();
 const projectChanges = new ProjectChangeTracker();
@@ -130,6 +133,7 @@ async function check(
   mode: VerificationMode = 'manual', requestedVersion?: number
 ): Promise<void> {
   const filename = doc.uri.fsPath;
+  const revision = compilerRevision;
   if (mode === 'manual' && checks.has(filename)) {
     throw new Error('Scarp is already checking this file.');
   }
@@ -150,9 +154,12 @@ async function check(
 
   const work = (async () => {
     if (mode === 'manual') { await ensureSaved(doc); }
+    if (revision !== compilerRevision) { return; }
     const expectedVersion = doc.version;
     const { binary, version } = await validateCompiler();
+    if (revision !== compilerRevision) { return; }
     const staticVerify = await supportsStaticVerify(binary);
+    if (revision !== compilerRevision) { return; }
     if (mode === 'save' && !staticVerify) {
       // Never run the older evaluating check automatically on an editor save.
       output.appendLine('Scarp verify on save skipped: installed compiler does not support static verify.');
@@ -172,7 +179,8 @@ async function check(
     });
     if (result.stdout) { output.append(result.stdout); }
     if (result.stderr) { output.append(result.stderr); }
-    const count = await showProblems(doc, result.stderr, diagnostics, owners, expectedVersion);
+    const count = await showProblems(doc, result.stderr, diagnostics, owners,
+      expectedVersion, () => revision === compilerRevision);
     if (count === undefined) {
       output.appendLine('Document changed during verification; outdated diagnostics discarded.');
       return;
@@ -256,6 +264,7 @@ async function verifyProject(
   const directory = await projectDirectory(explicit);
   if (!directory) { return; }
   const key = directory.fsPath;
+  const revision = compilerRevision;
   if (activeProjectChecks.has(key)) {
     throw new Error('Scarp is already verifying this project.');
   }
@@ -281,7 +290,9 @@ async function verifyProject(
     // Capture the actual on-disk source tree before compiler work begins.
     // VS Code editor events alone cannot see another process rewriting a file.
     const diskBefore = await snapshotProjectDisk(key);
+    if (revision !== compilerRevision) { return; }
     const { binary, version } = await validateProjectCompiler();
+    if (revision !== compilerRevision) { return; }
     output.clear();
     output.appendLine('Scarp ' + version + ' — static verify project ' + key);
     const result = await executeProcess(binary, projectArgv('verify', key), {
@@ -293,10 +304,11 @@ async function verifyProject(
     if (result.stderr) { output.append(result.stderr); }
     const count = await showProblems(doc, result.stderr, diagnostics, owners,
       manifestVersion, async () => {
-        if (!watch.isCurrent()) { return false; }
+        if (revision !== compilerRevision || !watch.isCurrent()) { return false; }
         try {
           const diskAfter = await snapshotProjectDisk(key);
-          const unchanged = sameProjectDisk(diskBefore, diskAfter) && watch.isCurrent();
+          const unchanged = sameProjectDisk(diskBefore, diskAfter) &&
+            watch.isCurrent() && revision === compilerRevision;
           if (unchanged) { acceptedSnapshot = diskAfter; }
           return unchanged;
         } catch (error) {
@@ -436,8 +448,9 @@ async function launchProject(explicit: vscode.Uri | undefined,
   output: vscode.OutputChannel): Promise<void> {
   // Stop can be pressed while the workspace folder picker is still open.
   const generation = stopGeneration;
+  const revision = compilerRevision;
   const directory = await projectDirectory(explicit);
-  if (!directory || generation !== stopGeneration) { return; }
+  if (!directory || generation !== stopGeneration || revision !== compilerRevision) { return; }
   const key = directory.fsPath;
   if (running.has(key) || pendingStarts.has(key)) {
     running.get(key)?.show();
@@ -447,7 +460,8 @@ async function launchProject(explicit: vscode.Uri | undefined,
   pendingStarts.set(key, pending);
   try {
     const { binary, version } = await validateProjectCompiler();
-    if (pending.cancelled || generation !== stopGeneration) {
+    if (pending.cancelled || generation !== stopGeneration ||
+        revision !== compilerRevision) {
       output.appendLine('Scarp project launch cancelled before terminal startup.');
       return;
     }
@@ -462,7 +476,8 @@ async function launchProject(explicit: vscode.Uri | undefined,
     terminal.show();
   } catch (error) {
     // A Stop that overlaps compiler capability detection wins over startup.
-    if (!pending.cancelled && generation === stopGeneration) { throw error; }
+    if (!pending.cancelled && generation === stopGeneration &&
+        revision === compilerRevision) { throw error; }
   } finally {
     if (pendingStarts.get(key) === pending) { pendingStarts.delete(key); }
   }
@@ -513,6 +528,7 @@ async function createProject(output: vscode.OutputChannel): Promise<void> {
 async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Promise<void> {
   const filename = doc.uri.fsPath;
   const generation = stopGeneration;
+  const revision = compilerRevision;
   if (running.has(filename) || pendingStarts.has(filename)) {
     running.get(filename)?.show();
     throw new Error('Scarp is already running or starting this file. Stop it before running again.');
@@ -521,17 +537,20 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
   pendingStarts.set(filename, pending);
   try {
     await ensureSaved(doc);
-    if (pending.cancelled || generation !== stopGeneration) {
+    if (pending.cancelled || generation !== stopGeneration ||
+        revision !== compilerRevision) {
       output.appendLine('Scarp file run cancelled before compiler detection.');
       return;
     }
     const { binary, version } = await validateCompiler();
-    if (pending.cancelled || generation !== stopGeneration) {
+    if (pending.cancelled || generation !== stopGeneration ||
+        revision !== compilerRevision) {
       output.appendLine('Scarp file run cancelled during compiler detection.');
       return;
     }
     const command = await preferredExecutionVerb(binary);
-    if (pending.cancelled || generation !== stopGeneration) {
+    if (pending.cancelled || generation !== stopGeneration ||
+        revision !== compilerRevision) {
       output.appendLine('Scarp file run cancelled before terminal startup.');
       return;
     }
@@ -547,7 +566,8 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
     output.appendLine('Scarp ' + version + ' — ' + command + ' ' + filename);
     terminal.show();
   } catch (error) {
-    if (!pending.cancelled && generation === stopGeneration) { throw error; }
+    if (!pending.cancelled && generation === stopGeneration &&
+        revision === compilerRevision) { throw error; }
   } finally {
     if (pendingStarts.get(filename) === pending) { pendingStarts.delete(filename); }
   }
@@ -701,6 +721,13 @@ export function activate(context: vscode.ExtensionContext): void {
       verifiedVersions.delete(doc.uri.fsPath);
     }),
     vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('scarp.compilerPath')) {
+        // A delayed probe/check from the previous executable must never
+        // publish new Problems or open a terminal after this setting changes.
+        compilerRevision++;
+        for (const pending of pendingStarts.values()) { pending.cancelled = true; }
+        output.appendLine('Scarp compiler changed; in-flight results and pending launches invalidated.');
+      }
       if (event.affectsConfiguration('scarp.compilerPath') ||
           event.affectsConfiguration('scarp.verifyOnSave')) {
         verifiedVersions.clear();
