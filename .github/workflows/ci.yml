@@ -63,7 +63,7 @@ jobs:
                   payload = verified.read(entry.filename)
                   if entry.filename == os.environ['TAMPER_MEMBER']:
                       payload += b' '
-                  altered.writestr(entry, payload)
+                  altered.writestr(entry.filename, payload, compress_type=entry.compress_type)
           PY
             if bash scripts/compare-vsix.sh "$vsix" "$tampered"; then
               echo "Unsafe VSIX comparison accepted altered member: $member" >&2
@@ -78,7 +78,7 @@ jobs:
 
           with zipfile.ZipFile(sys.argv[1]) as verified, zipfile.ZipFile(sys.argv[2], 'w') as altered:
               for entry in verified.infolist():
-                  altered.writestr(entry, verified.read(entry.filename))
+                  altered.writestr(entry.filename, verified.read(entry.filename), compress_type=entry.compress_type)
               altered.writestr('[Content_Types].xml', verified.read('[Content_Types].xml'))
           PY
           if bash scripts/compare-vsix.sh "$vsix" "$tampered"; then
