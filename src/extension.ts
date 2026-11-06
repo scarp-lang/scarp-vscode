@@ -319,15 +319,19 @@ async function verifyProject(
         }
       });
     if (count === undefined) {
-      // Any previously recorded Problems from the same project are obsolete,
-      // including when the changes happened outside the VS Code editor.
+      if (revision !== compilerRevision) {
+        // This attempt never became authoritative. Preserve completed project
+        // diagnostics and their file watchers, just as for standalone checks.
+        output.appendLine('Scarp compiler changed during project verification; '
+          + 'previous result discarded.');
+        return;
+      }
+      // A source edit or disk rewrite invalidates previously verified Problems.
       projectMonitors.stopRoot(key);
       projectChanges.forgetCompleted(key);
       applyProblems(diagnostics, owners.replace(manifest.toString(), new Map()));
-      output.appendLine(revision !== compilerRevision
-        ? 'Scarp compiler changed during project verification; previous result discarded.'
-        : 'Project changed during verification; outdated diagnostics discarded. '
-          + 'Save your changes and verify again.');
+      output.appendLine('Project changed during verification; outdated diagnostics discarded. '
+        + 'Save your changes and verify again.');
       return;
     }
     // Future in-editor edits anywhere in this project invalidate this root's
