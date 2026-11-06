@@ -18,6 +18,12 @@ interface NavigationSnapshot {
   sourceFile: string;
   disk: ProjectDiskSnapshot;
   requireManifest: boolean;
+  compilerPath: string;
+}
+
+function configuredCompilerPath(): string {
+  return vscode.workspace.getConfiguration('scarp').get<string>(
+    'compilerPath', 'scarp').trim();
 }
 
 /** Infer at most the explicitly opened VS Code workspace root, not ancestors. */
@@ -65,9 +71,18 @@ async function inspect(
   }
   if (token.isCancellationRequested || document.version !== version ||
       document.isDirty) { return undefined; }
-  const binary = vscode.workspace.getConfiguration('scarp').get<string>(
-    'compilerPath', 'scarp').trim();
+  const binary = configuredCompilerPath();
   if (!binary) { return undefined; }
+  const controller = new AbortController();
+  const cancellation = token.onCancellationRequested(() => controller.abort());
+  let compilerChanged = false;
+  const configuration = vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration('scarp.compilerPath')) {
+      compilerChanged = true;
+      controller.abort();
+    }
+  });
+  if (token.isCancellationRequested) { controller.abort(); }
   let result;
   try {
     result = await executeProcess(binary, [
@@ -76,12 +91,20 @@ async function inspect(
       cwd: root,
       timeoutMs: vscode.workspace.getConfiguration('scarp', document.uri)
         .get<number>('checkTimeoutMs', 30000),
-      maxOutputBytes: 4 * 1024 * 1024
+      maxOutputBytes: 4 * 1024 * 1024,
+      signal: controller.signal
     });
   } catch (error) {
-    output.appendLine('Scarp navigation unavailable: ' + String(error));
+    if (!controller.signal.aborted) {
+      output.appendLine('Scarp navigation unavailable: ' + String(error));
+    }
     return undefined;
+  } finally {
+    cancellation.dispose();
+    configuration.dispose();
   }
+  if (compilerChanged || configuredCompilerPath() !== binary ||
+      !vscode.workspace.isTrusted) { return undefined; }
   if (result.exitCode !== 0) {
     // Unsupported older alpha compilers and invalid source files intentionally
     // fall back to the existing local Outline without pretending to resolve.
@@ -97,7 +120,8 @@ async function inspect(
     const after = await snapshotProjectDisk(root, requireManifest);
     if (!sameProjectDisk(before, after) || token.isCancellationRequested ||
         document.version !== version || document.isDirty ||
-        dirtyScarpBuffers(root)) {
+        dirtyScarpBuffers(root) || !vscode.workspace.isTrusted ||
+        compilerChanged || configuredCompilerPath() !== binary) {
       output.appendLine('Scarp navigation discarded: project source changed during inspection.');
       return undefined;
     }
@@ -106,7 +130,7 @@ async function inspect(
     const index = parseNavigationIndex(result.stdout, canonicalRoot);
     if (!index.files.includes(canonicalFile)) { return undefined; }
     return { index, root: canonicalRoot, sourceFile: canonicalFile,
-      disk: after, requireManifest };
+      disk: after, requireManifest, compilerPath: binary };
   } catch (error) {
     output.appendLine('Scarp navigation returned unusable metadata: ' + String(error));
     return undefined;
@@ -134,7 +158,8 @@ async function toLocations(
     doc: vscode.TextDocument; lines: number[]; text: string
   }>();
   for (const span of spans) {
-    if (token.isCancellationRequested) { return []; }
+    if (token.isCancellationRequested || !vscode.workspace.isTrusted ||
+        configuredCompilerPath() !== snapshot.compilerPath) { return []; }
     const filename = snapshot.index.files[span.source];
     if (!filename) { return []; }
     try {
@@ -193,7 +218,8 @@ async function toLocations(
   try {
     const current = await snapshotProjectDisk(snapshot.root, snapshot.requireManifest);
     if (!sameProjectDisk(snapshot.disk, current) ||
-        dirtyScarpBuffers(snapshot.root)) {
+        dirtyScarpBuffers(snapshot.root) || !vscode.workspace.isTrusted ||
+        configuredCompilerPath() !== snapshot.compilerPath) {
       return [];
     }
   } catch {
