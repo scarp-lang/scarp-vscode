@@ -418,7 +418,7 @@ export async function run(): Promise<void> {
         '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
         '}',
         'if (args[0] === "diagnose" && phase === "source") {',
-        '  console.log(JSON.stringify({schema_version:1, project_workflow:true}));',
+        '  console.log(JSON.stringify({schema_version:1, version:"0.0.6-alpha.1", execution:"interpreter", static_verify:true, project_workflow:true}));',
         '  process.exit(0);',
         '}',
         'if (!["--version", "diagnose"].includes(args[0])) process.exit(2);',
@@ -428,7 +428,7 @@ export async function run(): Promise<void> {
         '  if (!fs.existsSync(' + JSON.stringify(launchRelease) + ')) return;',
         '  clearInterval(gate);',
         '  if (args[0] === "--version") console.log("scarp 0.0.6-alpha.1");',
-        '  else console.log(JSON.stringify({schema_version:1, project_workflow:true}));',
+        '  else console.log(JSON.stringify({schema_version:1, version:"0.0.6-alpha.1", execution:"interpreter", static_verify:true, project_workflow:true}));',
         '}, 20);'
       ].join('\n');
       await fs.writeFile(launchBinary, blockedLaunchScript, { mode: 0o755 });
