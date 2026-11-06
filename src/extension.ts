@@ -28,6 +28,9 @@ const checks = new Map<string, Promise<void>>();
 // Only file verification is cancellable; project operations and Run terminals
 // must stay independent of another document's edits.
 const activeFileCheckAborts = new Map<string, AbortController>();
+// Keep opt-in save checks distinct so disabling automatic verification never
+// cancels a manually requested file check for that or another document.
+const activeSaveCheckAborts = new Map<string, AbortController>();
 const verifiedVersions = new Map<string, number>();
 const projectChanges = new ProjectChangeTracker();
 const activeProjectChecks = new Set<string>();
@@ -167,7 +170,9 @@ async function check(
       const expectedVersion = doc.version;
       const current = (): boolean => !controller.signal.aborted &&
         revision === compilerRevision && vscode.workspace.isTrusted &&
-        !doc.isClosed && !doc.isDirty && doc.version === expectedVersion;
+        !doc.isClosed && !doc.isDirty && doc.version === expectedVersion &&
+        (mode === 'manual' || vscode.workspace.getConfiguration('scarp', doc.uri)
+          .get<boolean>('verifyOnSave', false));
       if (!current()) { return; }
       const { binary, version } = await validateCompiler(controller.signal);
       if (!current()) { return; }
@@ -225,12 +230,16 @@ async function check(
   })();
   checks.set(filename, work);
   activeFileCheckAborts.set(filename, controller);
+  if (mode === 'save') { activeSaveCheckAborts.set(filename, controller); }
   try {
     await work;
   } finally {
     if (checks.get(filename) === work) { checks.delete(filename); }
     if (activeFileCheckAborts.get(filename) === controller) {
       activeFileCheckAborts.delete(filename);
+    }
+    if (activeSaveCheckAborts.get(filename) === controller) {
+      activeSaveCheckAborts.delete(filename);
     }
   }
 }
@@ -790,6 +799,19 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         for (const pending of pendingStarts.values()) { pending.cancelled = true; }
         output.appendLine('Scarp compiler changed; in-flight results and pending launches invalidated.');
+      }
+      if (event.affectsConfiguration('scarp.verifyOnSave')) {
+        // Disabling the opt-in setting is a cancellation, not permission for
+        // an already-running auto-check to continue. Respect resource-scoped
+        // overrides, and leave explicit Verify Current File untouched.
+        for (const [filename, controller] of activeSaveCheckAborts) {
+          const uri = vscode.Uri.file(filename);
+          if (event.affectsConfiguration('scarp.verifyOnSave', uri) &&
+              !vscode.workspace.getConfiguration('scarp', uri)
+                .get<boolean>('verifyOnSave', false)) {
+            controller.abort();
+          }
+        }
       }
       if (event.affectsConfiguration('scarp.compilerPath') ||
           event.affectsConfiguration('scarp.verifyOnSave')) {

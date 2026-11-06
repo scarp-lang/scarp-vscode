@@ -956,6 +956,93 @@ export async function run(): Promise<void> {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
 
+      // Switching the resource-scoped opt-in off must terminate only a
+      // running *automatic* check. A manually invoked verification remains
+      // active across the same setting toggle and can still publish Problems.
+      const toggleUri = vscode.Uri.file(path.join(tempDir, 'toggle-check.srp'));
+      const toggleBinary = path.join(tempDir, 'toggle-scarp');
+      const toggleMarker = path.join(tempDir, 'toggle-compiler-pid');
+      const toggleReleased = path.join(tempDir, 'toggle-released');
+      const toggleDiagnostic = {
+        schema_version: 1, severity: 'error', code: 'E0004',
+        message: 'explicit verification survived disabled automatic checks',
+        primary: {
+          path: toggleUri.fsPath,
+          start: { line: 1, column: 1 }, end: { line: 1, column: 2 }
+        }, help: null
+      };
+      const toggleScript = [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const args = process.argv.slice(2);',
+        'if (args[0] === "--version") {',
+        '  console.log("scarp 0.0.6-alpha.1"); process.exit(0);',
+        '}',
+        'if (args[0] === "verify" && args[1] === "--help") {',
+        '  console.log("Usage: scarp verify [OPTIONS]"); process.exit(0);',
+        '}',
+        'if (args[0] !== "verify") { process.exit(2); }',
+        'process.on("SIGTERM", () => {});',
+        'fs.writeFileSync(' + JSON.stringify(toggleMarker) + ', String(process.pid));',
+        'const check = setInterval(() => {',
+        '  if (!fs.existsSync(' + JSON.stringify(toggleReleased) + ')) { return; }',
+        '  clearInterval(check);',
+        '  process.stderr.write(' + JSON.stringify(JSON.stringify(toggleDiagnostic)) + ');',
+        '  process.exit(1);',
+        '}, 20);'
+      ].join('\n');
+      await fs.writeFile(toggleBinary, toggleScript, { mode: 0o755 });
+      await fs.chmod(toggleBinary, 0o755);
+      await fs.writeFile(toggleUri.fsPath, 'print("initial");\n');
+      const toggleDoc = await vscode.workspace.openTextDocument(toggleUri);
+      await vscode.window.showTextDocument(toggleDoc);
+      await settings.update('compilerPath', toggleBinary, vscode.ConfigurationTarget.Global);
+      try {
+        await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
+        const changed = new vscode.WorkspaceEdit();
+        changed.insert(toggleUri, new vscode.Position(0, 0), '// auto check started\n');
+        assert.ok(await vscode.workspace.applyEdit(changed));
+        assert.ok(await toggleDoc.save());
+        await waitFor(() => fsSync.existsSync(toggleMarker) ? true : undefined,
+          'Verify-on-save process did not begin before disabling the option');
+        const automaticPid = Number(await fs.readFile(toggleMarker, 'utf8'));
+        const disabledAt = Date.now();
+        await settings.update('verifyOnSave', false, vscode.ConfigurationTarget.Global);
+        await waitFor(() => {
+          try { process.kill(automaticPid, 0); return undefined; }
+          catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ESRCH') { return true; }
+            throw error;
+          }
+        }, 'Disabling verify on save did not stop its compiler subprocess');
+        assert.ok(Date.now() - disabledAt < 3000,
+          'Disabling automatic checks must cancel work before the CLI timeout');
+        assert.equal(vscode.languages.getDiagnostics(toggleUri).length, 0,
+          'An automatic verification canceled by settings cannot publish Problems');
+
+        // No save is needed for a manual check. Disabling the automatic
+        // setting again must *not* abort this explicitly requested process.
+        await fs.rm(toggleMarker);
+        const pendingManual = vscode.commands.executeCommand('scarp.checkFile');
+        await waitFor(() => fsSync.existsSync(toggleMarker) ? true : undefined,
+          'Manual check did not reach the independent compiler subprocess');
+        const manualPid = Number(await fs.readFile(toggleMarker, 'utf8'));
+        await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
+        await settings.update('verifyOnSave', false, vscode.ConfigurationTarget.Global);
+        assert.doesNotThrow(() => process.kill(manualPid, 0),
+          'Disabling verify on save must not stop an explicit manual check');
+        await fs.writeFile(toggleReleased, 'go');
+        await pendingManual;
+        assert.ok(vscode.languages.getDiagnostics(toggleUri).some(item =>
+          item.source === 'Scarp' &&
+          item.message.includes('explicit verification survived disabled automatic checks')),
+        'Manual verification must publish its result even when auto-checks are off');
+      } finally {
+        await fs.writeFile(toggleReleased, 'go');
+        await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+        await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
+      }
+
       // Simulate an older compiler with no static verification. Its
       // evaluating check command would create a marker if invoked.
       const legacyBinary = path.join(tempDir, 'legacy-scarp');
