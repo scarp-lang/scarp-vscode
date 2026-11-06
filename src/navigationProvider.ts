@@ -21,6 +21,12 @@ interface NavigationSnapshot {
   compilerPath: string;
 }
 
+function isNavigationInput(root: string, filename: string): boolean {
+  return isWithinProject(root, filename) &&
+    (path.extname(filename).toLowerCase() === '.srp' ||
+      path.basename(filename) === 'Scarp.project');
+}
+
 function configuredCompilerPath(): string {
   return vscode.workspace.getConfiguration('scarp').get<string>(
     'compilerPath', 'scarp').trim();
@@ -82,7 +88,26 @@ async function inspect(
       controller.abort();
     }
   });
-  if (token.isCancellationRequested) { controller.abort(); }
+  // A source edit during an expensive inspection cannot produce authoritative
+  // results. Stop the old CLI immediately, not after its timeout or response.
+  // Listen to imported sources and Scarp.project in this explicitly selected
+  // root; a different directory must remain independent.
+  const sourceChanged = vscode.workspace.onDidChangeTextDocument(event => {
+    if (event.contentChanges.length > 0 && event.document.uri.scheme === 'file' &&
+        isNavigationInput(root, event.document.uri.fsPath)) {
+      controller.abort();
+    }
+  });
+  const sourceClosed = vscode.workspace.onDidCloseTextDocument(closed => {
+    if (closed.uri.toString() === document.uri.toString()) { controller.abort(); }
+  });
+  // Cover any change that arrived between the initial snapshot and listener
+  // registration. External disk-only rewrites remain guarded by snapshots.
+  if (token.isCancellationRequested || document.isClosed ||
+      document.isDirty || document.version !== version ||
+      dirtyScarpBuffers(root)) {
+    controller.abort();
+  }
   let result;
   try {
     result = await executeProcess(binary, [
@@ -102,6 +127,8 @@ async function inspect(
   } finally {
     cancellation.dispose();
     configuration.dispose();
+    sourceChanged.dispose();
+    sourceClosed.dispose();
   }
   if (compilerChanged || configuredCompilerPath() !== binary ||
       !vscode.workspace.isTrusted) { return undefined; }
@@ -139,9 +166,8 @@ async function inspect(
 
 function dirtyScarpBuffers(root: string): boolean {
   return vscode.workspace.textDocuments.some(doc => doc.isDirty &&
-    doc.uri.scheme === 'file' && isWithinProject(root, doc.uri.fsPath) &&
-    (path.extname(doc.uri.fsPath).toLowerCase() === '.srp' ||
-      path.basename(doc.uri.fsPath) === 'Scarp.project'));
+    doc.uri.scheme === 'file' &&
+    isNavigationInput(root, doc.uri.fsPath));
 }
 
 function byteOffset(document: vscode.TextDocument, position: vscode.Position): number {
