@@ -205,7 +205,8 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "vscode:prepublish": "npm run build",
     "package:pre": "vsce package --pre-release --no-dependencies",
-    "test:integration": "npm run build && node dist/test/integration/runTest.js"
+    "test:integration": "npm run build && node dist/test/integration/runTest.js",
+    "test:untrusted": "npm run build && node dist/test/integration/runUntrustedTest.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
