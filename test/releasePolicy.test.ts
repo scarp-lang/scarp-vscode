@@ -112,14 +112,16 @@ test('release contents are verified before attaching or publishing', () => {
 
 test('manual prerelease version tags must resolve to exact checked-out source revision', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
-  const guard = publish.indexOf('name: Reject manual dispatch against an unrelated existing release tag');
+  const guard = publish.indexOf('name: Reject manual publication against an unrelated existing release tag');
   const build = publish.indexOf('name: Build verified pre-release package');
   const attach = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
   assert.ok(guard > 0 && guard < build && build < attach,
     'Reject conflicting release tags before packaging or any upload');
   assert.match(publish, /git fetch --tags origin/);
   assert.ok(publish.includes('node scripts/assert-tag-provenance.cjs "$TAG"'));
-  assert.ok(publish.slice(guard, build).includes("if: github.event_name == 'workflow_dispatch'"));
+  assert.ok(publish.slice(guard, build).includes(
+    "if: github.event_name == 'workflow_dispatch' && inputs.publish_github"),
+  'A qualification-only run must not fail because a different release tag exists');
 
   // Real Git fixture: exercise absent, lightweight, annotated, and stale
   // tags rather than merely checking the workflow text for a guard.
