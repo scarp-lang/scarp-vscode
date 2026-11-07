@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Clarify version support for editor-only `sample_area` and `sample_slopes` highlighting. These names are available in unreleased Scarp compiler `main` after v0.0.6-alpha.3, not in the published alpha.3 binaries. Release notes must not misrepresent highlighting as executable compiler functionality.
+
 - Highlight the official v0.0.6-alpha.3 numerical built-ins (`topk`, `topk_values`, `softmax_temp`, `logsoftmax_temp`) as editor-only Scarp function calls. The real TextMate tokenizer test asserts comments, strings, longer identifiers and user function declarations are not mistakenly styled as built-in invocations. Syntax highlighting does not imply these calls are supported on older installed compiler versions.
 
 - Qualify published Scarp compiler **v0.0.6-alpha.3** with an independent Linux CLI and VS Code Extension Host CI gate while retaining alpha.1 and alpha.2 compatibility. Validate module/reference schema and verify and execute immutable alpha.3 Top-K and temperature examples against exact expected stdout. Pin the experimental pre-release qualification workflow to alpha.3 without automatically publishing, tagging, or implying stable/native compilation.
