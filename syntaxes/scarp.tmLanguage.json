@@ -138,7 +138,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.scarp",
-          "match": "\\b(?:print|println|write|eprint|ewrite)\\b(?=\\s*\\()"
+          "match": "\\b(?:print|println|write|eprint|ewrite|topk|topk_values|softmax_temp|logsoftmax_temp)\\b(?=\\s*\\()"
         }
       ]
     },
