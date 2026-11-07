@@ -113,6 +113,21 @@ test('published alpha.3 numerical builtins are highlighted only as calls', async
   assert.ok(!hasScope(definition, 'topk', 'support.function.builtin.scarp'));
 });
 
+test('unreleased sampled calculus names are scoped only at true function calls', async () => {
+  const grammar = await tokenizer();
+  for (const name of ['sample_area', 'sample_slopes']) {
+    const call = tokens(`bind result = ${name}(time, values);`, grammar);
+    assert.ok(hasScope(call, name, 'support.function.builtin.scarp'));
+    const longer = tokens(`bind result = ${name}_custom(time, values);`, grammar);
+    assert.ok(hasScope(longer, `${name}_custom`, 'entity.name.function.call.scarp'));
+    assert.ok(!hasScope(longer, `${name}_custom`, 'support.function.builtin.scarp'));
+    const comment = tokens(`// ${name}(time, values)`, grammar);
+    assert.ok(!hasScope(comment, name, 'support.function.builtin.scarp'));
+    const quoted = tokens(`print("${name}(time, values)");`, grammar);
+    assert.ok(!hasScope(quoted, name, 'support.function.builtin.scarp'));
+  }
+});
+
 test('escaping, longest shift operators, and unterminated strings match compiler lexer rules', async () => {
   const grammar = await tokenizer();
   const escaped = tokens('print("a\\\"b\\n");', grammar);
