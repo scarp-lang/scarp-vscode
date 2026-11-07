@@ -55,6 +55,16 @@ These checks are safety gates, not authorization to publish. Do not create
 a release/tag unless the version and compiler compatibility have been
 reviewed, and always mark GitHub and registry publication as **pre-release**.
 
+**Public release notes gate:** When a manually dispatched workflow creates
+a new GitHub release, it requires a reviewed
+`docs/releases/vVERSION-public.md` matching the requested `vVERSION` tag.
+The long-form `docs/releases/vVERSION.md` may remain a development draft and
+must not be used as public release copy. Missing public notes fail closed
+before this workflow creates a release. A release created directly through
+GitHub's Releases UI uses the notes supplied in that UI; review those notes
+before publishing. A successful qualification-only run does not constitute
+publication approval.
+
 ## Publish an approved pre-release
 
 Publishing requires an explicit human release action; routine pushes and pull requests never publish. There are two approved paths:
@@ -78,7 +88,7 @@ Publishing requires an explicit human release action; routine pushes and pull re
 
 The shared `scripts/verify-vsix.sh` pre-release packaging gate checks the package publisher, extension ID, numeric version, compiled entrypoint, grammar and the VS Code pre-release marker. It rejects VSIX archives containing internal workflow, compiler-checkout, test, source, scripts or release-request files. In particular, approval marker files must remain in GitHub and **must not** ship inside the installed extension.
 
-The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The release workflow independently builds and checks the published `v0.0.6-alpha.2` compiler, including `verify`, `exec`, project creation/verification/launch, read-only `inspect modules --json PROJECT_DIRECTORY` and static references. CI separately continues to check the original alpha.1 compatibility baseline and the newer alpha.2 real VS Code Extension Host. This does **not** imply that native executable generation is available.
+The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The release workflow independently builds and checks the published `v0.0.6-alpha.3` compiler, including `verify`, `exec`, project creation/verification/launch, read-only `inspect modules --json PROJECT_DIRECTORY`, static references and exact alpha.3 numerical example output. CI retains separately pinned alpha.1 and alpha.2 real VS Code Extension Host compatibility. This does **not** imply that native executable generation is available.
 
 **The PAT secret's existence cannot be verified by reading public repository files.** If `OVSX_PAT` is missing or empty, publishing fails before uploading to either registry.
 
