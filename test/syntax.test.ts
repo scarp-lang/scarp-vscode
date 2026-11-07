@@ -89,6 +89,30 @@ test('real TextMate tokenizer recognizes current Scarp syntax and avoids false c
   assert.ok(hasScope(fourth, 'add', 'entity.name.function.call.scarp'));
 });
 
+test('published alpha.3 numerical builtins are highlighted only as calls', async () => {
+  const grammar = await tokenizer();
+  for (const name of ['topk', 'topk_values', 'softmax_temp', 'logsoftmax_temp']) {
+    const highlighted = tokens(`bind result = ${name}(scores, 3);`, grammar);
+    assert.ok(hasScope(highlighted, name, 'support.function.builtin.scarp'),
+      `${name} should be recognized as an actual compiler built-in`);
+  }
+
+  const longer = tokens('bind result = topk_custom(scores);', grammar);
+  assert.ok(hasScope(longer, 'topk_custom', 'entity.name.function.call.scarp'));
+  assert.ok(!hasScope(longer, 'topk_custom', 'support.function.builtin.scarp'));
+  const comment = tokens('// softmax_temp([1.0], 0.5)', grammar);
+  assert.ok(!comment.some(part => part.scopes.includes('support.function.builtin.scarp')));
+  const string = tokens('print("logsoftmax_temp([1.0], 0.5)");', grammar);
+  assert.ok(!string.some(part =>
+    part.text.includes('logsoftmax_temp') &&
+    part.scopes.includes('support.function.builtin.scarp')));
+
+  // User-declared functions are still declarations, not builtin calls.
+  const definition = tokens('pure funcra topk(scores: vector) -> vector {', grammar);
+  assert.ok(hasScope(definition, 'topk', 'entity.name.function.definition.scarp'));
+  assert.ok(!hasScope(definition, 'topk', 'support.function.builtin.scarp'));
+});
+
 test('escaping, longest shift operators, and unterminated strings match compiler lexer rules', async () => {
   const grammar = await tokenizer();
   const escaped = tokens('print("a\\\"b\\n");', grammar);
