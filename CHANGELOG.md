@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Qualify published Scarp compiler **v0.0.6-alpha.3** with an independent Linux CLI and VS Code Extension Host CI gate while retaining alpha.1 and alpha.2 compatibility. Validate module/reference schema and verify and execute immutable alpha.3 Top-K and temperature examples against exact expected stdout. Pin the experimental pre-release qualification workflow to alpha.3 without automatically publishing, tagging, or implying stable/native compilation.
+
 - Prevent **Run Current File** from opening a terminal for a saved `.srp` source externally rewritten while the compiler version or `guide exec` capability probes are running. Reuse the bounded selected-source disk fingerprint and revalidate it immediately before terminal creation. Preserve cancellation on in-editor edits, Stop and compiler switches, and leave unrelated sibling files independent. Add real VS Code Extension Host regressions for both startup phases and successful Run after a sibling-only change.
 
 
