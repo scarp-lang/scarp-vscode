@@ -65,6 +65,18 @@ test('manual runs qualify without publishing unless GitHub release is explicitly
   assert.match(publish, /--prerelease/);
 });
 
+test('public experimental releases require reviewed notes, not development drafts', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const notes = repoFile('docs/releases/v0.1.5-public.md');
+  assert.match(publish, /notes_file="docs\\/releases\\/\\$TAG-public\\.md"/);
+  assert.match(publish, /if \\[\\[ ! -f "\\$notes_file" \\]\\]; then/);
+  assert.match(publish, /--notes-file "\\$notes_file"/);
+  assert.doesNotMatch(publish, /--notes-file "docs\\/releases\\/\\$TAG\\.md"/);
+  assert.match(notes, /Experimental Pre-release/);
+  assert.match(notes, /v0\\.0\\.6-alpha\\.3/);
+  assert.doesNotMatch(notes, /not published|development draft|under review/i);
+});
+
 test('experimental GitHub releases must build the approved tagged revision', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
   assert.match(publish, /github\.event\.release\.tag_name \|\| github\.ref/);
