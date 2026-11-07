@@ -115,7 +115,7 @@ test('published alpha.3 numerical builtins are highlighted only as calls', async
 
 test('unreleased sampled calculus names are scoped only at true function calls', async () => {
   const grammar = await tokenizer();
-  for (const name of ['sample_area', 'sample_slopes']) {
+  for (const name of ['sample_area', 'sample_slopes', 'sample_cumulative_area']) {
     const call = tokens(`bind result = ${name}(time, values);`, grammar);
     assert.ok(hasScope(call, name, 'support.function.builtin.scarp'));
     const longer = tokens(`bind result = ${name}_custom(time, values);`, grammar);
