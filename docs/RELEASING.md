@@ -55,13 +55,15 @@ These checks are safety gates, not authorization to publish. Do not create
 a release/tag unless the version and compiler compatibility have been
 reviewed, and always mark GitHub and registry publication as **pre-release**.
 
-**Public release notes gate:** For manually approved GitHub releases, the
-workflow requires a reviewed `docs/releases/vVERSION-public.md` matching the
-requested `vVERSION` tag. The long-form `docs/releases/vVERSION.md` file may
-remain an explicitly unpublished development draft and must not be used as
-public release copy. Missing public notes fail closed before creating a public
-release. A successful qualification-only run does not constitute publication
-approval.
+**Public release notes gate:** When a manually dispatched workflow creates
+a new GitHub release, it requires a reviewed
+`docs/releases/vVERSION-public.md` matching the requested `vVERSION` tag.
+The long-form `docs/releases/vVERSION.md` may remain a development draft and
+must not be used as public release copy. Missing public notes fail closed
+before this workflow creates a release. A release created directly through
+GitHub's Releases UI uses the notes supplied in that UI; review those notes
+before publishing. A successful qualification-only run does not constitute
+publication approval.
 
 ## Publish an approved pre-release
 
