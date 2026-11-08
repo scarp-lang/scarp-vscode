@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Add the published Scarp v0.0.6-alpha.4 compatibility gate while preserving alpha.1–alpha.3 CI. Test official sampled calculus, cumulative area and cosine similarity examples with exact stdout and a real VS Code Extension Host. Pin the guarded experimental-only release qualification to alpha.4; **do not publish** automatically. Highlight `cosine_similarity` in the compiler's TextMate call grammar and update documented compiler support.
+
 - Clarify version support for editor-only `sample_area` and `sample_slopes` highlighting. These names are available in unreleased Scarp compiler `main` after v0.0.6-alpha.3, not in the published alpha.3 binaries. Release notes must not misrepresent highlighting as executable compiler functionality.
 
 - Highlight the official v0.0.6-alpha.3 numerical built-ins (`topk`, `topk_values`, `softmax_temp`, `logsoftmax_temp`) as editor-only Scarp function calls. The real TextMate tokenizer test asserts comments, strings, longer identifiers and user function declarations are not mistakenly styled as built-in invocations. Syntax highlighting does not imply these calls are supported on older installed compiler versions.
