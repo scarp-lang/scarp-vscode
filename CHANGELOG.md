@@ -1,5 +1,7 @@
 # Changelog
 
+- Align the upcoming experimental v0.1.5 source and CI with the independently published Scarp compiler v0.0.6-alpha.4: add cosine similarity TextMate recognition, sample calculus release status and exact-output qualification on the new tagged compiler. Retain historical alpha.3 compatibility and no automatic publication.
+
 ## Unreleased — v0.1.5 development
 
 - Clarify version support for editor-only `sample_area` and `sample_slopes` highlighting. These names are available in unreleased Scarp compiler `main` after v0.0.6-alpha.3, not in the published alpha.3 binaries. Release notes must not misrepresent highlighting as executable compiler functionality.
