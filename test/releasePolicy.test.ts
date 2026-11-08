@@ -213,14 +213,15 @@ test('pre-release publishing reruns trusted and Restricted Mode editor tests bef
   'CI must package and verify a VSIX after the Restricted Mode editor download');
 });
 
-test('published compiler alpha.1, alpha.2 and alpha.3 remain independently qualified', () => {
+test('published compiler alpha.1 through alpha.4 remain independently qualified', () => {
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
   // Preserve original protected-branch check names for alpha.1 compatibility.
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.1/g) ?? []).length, 2);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.2/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.3/g) ?? []).length, 1);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.3/g) ?? []).length, 1);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12]/);
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
@@ -234,18 +235,27 @@ test('published compiler alpha.1, alpha.2 and alpha.3 remain independently quali
   assert.match(alpha2, /scarp launch --/);
   assert.match(alpha2, /xvfb-run -a npm run test:integration/);
   const alpha3 = ci.slice(ci.indexOf('  compiler-alpha3-compatibility:'),
+    ci.indexOf('  compiler-alpha4-compatibility:'));
+  const alpha4 = ci.slice(ci.indexOf('  compiler-alpha4-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
   assert.match(alpha3, /name: Official Scarp alpha\.3 compatibility \(Linux\)/);
   assert.match(alpha3, /ref: v0\.0\.6-alpha\.3/);
   assert.match(alpha3, /grep -F '0\.0\.6-alpha\.3'/);
   assert.match(alpha3, /xvfb-run -a npm run test:integration/);
   assert.match(alpha3, /scarp inspect references --json/);
-  for (const workflow of [alpha3, publish]) {
+  assert.match(alpha4, /name: Official Scarp alpha\.4 compatibility \(Linux\)/);
+  assert.match(alpha4, /ref: v0\.0\.6-alpha\.4/);
+  assert.match(alpha4, /grep -F '0\.0\.6-alpha\.4'/);
+  assert.match(alpha4, /xvfb-run -a npm run test:integration/);
+  for (const workflow of [alpha3, alpha4, publish]) {
     assert.match(workflow, /for example in topk_scores temperature_softmax/);
     assert.match(workflow, /scarp verify "compiler\/examples\/\$example\.srp"/);
     assert.match(workflow, /diff -u "compiler\/examples\/\$example\.stdout"/);
   }
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.3'/);
+  for (const workflow of [alpha4, publish]) {
+    assert.match(workflow, /sampled_calculus sample_cumulative_area cosine_similarity/);
+  }
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.4'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
