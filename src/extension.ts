@@ -18,6 +18,7 @@ import { ProjectWatchRegistry } from './projectWatchRegistry';
 import { parseBrowsableProjectModules } from './projectModules';
 import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
+import { scarpBuiltinAt } from './builtinHelp';
 
 const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
@@ -838,7 +839,33 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     { label: 'Scarp declarations' }
   );
-  context.subscriptions.push(output, diagnostics, saveVerifier, navigation, projectMonitors,
+  // Static, read-only help remains available in Restricted Mode. No compiler
+  // executable is launched by pointer movement or hover requests.
+  const builtinHover = vscode.languages.registerHoverProvider({ language: 'scarp' }, {
+    provideHover(document, position, token): vscode.Hover | undefined {
+      if (token.isCancellationRequested || position.line >= document.lineCount) {
+        return undefined;
+      }
+      const line = document.lineAt(position.line).text;
+      const nextLine = position.line + 1 < document.lineCount
+        ? document.lineAt(position.line + 1).text : '';
+      const call = scarpBuiltinAt(line, position.character, nextLine);
+      if (!call) { return undefined; }
+      const hover = new vscode.MarkdownString();
+      hover.isTrusted = false;
+      hover.supportHtml = false;
+      hover.appendCodeblock(call.help.signature, 'scarp');
+      hover.appendMarkdown('\n\n' + call.help.summary);
+      hover.appendMarkdown('\n\n**Constraints:** ' + call.help.constraints);
+      hover.appendMarkdown('\n\n**Introduced in compiler:** ' + call.help.introduced +
+        ' (experimental). Availability depends on the separately installed compiler.');
+      hover.appendMarkdown('\n\n*Editor reference only; semantic resolution and errors belong to Scarp.*');
+      return new vscode.Hover(hover,
+        new vscode.Range(position.line, call.start, position.line, call.end));
+    }
+  });
+  context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
+    builtinHover, projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
