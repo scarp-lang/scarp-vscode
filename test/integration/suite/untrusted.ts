@@ -46,6 +46,22 @@ export async function run(): Promise<void> {
     await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
     const initialTerminals = vscode.window.terminals.length;
 
+    // Hover help must remain a pure editor operation in Restricted Mode.
+    // The fake compiler writes a marker if anything attempts to execute it.
+    const hoverDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp',
+      content: 'bind chosen = top_p([0.6, 0.4], 0.9);'
+    });
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider', hoverDoc.uri, new vscode.Position(0, 16));
+    assert.ok(hovers?.length, 'Read-only Scarp builtin hover should work when untrusted');
+    const markdown = (hovers ?? []).flatMap(item => item.contents)
+      .map(item => typeof item === 'string' ? item : item.value).join('\n');
+    assert.match(markdown, /v0\.0\.6-alpha\.5/);
+    assert.match(markdown, /top_p\(probabilities: vector, mass: float\)/);
+    assert.equal(fsSync.existsSync(marker), false,
+      'Static builtin hover must never execute the configured compiler');
+
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
