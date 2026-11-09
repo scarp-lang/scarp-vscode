@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Qualify the published Scarp **v0.0.6-alpha.5** compiler independently of retained alpha.1–alpha.4 CI: build the tagged official CLI, validate project and reference inspection, compare nucleus-selection and Pearson-correlation examples against exact expected output, and run the real Linux VS Code Extension Host suite. Align the manual, opt-in experimental pre-release qualification gate to alpha.5 without automatically publishing. Highlight `top_p`, `top_p_values`, and `pearson_correlation` only in true calls with tokenizer checks for comments, strings, longer identifiers and declarations.
+
 - Add the published Scarp v0.0.6-alpha.4 compatibility gate while preserving alpha.1–alpha.3 CI. Test official sampled calculus, cumulative area and cosine similarity examples with exact stdout and a real VS Code Extension Host. Pin the guarded experimental-only release qualification to alpha.4; **do not publish** automatically. Highlight `cosine_similarity` in the compiler's TextMate call grammar and update documented compiler support.
 
 - Clarify version support for editor-only `sample_area` and `sample_slopes` highlighting. These names are available in unreleased Scarp compiler `main` after v0.0.6-alpha.3, not in the published alpha.3 binaries. Release notes must not misrepresent highlighting as executable compiler functionality.
