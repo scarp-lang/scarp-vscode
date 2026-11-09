@@ -73,12 +73,17 @@ test('public experimental releases require reviewed notes, not development draft
   assert.match(publish, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(publish, /--notes-file "docs\/releases\/\$TAG\.md"/);
   assert.match(notes, /Experimental Pre-release/);
-  assert.match(notes, /v0\.0\.6-alpha\.4/);
+  assert.match(notes, /v0\.0\.6-alpha\.5/);
+  assert.match(notes, /alpha\.4/);
+  assert.match(notes, /top_p/);
+  assert.match(notes, /top_p_values/);
+  assert.match(notes, /pearson_correlation/);
   assert.match(notes, /sample_area/);
   assert.match(notes, /sample_slopes/);
   assert.match(notes, /sample_cumulative_area/);
   assert.match(notes, /cosine_similarity/);
   assert.match(notes, /require the published alpha\.4 compiler/);
+  assert.match(notes, /Nucleus selection and Pearson correlation require alpha\.5 or later/);
   assert.doesNotMatch(notes, /not published|development draft|under review/i);
 });
 
@@ -215,7 +220,7 @@ test('pre-release publishing reruns trusted and Restricted Mode editor tests bef
   'CI must package and verify a VSIX after the Restricted Mode editor download');
 });
 
-test('published compiler alpha.1 through alpha.4 remain independently qualified', () => {
+test('published compiler alpha.1 through alpha.5 remain independently qualified', () => {
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
   // Preserve original protected-branch check names for alpha.1 compatibility.
@@ -223,7 +228,8 @@ test('published compiler alpha.1 through alpha.4 remain independently qualified'
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.2/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.3/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12]/);
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
@@ -239,7 +245,10 @@ test('published compiler alpha.1 through alpha.4 remain independently qualified'
   const alpha3 = ci.slice(ci.indexOf('  compiler-alpha3-compatibility:'),
     ci.indexOf('  compiler-alpha4-compatibility:'));
   const alpha4 = ci.slice(ci.indexOf('  compiler-alpha4-compatibility:'),
+    ci.indexOf('  compiler-alpha5-compatibility:'));
+  const alpha5 = ci.slice(ci.indexOf('  compiler-alpha5-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
+  assert.ok(alpha4.length > 0 && alpha5.length > 0, 'Every compiler version keeps its own CI gate');
   assert.match(alpha3, /name: Official Scarp alpha\.3 compatibility \(Linux\)/);
   assert.match(alpha3, /ref: v0\.0\.6-alpha\.3/);
   assert.match(alpha3, /grep -F '0\.0\.6-alpha\.3'/);
@@ -249,15 +258,24 @@ test('published compiler alpha.1 through alpha.4 remain independently qualified'
   assert.match(alpha4, /ref: v0\.0\.6-alpha\.4/);
   assert.match(alpha4, /grep -F '0\.0\.6-alpha\.4'/);
   assert.match(alpha4, /xvfb-run -a npm run test:integration/);
-  for (const workflow of [alpha3, alpha4, publish]) {
+  assert.match(alpha5, /name: Official Scarp alpha\.5 compatibility \(Linux\)/);
+  assert.match(alpha5, /ref: v0\.0\.6-alpha\.5/);
+  assert.match(alpha5, /grep -F '0\.0\.6-alpha\.5'/);
+  assert.match(alpha5, /xvfb-run -a npm run test:integration/);
+  assert.match(alpha5, /scarp inspect modules --json/);
+  assert.match(alpha5, /scarp inspect references --json/);
+  for (const workflow of [alpha3, alpha4, alpha5, publish]) {
     assert.match(workflow, /for example in topk_scores temperature_softmax/);
     assert.match(workflow, /scarp verify "compiler\/examples\/\$example\.srp"/);
     assert.match(workflow, /diff -u "compiler\/examples\/\$example\.stdout"/);
   }
-  for (const workflow of [alpha4, publish]) {
+  for (const workflow of [alpha4, alpha5, publish]) {
     assert.match(workflow, /sampled_calculus sample_cumulative_area cosine_similarity/);
   }
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.4'/);
+  for (const workflow of [alpha5, publish]) {
+    assert.match(workflow, /nucleus_selection pearson_correlation/);
+  }
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.5'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
