@@ -128,6 +128,29 @@ test('published alpha.4 scientific calls are scoped only at true function calls'
   }
 });
 
+test('published alpha.5 nucleus selection and Pearson correlation highlight only calls', async () => {
+  const grammar = await tokenizer();
+  for (const name of ['top_p', 'top_p_values', 'pearson_correlation']) {
+    const called = tokens(`bind result = ${name}(scores, mass);`, grammar);
+    assert.ok(hasScope(called, name, 'support.function.builtin.scarp'),
+      `${name} must have the official builtin scope when called`);
+
+    const longer = tokens(`bind result = ${name}_custom(scores, mass);`, grammar);
+    assert.ok(hasScope(longer, `${name}_custom`, 'entity.name.function.call.scarp'));
+    assert.ok(!hasScope(longer, `${name}_custom`, 'support.function.builtin.scarp'));
+
+    const commented = tokens(`// ${name}(scores, mass)`, grammar);
+    assert.ok(!hasScope(commented, name, 'support.function.builtin.scarp'));
+
+    const quoted = tokens(`print("${name}(scores, mass)");`, grammar);
+    assert.ok(!hasScope(quoted, name, 'support.function.builtin.scarp'));
+
+    const declaration = tokens(`pure funcra ${name}(scores: vector) -> vector {`, grammar);
+    assert.ok(hasScope(declaration, name, 'entity.name.function.definition.scarp'));
+    assert.ok(!hasScope(declaration, name, 'support.function.builtin.scarp'));
+  }
+});
+
 test('escaping, longest shift operators, and unterminated strings match compiler lexer rules', async () => {
   const grammar = await tokenizer();
   const escaped = tokens('print("a\\\"b\\n");', grammar);
