@@ -260,7 +260,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Syntax highlighting and local Outline remain available in Restricted Mode. Compiler verification, execution, project commands and compiler-backed navigation require a trusted workspace."
+      "description": "Syntax highlighting, local Outline and read-only built-in signature hovers remain available in Restricted Mode. Compiler verification, execution, project commands and compiler-backed navigation require a trusted workspace."
     }
   }
 }

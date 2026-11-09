@@ -67,6 +67,33 @@ export async function run(): Promise<void> {
   assert.equal(outline[2].selectionRange.start.line, 2);
   assert.equal(outline[2].range.end.line, 7);
 
+  // Real VS Code hover API: pure source help, no compiler process and no
+  // suggestion that the extension implements scientific operations itself.
+  const hoverDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp',
+    content: [
+      'bind chosen = top_p([0.5, 0.5], 0.9);',
+      '// pearson_correlation(x, y)',
+      'print("top_p([1.0], 1.0)");',
+      'bind rho = pearson_correlation([1.0,2.0], [2.0,3.0]);'
+    ].join('\n')
+  });
+  const hoverResults = await vscode.commands.executeCommand<vscode.Hover[]>(
+    'vscode.executeHoverProvider', hoverDoc.uri, new vscode.Position(0, 16));
+  assert.ok(hoverResults?.length, 'Scarp builtin help must be registered');
+  const helpText = hoverResults.flatMap(item => item.contents)
+    .map(item => typeof item === 'string' ? item : item.value).join('\n');
+  assert.match(helpText, /top_p\(probabilities: vector, mass: float\)/);
+  assert.match(helpText, /v0\.0\.6-alpha\.5/);
+  assert.equal(hoverResults[0].range?.start.character, 14);
+  for (const position of [new vscode.Position(1, 8), new vscode.Position(2, 10)]) {
+    const noHover = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider', hoverDoc.uri, position);
+    assert.ok(!noHover?.some(item => item.contents.some(value =>
+      (typeof value === 'string' ? value : value.value).includes('top_p(probabilities:'))),
+    'Comments and strings must not present builtin help');
+  }
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previous = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
