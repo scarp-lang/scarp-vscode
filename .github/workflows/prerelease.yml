@@ -153,6 +153,9 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run check
 
+      - name: Validate shipped snippets with pinned Scarp alpha.6
+        run: node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp"
+
       - name: Validate extension module browser against real alpha.6 tuple metadata
         shell: bash
         run: |
