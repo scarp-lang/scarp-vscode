@@ -73,7 +73,7 @@ test('public experimental releases require reviewed notes, not development draft
   assert.match(publish, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(publish, /--notes-file "docs\/releases\/\$TAG\.md"/);
   assert.match(notes, /Experimental Pre-release/);
-  assert.match(notes, /v0\.0\.6-alpha\.5/);
+  assert.match(notes, /v0\.0\.6-alpha\.6/);
   assert.match(notes, /alpha\.4/);
   assert.match(notes, /top_p/);
   assert.match(notes, /top_p_values/);
