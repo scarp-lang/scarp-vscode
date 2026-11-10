@@ -157,7 +157,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          compiler/target/release/scarp inspect modules --json -- compiler/examples/core_input_tuple.srp |
+          compiler/target/release/scarp inspect modules --json -- "$PWD/compiler/examples/core_input_tuple.srp" |
             node -e '
               const fs = require("node:fs");
               const path = require("node:path");
