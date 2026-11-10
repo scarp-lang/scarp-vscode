@@ -537,7 +537,8 @@ jobs:
             '
           # Parse the real schema-2 inventory using the extension's shipped parser,
           # not only a test fixture with invented fields.
-          compiler/target/release/scarp inspect modules --json -- compiler/examples/core_input_tuple.srp |
+          # Match the absolute canonical labels used by real project browsing.
+          compiler/target/release/scarp inspect modules --json -- "$PWD/compiler/examples/core_input_tuple.srp" |
             node -e '
               const fs = require("node:fs");
               const path = require("node:path");
