@@ -481,6 +481,7 @@ jobs:
         with:
           node-version: "22"
       - run: npm install --no-audit --no-fund
+      - run: npm run build
       - name: Build and verify published Scarp alpha.6 compiler contracts
         shell: bash
         run: |
@@ -530,6 +531,19 @@ jobs:
               if (graph.schema_version !== 2 || !Array.isArray(graph.modules) ||
                   graph.modules.length < 2) {
                 throw new Error("Tuple-exposing alpha.6 module inventory must be schema 2.");
+              }
+            '
+          # Parse the real schema-2 inventory using the extension's shipped parser,
+          # not only a test fixture with invented fields.
+          compiler/target/release/scarp inspect modules --json -- compiler/examples/core_input_tuple.srp |
+            node -e '
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const { parseBrowsableProjectModules } = require("./dist/src/projectModules.js");
+              const inventory = parseBrowsableProjectModules(fs.readFileSync(0, "utf8"),
+                path.resolve("compiler/examples"));
+              if (inventory.length < 2 || !inventory.some(module => module.publicSymbols > 0)) {
+                throw new Error("Extension cannot browse real alpha.6 tuple module metadata.");
               }
             '
           compiler/target/release/scarp inspect references --json -- compiler/examples/core_input_tuple.srp |
