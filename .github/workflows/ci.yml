@@ -521,6 +521,8 @@ jobs:
             compiler/target/release/scarp exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
             diff -u "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
           done
+          # Verify actual expansions of all shipped .srp starter snippets.
+          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp"
           # The input/tuple contract requires redirected stdin and byte-exact output.
           compiler/target/release/scarp verify compiler/examples/core_input_tuple.srp
           compiler/target/release/scarp exec compiler/examples/core_input_tuple.srp \

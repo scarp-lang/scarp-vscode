@@ -1,0 +1,127 @@
+{
+  "Scarp: Print output": {
+    "prefix": "sprint",
+    "body": [
+      "print(${1:\"Hello from Scarp!\"});",
+      "$0"
+    ],
+    "description": "Print a line using Scarp's current output function."
+  },
+  "Scarp: Immutable binding": {
+    "prefix": "sbind",
+    "body": [
+      "bind ${1:value} = ${2:42};",
+      "$0"
+    ],
+    "description": "Declare an immutable Scarp value."
+  },
+  "Scarp: Mutable variable": {
+    "prefix": "svar",
+    "body": [
+      "var ${1:counter} = ${2:0};",
+      "$0"
+    ],
+    "description": "Declare a mutable Scarp value."
+  },
+  "Scarp: If statement": {
+    "prefix": "sif",
+    "body": [
+      "if ${1:true} {",
+      "    print(${2:\"yes\"});",
+      "}",
+      "$0"
+    ],
+    "description": "Guard a block with a boolean expression."
+  },
+  "Scarp: If and else": {
+    "prefix": "sifelse",
+    "body": [
+      "if ${1:true} {",
+      "    print(${2:\"yes\"});",
+      "} else {",
+      "    print(${3:\"no\"});",
+      "}",
+      "$0"
+    ],
+    "description": "Branch between two Scarp blocks."
+  },
+  "Scarp: Counted repeat loop": {
+    "prefix": "srepeat",
+    "body": [
+      "repeat ${1:5} as ${2:index} {",
+      "    print(${2});",
+      "}",
+      "$0"
+    ],
+    "description": "Repeat with a zero-based bounded index."
+  },
+  "Scarp: While loop": {
+    "prefix": "swhile",
+    "body": [
+      "var ${1:index} = 0;",
+      "while ${1} < ${2:5} {",
+      "    print(${1});",
+      "    ${1} += 1;",
+      "}",
+      "$0"
+    ],
+    "description": "Increment a counter in a finite Scarp while loop."
+  },
+  "Scarp: Typed function": {
+    "prefix": "sfunc",
+    "body": [
+      "funcra ${1:twice}(value: integer) -> integer {",
+      "    return value * ${2:2};",
+      "}",
+      "$0"
+    ],
+    "description": "Declare a typed Scarp funcra function."
+  },
+  "Scarp: Pure function": {
+    "prefix": "spurefunc",
+    "body": [
+      "pure funcra ${1:square}(value: integer) -> integer {",
+      "    return value * value;",
+      "}",
+      "$0"
+    ],
+    "description": "Declare a typed and pure Scarp function."
+  },
+  "Scarp: Immutable tuple (alpha.6)": {
+    "prefix": "stuple",
+    "body": [
+      "bind ${1:pair}: tuple<integer, string> = (${2:7}, ${3:\"hello\"});",
+      "print(${1}[0]);",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.6+: make a heterogeneous tuple and literal index."
+  },
+  "Scarp: Read redirected input (alpha.6)": {
+    "prefix": "sread",
+    "body": [
+      "// Scarp v0.0.6-alpha.6+: redirected UTF-8 stdin; no terminal prompt.",
+      "bind ${1:line}: string = read_line();",
+      "print(${1});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.6+: consume redirected UTF-8 stdin (no interactive prompt)."
+  },
+  "Scarp: Parse integer text (alpha.6)": {
+    "prefix": "stextint",
+    "body": [
+      "bind ${1:number}: integer = text_to_integer(text_trim(${2:\" 42 \"}));",
+      "print(integer_to_text(${1}));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.6+: trim and parse signed decimal text."
+  },
+  "Scarp: Convert float text (alpha.6)": {
+    "prefix": "stextfloat",
+    "body": [
+      "bind ${1:value}: float = text_to_float(${2:\"1.25e2\"});",
+      "print(float_to_text(${1}));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.6+: parse finite binary64 text and format it."
+  }
+}
