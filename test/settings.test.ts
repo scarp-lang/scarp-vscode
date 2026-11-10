@@ -16,3 +16,13 @@ test('passes the official alpha.4 text budget through the compiler argv', () => 
   assert.deepEqual(budgetArguments({ maxTextBytes: 2048 } as BudgetSettings),
     ['--max-text-bytes', '2048']);
 });
+test('forwards opt-in alpha.6 tuple and redirected input quotas without changing defaults', () => {
+  assert.deepEqual(budgetArguments({
+    maxTupleBytes: 8192, maxInputLineBytes: 64,
+    maxInputBytes: 128, maxInputReads: 0
+  } as BudgetSettings), [
+    '--max-tuple-bytes', '8192', '--max-input-line-bytes', '64',
+    '--max-input-bytes', '128', '--max-input-reads', '0'
+  ]);
+  assert.deepEqual(budgetArguments({} as BudgetSettings), []);
+});

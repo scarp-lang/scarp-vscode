@@ -74,7 +74,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.6-alpha.5
+          ref: v0.0.6-alpha.6
           path: compiler
 
       - name: Smoke-test pinned official compiler
@@ -84,7 +84,9 @@ jobs:
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           # Prove this release gate uses the current published prerelease,
           # not an unreviewed compiler-main checkout or an older CLI.
-          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.5'
+          # Match the compiler's verified immutable publication commit.
+          test "$(git -C compiler rev-parse HEAD)" = "cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e"
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.6'
           compiler/target/release/scarp verify test/fixtures/hello.srp
           compiler/target/release/scarp guide exec
           output="$(compiler/target/release/scarp exec test/fixtures/hello.srp)"
@@ -114,12 +116,35 @@ jobs:
             '
           project_output="$(compiler/target/release/scarp launch -- "$project_parent/my project")"
           test "$project_output" = "Hello from Scarp!"
-          # Check new alpha.5 numerical built-ins before any upload.
-          for example in topk_scores temperature_softmax sampled_calculus sample_cumulative_area cosine_similarity nucleus_selection pearson_correlation; do
+          # Validate published alpha.3-alpha.6 numerical and text/tuple examples before any upload.
+          for example in topk_scores temperature_softmax sampled_calculus sample_cumulative_area cosine_similarity nucleus_selection pearson_correlation text_foundations tuples; do
             compiler/target/release/scarp verify "compiler/examples/$example.srp"
             compiler/target/release/scarp exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
             diff -u "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
           done
+          # Alpha.6 adds redirected UTF-8 program input and tuple-valued module signatures.
+          compiler/target/release/scarp verify compiler/examples/core_input_tuple.srp
+          compiler/target/release/scarp exec compiler/examples/core_input_tuple.srp \
+            < compiler/examples/core_input_tuple.stdin > "$RUNNER_TEMP/core_input_tuple.actual"
+          cmp compiler/examples/core_input_tuple.stdout "$RUNNER_TEMP/core_input_tuple.actual"
+          compiler/target/release/scarp inspect modules --json -- compiler/examples/core_input_tuple.srp |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 2 || !Array.isArray(graph.modules) ||
+                  graph.modules.length < 2) {
+                throw new Error("Published alpha.6 tuple module schema mismatch.");
+              }
+            '
+          compiler/target/release/scarp inspect references --json -- compiler/examples/core_input_tuple.srp |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || graph.kind !== "scarp.references" ||
+                  !Array.isArray(graph.references)) {
+                throw new Error("Published alpha.6 reference schema mismatch.");
+              }
+            '
 
       - uses: actions/setup-node@v4
         with:
@@ -127,6 +152,22 @@ jobs:
 
       - run: npm install --no-audit --no-fund
       - run: npm run check
+
+      - name: Validate extension module browser against real alpha.6 tuple metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler/target/release/scarp inspect modules --json -- "$PWD/compiler/examples/core_input_tuple.srp" |
+            node -e '
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const { parseBrowsableProjectModules } = require("./dist/src/projectModules.js");
+              const modules = parseBrowsableProjectModules(fs.readFileSync(0, "utf8"),
+                path.resolve("compiler/examples"));
+              if (modules.length < 2 || !modules.some(module => module.publicSymbols > 0)) {
+                throw new Error("Release VSIX cannot browse the real alpha.6 tuple inventory.");
+              }
+            '
 
       # The release workflow must independently execute actual editor-host tests
       # on the checked-out approved tag or the exact manually dispatched main SHA.

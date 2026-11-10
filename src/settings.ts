@@ -6,7 +6,11 @@ export const BUDGET_SETTINGS = [
   ['maxLiveSlots', '--max-live-slots'],
   ['maxCaptureBytes', '--max-capture-bytes'],
   ['maxVectorBytes', '--max-vector-bytes'],
-  ['maxTextBytes', '--max-text-bytes']
+  ['maxTextBytes', '--max-text-bytes'],
+  ['maxTupleBytes', '--max-tuple-bytes'],
+  ['maxInputLineBytes', '--max-input-line-bytes'],
+  ['maxInputBytes', '--max-input-bytes'],
+  ['maxInputReads', '--max-input-reads']
 ] as const;
 
 export type BudgetSettings = Record<(typeof BUDGET_SETTINGS)[number][0], number | undefined>;

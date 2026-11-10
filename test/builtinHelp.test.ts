@@ -13,7 +13,14 @@ const versions: Record<string, string> = {
   cosine_similarity: 'v0.0.6-alpha.4',
   top_p: 'v0.0.6-alpha.5',
   top_p_values: 'v0.0.6-alpha.5',
-  pearson_correlation: 'v0.0.6-alpha.5'
+  pearson_correlation: 'v0.0.6-alpha.5',
+  read_line: 'v0.0.6-alpha.6',
+  integer_to_text: 'v0.0.6-alpha.6',
+  float_to_text: 'v0.0.6-alpha.6',
+  text_to_integer: 'v0.0.6-alpha.6',
+  text_to_float: 'v0.0.6-alpha.6',
+  text_trim: 'v0.0.6-alpha.6',
+  text_replace: 'v0.0.6-alpha.6'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {

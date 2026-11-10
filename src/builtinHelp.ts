@@ -1,5 +1,5 @@
 /**
- * Lightweight, editor-only help for published numerical Scarp built-ins.
+ * Lightweight, editor-only help for published numerical, text and input Scarp built-ins.
  *
  * This table is a reference to the compiler's released contracts, not a
  * semantic analysis of user code or an installed-compiler capability probe.
@@ -22,6 +22,7 @@ interface ScarpBuiltinCall {
 const alpha3 = 'v0.0.6-alpha.3';
 const alpha4 = 'v0.0.6-alpha.4';
 const alpha5 = 'v0.0.6-alpha.5';
+const alpha6 = 'v0.0.6-alpha.6';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -100,6 +101,55 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha5,
     summary: 'Measures centered linear correlation of paired numerical observations; returns a value in [-1, 1].',
     constraints: 'Requires equal lengths of at least two and nonconstant inputs on both axes.'
+  },
+  read_line: {
+    name: 'read_line',
+    signature: 'read_line() -> string',
+    introduced: alpha6,
+    summary: 'Reads the next UTF-8 logical line from explicitly redirected or piped program input.',
+    constraints: 'Impure; no terminal-connected interactive input or prompts. EOF, invalid UTF-8 and input limits are errors.'
+  },
+  integer_to_text: {
+    name: 'integer_to_text',
+    signature: 'integer_to_text(value: integer) -> string',
+    introduced: alpha6,
+    summary: 'Formats a checked signed 64-bit integer as canonical decimal text.',
+    constraints: 'Exact formatting; the new string is subject to text allocation limits.'
+  },
+  float_to_text: {
+    name: 'float_to_text',
+    signature: 'float_to_text(value: float) -> string',
+    introduced: alpha6,
+    summary: 'Formats a finite binary64 number, preserving the float marker and signed zero.',
+    constraints: 'Finite floats only; formatting is not arbitrary-precision decimal arithmetic.'
+  },
+  text_to_integer: {
+    name: 'text_to_integer',
+    signature: 'text_to_integer(value: string) -> integer',
+    introduced: alpha6,
+    summary: 'Parses explicit decimal text as a checked signed 64-bit integer.',
+    constraints: 'No whitespace, radix prefixes, underscores or non-ASCII digits; trim separately.'
+  },
+  text_to_float: {
+    name: 'text_to_float',
+    signature: 'text_to_float(value: string) -> float',
+    introduced: alpha6,
+    summary: 'Parses explicit decimal text to a finite binary64 floating-point value.',
+    constraints: 'No whitespace, infinities or NaN; rounds to binary64 and rejects overflow.'
+  },
+  text_trim: {
+    name: 'text_trim',
+    signature: 'text_trim(value: string) -> string',
+    introduced: alpha6,
+    summary: 'Removes leading and trailing Unicode whitespace without changing the interior.',
+    constraints: 'Does not normalize text or remove a byte-order mark and zero-width space.'
+  },
+  text_replace: {
+    name: 'text_replace',
+    signature: 'text_replace(value: string, search: string, replacement: string) -> string',
+    introduced: alpha6,
+    summary: 'Replaces nonoverlapping exact UTF-8 substring matches from left to right.',
+    constraints: 'Search must not be empty. Case-sensitive literal matching, not regex.'
   }
 };
 

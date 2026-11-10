@@ -15,7 +15,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 function invalid(): never {
-  throw new Error('Unsupported or malformed Scarp module inspection JSON (expected schema v1).');
+  throw new Error('Unsupported or malformed Scarp module inspection JSON (expected schema v1 or v2).');
 }
 
 /**
@@ -30,7 +30,7 @@ export function parseBrowsableProjectModules(
   let raw: unknown;
   try { raw = JSON.parse(stdout); }
   catch { return invalid(); }
-  if (!object(raw) || raw.schema_version !== 1 ||
+  if (!object(raw) || (raw.schema_version !== 1 && raw.schema_version !== 2) ||
       !Number.isSafeInteger(raw.entry) ||
       !Array.isArray(raw.modules) || raw.modules.length < 1 ||
       raw.modules.length > 128 ||

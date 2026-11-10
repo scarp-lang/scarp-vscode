@@ -466,6 +466,103 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha6-compatibility:
+    name: Official Scarp alpha.6 compatibility (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.6
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Build and verify published Scarp alpha.6 compiler contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          # Fail closed if the published alpha.6 tag is moved after qualification.
+          test "$(git -C compiler rev-parse HEAD)" = "cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e"
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.6'
+          compiler/target/release/scarp verify test/fixtures/hello.srp
+          compiler/target/release/scarp guide exec
+          test "$(compiler/target/release/scarp exec test/fixtures/hello.srp)" = "Hello from Scarp!"
+          project_parent="$(mktemp -d)"
+          trap 'rm -rf "$project_parent"' EXIT
+          compiler/target/release/scarp create -- "$project_parent/my project"
+          compiler/target/release/scarp verify --diagnostic-format=json -- "$project_parent/my project"
+          compiler/target/release/scarp inspect modules --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || !Array.isArray(graph.modules)) {
+                throw new Error("Primitive-only module inventory must remain schema 1.");
+              }
+            '
+          compiler/target/release/scarp inspect references --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || graph.kind !== "scarp.references" ||
+                  !Array.isArray(graph.files) || !Array.isArray(graph.symbols) ||
+                  !Array.isArray(graph.references)) {
+                throw new Error("Navigation schema changed in alpha.6.");
+              }
+            '
+          test "$(compiler/target/release/scarp launch -- "$project_parent/my project")" = "Hello from Scarp!"
+          for example in topk_scores temperature_softmax sampled_calculus sample_cumulative_area cosine_similarity nucleus_selection pearson_correlation text_foundations tuples; do
+            compiler/target/release/scarp verify "compiler/examples/$example.srp"
+            compiler/target/release/scarp exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
+            diff -u "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+          # The input/tuple contract requires redirected stdin and byte-exact output.
+          compiler/target/release/scarp verify compiler/examples/core_input_tuple.srp
+          compiler/target/release/scarp exec compiler/examples/core_input_tuple.srp \
+            < compiler/examples/core_input_tuple.stdin > "$RUNNER_TEMP/core_input_tuple.actual"
+          cmp compiler/examples/core_input_tuple.stdout "$RUNNER_TEMP/core_input_tuple.actual"
+          compiler/target/release/scarp inspect modules --json -- compiler/examples/core_input_tuple.srp |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 2 || !Array.isArray(graph.modules) ||
+                  graph.modules.length < 2) {
+                throw new Error("Tuple-exposing alpha.6 module inventory must be schema 2.");
+              }
+            '
+          # Parse the real schema-2 inventory using the extension's shipped parser,
+          # not only a test fixture with invented fields.
+          # Match the absolute canonical labels used by real project browsing.
+          compiler/target/release/scarp inspect modules --json -- "$PWD/compiler/examples/core_input_tuple.srp" |
+            node -e '
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const { parseBrowsableProjectModules } = require("./dist/src/projectModules.js");
+              const inventory = parseBrowsableProjectModules(fs.readFileSync(0, "utf8"),
+                path.resolve("compiler/examples"));
+              if (inventory.length < 2 || !inventory.some(module => module.publicSymbols > 0)) {
+                throw new Error("Extension cannot browse real alpha.6 tuple module metadata.");
+              }
+            '
+          compiler/target/release/scarp inspect references --json -- compiler/examples/core_input_tuple.srp |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || graph.kind !== "scarp.references" ||
+                  !Array.isArray(graph.references)) {
+                throw new Error("Tuple source navigation must remain schema 1.");
+              }
+            '
+      - name: Test VS Code Extension Host against published Scarp alpha.6
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
