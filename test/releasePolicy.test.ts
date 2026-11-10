@@ -312,5 +312,8 @@ test('release safety scripts stay out of published package', () => {
   assert.match(verify, /Microsoft\.VisualStudio\.Code\.PreRelease/);
   assert.match(verify, /extension\/dist\/src\/extension\.js/);
   assert.match(verify, /\\\.vscode-test/);
+  assert.match(verify, /extension\\/snippets\\/scarp\\.code-snippets/);
+  assert.match(repoFile('.github/workflows/ci.yml'), /scripts\\/verify-snippets\\.cjs/);
+  assert.match(repoFile('.github/workflows/prerelease.yml'), /scripts\\/verify-snippets\\.cjs/);
   assert.match(verify, /p\.publisher !== "ScarpLang"/);
 });
