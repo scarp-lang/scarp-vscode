@@ -84,6 +84,8 @@ jobs:
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           # Prove this release gate uses the current published prerelease,
           # not an unreviewed compiler-main checkout or an older CLI.
+          # Match the compiler's verified immutable publication commit.
+          test "$(git -C compiler rev-parse HEAD)" = "cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e"
           compiler/target/release/scarp --version | grep -F '0.0.6-alpha.6'
           compiler/target/release/scarp verify test/fixtures/hello.srp
           compiler/target/release/scarp guide exec
