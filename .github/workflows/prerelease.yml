@@ -151,6 +151,22 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run check
 
+      - name: Validate extension module browser against real alpha.6 tuple metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler/target/release/scarp inspect modules --json -- compiler/examples/core_input_tuple.srp |
+            node -e '
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const { parseBrowsableProjectModules } = require("./dist/src/projectModules.js");
+              const modules = parseBrowsableProjectModules(fs.readFileSync(0, "utf8"),
+                path.resolve("compiler/examples"));
+              if (modules.length < 2 || !modules.some(module => module.publicSymbols > 0)) {
+                throw new Error("Release VSIX cannot browse the real alpha.6 tuple inventory.");
+              }
+            '
+
       # The release workflow must independently execute actual editor-host tests
       # on the checked-out approved tag or the exact manually dispatched main SHA.
       # Do not rely solely on a previous PR check or a build/package result.
