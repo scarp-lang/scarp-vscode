@@ -52,6 +52,7 @@ for required in \
   'extension/package.json' \
   'extension/dist/src/extension.js' \
   'extension/syntaxes/scarp.tmLanguage.json' \
+  'extension/snippets/scarp.code-snippets' \
   'extension/language-configuration.json'; do
   if ! grep -Fxq "$required" <<< "$entries"; then
     echo "Required VSIX member missing: $required" >&2
