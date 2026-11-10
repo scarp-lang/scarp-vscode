@@ -220,7 +220,7 @@ test('pre-release publishing reruns trusted and Restricted Mode editor tests bef
   'CI must package and verify a VSIX after the Restricted Mode editor download');
 });
 
-test('published compiler alpha.1 through alpha.5 remain independently qualified', () => {
+test('published compiler alpha.1 through alpha.6 remain independently qualified', () => {
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
   // Preserve original protected-branch check names for alpha.1 compatibility.
@@ -229,7 +229,8 @@ test('published compiler alpha.1 through alpha.5 remain independently qualified'
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.3/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12]/);
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
@@ -247,8 +248,11 @@ test('published compiler alpha.1 through alpha.5 remain independently qualified'
   const alpha4 = ci.slice(ci.indexOf('  compiler-alpha4-compatibility:'),
     ci.indexOf('  compiler-alpha5-compatibility:'));
   const alpha5 = ci.slice(ci.indexOf('  compiler-alpha5-compatibility:'),
+    ci.indexOf('  compiler-alpha6-compatibility:'));
+  const alpha6 = ci.slice(ci.indexOf('  compiler-alpha6-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
-  assert.ok(alpha4.length > 0 && alpha5.length > 0, 'Every compiler version keeps its own CI gate');
+  assert.ok(alpha4.length > 0 && alpha5.length > 0 && alpha6.length > 0,
+    'Every compiler version keeps its own CI gate');
   assert.match(alpha3, /name: Official Scarp alpha\.3 compatibility \(Linux\)/);
   assert.match(alpha3, /ref: v0\.0\.6-alpha\.3/);
   assert.match(alpha3, /grep -F '0\.0\.6-alpha\.3'/);
@@ -264,18 +268,29 @@ test('published compiler alpha.1 through alpha.5 remain independently qualified'
   assert.match(alpha5, /xvfb-run -a npm run test:integration/);
   assert.match(alpha5, /scarp inspect modules --json/);
   assert.match(alpha5, /scarp inspect references --json/);
-  for (const workflow of [alpha3, alpha4, alpha5, publish]) {
+  assert.match(alpha6, /name: Official Scarp alpha\.6 compatibility \(Linux\)/);
+  assert.match(alpha6, /ref: v0\.0\.6-alpha\.6/);
+  assert.match(alpha6, /grep -F '0\.0\.6-alpha\.6'/);
+  assert.match(alpha6, /xvfb-run -a npm run test:integration/);
+  assert.match(alpha6, /core_input_tuple\.stdin/);
+  assert.match(alpha6, /graph\.schema_version !== 2/);
+  for (const workflow of [alpha3, alpha4, alpha5, alpha6, publish]) {
     assert.match(workflow, /for example in topk_scores temperature_softmax/);
     assert.match(workflow, /scarp verify "compiler\/examples\/\$example\.srp"/);
     assert.match(workflow, /diff -u "compiler\/examples\/\$example\.stdout"/);
   }
-  for (const workflow of [alpha4, alpha5, publish]) {
+  for (const workflow of [alpha4, alpha5, alpha6, publish]) {
     assert.match(workflow, /sampled_calculus sample_cumulative_area cosine_similarity/);
   }
-  for (const workflow of [alpha5, publish]) {
+  for (const workflow of [alpha5, alpha6, publish]) {
     assert.match(workflow, /nucleus_selection pearson_correlation/);
   }
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.5'/);
+  for (const workflow of [alpha6, publish]) {
+    assert.match(workflow, /text_foundations tuples/);
+    assert.match(workflow, /core_input_tuple\.stdin/);
+    assert.match(workflow, /schema_version !== 2/);
+  }
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.6'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
