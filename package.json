@@ -253,6 +253,12 @@
         "scopeName": "source.scarp",
         "path": "./syntaxes/scarp.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "scarp",
+        "path": "./snippets/scarp.code-snippets"
+      }
     ]
   },
   "scripts": {
