@@ -224,6 +224,26 @@
           "type": "integer",
           "minimum": 0,
           "description": "Optional --max-text-bytes budget for Scarp interpreter execution and project launching (supported by Scarp v0.0.5-alpha.4)."
+        },
+        "scarp.maxTupleBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-tuple-bytes execution limit (Cumulative tuple payload quota). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+        },
+        "scarp.maxInputLineBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-input-line-bytes execution limit (Per-line raw UTF-8 input quota, including CR/LF). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+        },
+        "scarp.maxInputBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-input-bytes execution limit (Cumulative raw UTF-8 input quota). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+        },
+        "scarp.maxInputReads": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-input-reads execution limit (Number of selected read_line calls, including EOF attempts). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
         }
       }
     },
