@@ -487,6 +487,8 @@ jobs:
         run: |
           set -euo pipefail
           cargo build --locked --release --manifest-path compiler/Cargo.toml
+          # Fail closed if the published alpha.6 tag is moved after qualification.
+          test "$(git -C compiler rev-parse HEAD)" = "cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e"
           compiler/target/release/scarp --version | grep -F '0.0.6-alpha.6'
           compiler/target/release/scarp verify test/fixtures/hello.srp
           compiler/target/release/scarp guide exec
