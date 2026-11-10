@@ -6,6 +6,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 ## Implemented
 
+- **13 opt-in Scarp snippets:** type `sprint`, `sbind`, `svar`, `sif`, `sifelse`, `srepeat`, `swhile`, `sfunc`, `spurefunc`, `stuple`, `sread`, `stextint`, or `stextfloat` in a `.srp` document. These are text expansions, statically compiler-checked in CI, not semantic completion. Alpha.6 templates state their minimum version and redirected-input requirements.
 - Recognize .srp files as Scarp, with a real TextMate grammar for the current Scarp compiler's declarations, functions, types, control flow, strings, numeric literals, operators, and line comments.
 - **Scarp: Run Current File:** launch the official compiler in the integrated terminal with program input/output. Prefer canonical `scarp exec` when the installed compiler advertises `scarp guide exec`, and retain legacy `scarp run` for older compiler versions.
 - **Scarp: Verify Current File:** use the compiler's non-executing `verify` command when supported (Scarp v0.0.5-alpha.3+), including source-span JSON diagnostics in Problems. Older compilers fall back to the legacy evaluating `check` command.
