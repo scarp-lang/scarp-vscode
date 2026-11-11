@@ -47,9 +47,9 @@ test('alpha.7 conditional-value snippet uses an interpreter expression with a fi
   const snippet = snippets['Scarp: Conditional value (alpha.7)'];
   assert.equal(snippet.prefix, 'sconditional');
   const body = snippet.body.join('\n');
-  assert.match(body, / = if \${1} >= \${4:60} \{/);
-  assert.match(body, /\} else \{/);
-  assert.match(body, /print\(\${3}\);/);
+  assert.ok(body.includes(' = if ${1} >= ${4:60} {'));
+  assert.ok(body.includes('} else {'));
+  assert.ok(body.includes('print(${3});'));
   assert.match(snippet.description, /interpreter only/);
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /verify-snippets\.cjs.*scarp" 6/);
