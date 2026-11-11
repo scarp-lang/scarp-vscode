@@ -9,11 +9,11 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 13 bounded Scarp snippets with unique prefixes', () => {
+test('registers 14 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets,
     [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
-  assert.equal(Object.keys(snippets).length, 13);
+  assert.equal(Object.keys(snippets).length, 14);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -33,9 +33,25 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     if (name.includes('(alpha.6)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.6\+/);
     }
+    if (name.includes('(alpha.7)')) {
+      assert.match(snippet.description, /v0\.0\.6-alpha\.7\+/);
+    }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
     /no interactive prompt/);
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].body.join('\n'),
     /redirected UTF-8 stdin/);
+});
+
+test('alpha.7 conditional-value snippet uses an interpreter expression with a final else', () => {
+  const snippet = snippets['Scarp: Conditional value (alpha.7)'];
+  assert.equal(snippet.prefix, 'sconditional');
+  const body = snippet.body.join('\n');
+  assert.match(body, / = if \${1} >= \${4:60} \{/);
+  assert.match(body, /\} else \{/);
+  assert.match(body, /print\(\${3}\);/);
+  assert.match(snippet.description, /interpreter only/);
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 6/);
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 7/);
 });

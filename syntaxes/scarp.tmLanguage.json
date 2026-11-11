@@ -61,7 +61,7 @@
           "patterns": [
             {
               "name": "constant.character.escape.scarp",
-              "match": "\\\\(?:\\\\|\"|n|t|r)"
+              "match": "\\\\(?:\\\\|\"|n|t|r|u\\{[0-9A-Fa-f]{1,6}\\})"
             },
             {
               "name": "invalid.illegal.escape.scarp",
