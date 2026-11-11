@@ -317,3 +317,19 @@ test('release safety scripts stay out of published package', () => {
   assert.ok(repoFile('.github/workflows/prerelease.yml').includes('scripts/verify-snippets.cjs'));
   assert.match(verify, /p\.publisher !== "ScarpLang"/);
 });
+
+test('published compiler alpha.7 is pinned and checked without weakening alpha.6', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const begin = ci.indexOf('  compiler-alpha7-compatibility:');
+  const end = ci.indexOf('  editor-untrusted:');
+  assert.ok(begin > ci.indexOf('  compiler-alpha6-compatibility:') && end > begin);
+  const gate = ci.slice(begin, end);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.7/g) ?? []).length, 1);
+  assert.match(gate, /b1c1fd232b418267d95520c69ee563ac99ecae30/);
+  assert.match(gate, /compiler\/examples\/conditional_unicode\.srp/);
+  assert.match(gate, /cmp compiler\/examples\/conditional_unicode\.stdout/);
+  assert.match(gate, /scarp inspect modules --json/);
+  assert.match(gate, /scarp inspect references --json/);
+  assert.match(gate, /xvfb-run -a npm run test:integration/);
+  assert.match(gate, /verify-snippets\.cjs.*scarp" 7/);
+});

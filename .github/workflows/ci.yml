@@ -522,7 +522,7 @@ jobs:
             diff -u "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
           done
           # Verify actual expansions of all shipped .srp starter snippets.
-          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp"
+          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 6
           # The input/tuple contract requires redirected stdin and byte-exact output.
           compiler/target/release/scarp verify compiler/examples/core_input_tuple.srp
           compiler/target/release/scarp exec compiler/examples/core_input_tuple.srp \
@@ -561,6 +561,66 @@ jobs:
               }
             '
       - name: Test VS Code Extension Host against published Scarp alpha.6
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
+  compiler-alpha7-compatibility:
+    name: Official Scarp alpha.7 compatibility (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.7
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Verify immutable alpha.7 source, interpreter and editor templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The annotated public tag must resolve to the exact published compiler source.
+          test "$(git -C compiler rev-parse HEAD)" = "b1c1fd232b418267d95520c69ee563ac99ecae30"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.7'
+          compiler/target/release/scarp verify test/fixtures/hello.srp
+          test "$(compiler/target/release/scarp exec test/fixtures/hello.srp)" = "Hello from Scarp!"
+          # New alpha.7 typed value conditionals and Unicode-scalar escapes.
+          compiler/target/release/scarp verify compiler/examples/conditional_unicode.srp
+          compiler/target/release/scarp exec compiler/examples/conditional_unicode.srp > "$RUNNER_TEMP/conditional_unicode.actual"
+          cmp compiler/examples/conditional_unicode.stdout "$RUNNER_TEMP/conditional_unicode.actual"
+          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 7
+          project_parent="$(mktemp -d)"
+          trap 'rm -rf "$project_parent"' EXIT
+          compiler/target/release/scarp create -- "$project_parent/my project"
+          compiler/target/release/scarp verify --diagnostic-format=json -- "$project_parent/my project"
+          compiler/target/release/scarp inspect modules --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (![1, 2].includes(graph.schema_version) || !Array.isArray(graph.modules) ||
+                  graph.modules.length < 1) {
+                throw Error("Alpha.7 project modules output is incompatible.");
+              }
+            '
+          compiler/target/release/scarp inspect references --json -- "$project_parent/my project" |
+            node -e '
+              const fs = require("node:fs");
+              const graph = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (graph.schema_version !== 1 || graph.kind !== "scarp.references" ||
+                  !Array.isArray(graph.files) || !Array.isArray(graph.symbols) ||
+                  !Array.isArray(graph.references)) {
+                throw Error("Alpha.7 static navigation schema is incompatible.");
+              }
+            '
+          test "$(compiler/target/release/scarp launch -- "$project_parent/my project")" = "Hello from Scarp!"
+      - name: Test real VS Code Extension Host against published Scarp alpha.7
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration

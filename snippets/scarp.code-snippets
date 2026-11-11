@@ -123,5 +123,19 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.6+: parse finite binary64 text and format it."
+  },
+  "Scarp: Conditional value (alpha.7)": {
+    "prefix": "sconditional",
+    "body": [
+      "bind ${1:score} = ${2:73};",
+      "bind ${3:result} = if ${1} >= ${4:60} {",
+      "    ${5:\"pass\"}",
+      "} else {",
+      "    ${6:\"retry\"}",
+      "};",
+      "print(${3});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.7+: select a typed value using an if/else expression (interpreter only)."
   }
 }

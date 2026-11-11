@@ -12,6 +12,14 @@ if (!binary || !path.isAbsolute(binary) || !fs.existsSync(binary)) {
   process.stderr.write('Usage: node scripts/verify-snippets.cjs <absolute-compiler-path>\n');
   process.exit(2);
 }
+// An older published compiler must not be asked to verify newer syntax.
+const maxAlphaArg = process.argv[3];
+const maxAlpha = maxAlphaArg === undefined ? Infinity : Number(maxAlphaArg);
+if (maxAlphaArg !== undefined &&
+    (!/^[1-9][0-9]*$/.test(maxAlphaArg) || !Number.isSafeInteger(maxAlpha))) {
+  process.stderr.write('Optional second argument must be a positive compiler alpha number.\n');
+  process.exit(2);
+}
 const snippets = JSON.parse(fs.readFileSync(
   path.join(__dirname, '../snippets/scarp.code-snippets'), 'utf8'
 ));
@@ -33,6 +41,8 @@ const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'scarp-snippets-'));
 try {
   let count = 0;
   for (const [name, snippet] of Object.entries(snippets)) {
+    const introduced = /\(alpha\.(\d+)\)$/.exec(name);
+    if (introduced && Number(introduced[1]) > maxAlpha) continue;
     if (!Array.isArray(snippet.body)) throw Error('Malformed snippet: ' + name);
     const source = expand(snippet.body);
     if (source.includes('$' + '{') || /\$[0-9]+/.test(source)) {

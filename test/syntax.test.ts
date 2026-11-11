@@ -188,3 +188,23 @@ test('published alpha.6 tuple types and text/input built-ins highlight without f
       'entity.name.function.definition.scarp'));
   }
 });
+
+test('published alpha.7 Unicode-scalar escapes and conditional values tokenize safely', async () => {
+  const grammar = await tokenizer();
+  const slash = String.fromCharCode(92);
+  const source = 'bind label = if true { "' + slash + 'u{0928}" } elif false { "' +
+    slash + 'u{1F44B}" } else { "fallback" };';
+  const highlighted = tokens(source, grammar);
+  for (const keyword of ['if', 'elif', 'else']) {
+    assert.ok(highlighted.some(token => token.text === keyword &&
+      token.scopes.includes('keyword.control.scarp')), keyword);
+  }
+  for (const scalar of [slash + 'u{0928}', slash + 'u{1F44B}']) {
+    assert.ok(hasScope(highlighted, scalar, 'constant.character.escape.scarp'), scalar);
+  }
+  const malformed = tokens('print("' + slash + 'u{NOTHEX}");', grammar);
+  assert.ok(!hasScope(malformed, slash + 'u{NOTHEX}', 'constant.character.escape.scarp'));
+  const commented = tokens('// ' + slash + 'u{1F44B}', grammar);
+  assert.ok(!hasScope(commented, slash + 'u{1F44B}', 'constant.character.escape.scarp'));
+  // Scope classification is lexical only; the compiler validates Unicode scalar ranges.
+});
