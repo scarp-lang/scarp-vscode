@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Validate compiler-inspected module graph edges before browsing: reject dangling import target IDs even when a JSON inventory otherwise has valid paths and counts. Preserve forward references within the inventory and all project-root containment checks.
+
 - Improve native VS Code editing: retain compiler-valid `//` line comments for Toggle Line Comment, add conservative brace indentation and foldable `// #region` / `// #endregion` markers. Guard regex behavior with unit tests and prove actual comment toggle/restore in a real VS Code Extension Host.
 
 - Qualify the exact published Scarp v0.0.6-alpha.7 compiler in the guarded pre-release workflow, including its immutable source commit, interpreter-only conditional-value and Unicode-scalar escape fixture, and all 14 editor snippets. Retain the independent compiler alpha.1–alpha.7 compatibility jobs and both trusted/Restricted Mode Extension Host release gates. No stable release is permitted.

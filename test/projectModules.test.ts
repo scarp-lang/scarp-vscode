@@ -73,6 +73,25 @@ test('rejects invalid imports, symbols, non-source paths and abnormal IDs', () =
   }
 });
 
+test('rejects dangling compiler import targets while accepting forward references', () => {
+  const entry = moduleEntry(0, 'src/main.srp', [
+    { path: 'library.srp', alias: 'lib', target: 1 }
+  ]);
+  const library = moduleEntry(1, 'src/library.srp');
+  assert.equal(parseBrowsableProjectModules(inventory([entry, library]), root).length, 2,
+    'Forward graph references are valid when their module is present');
+
+  for (const bad of [
+    inventory([entry]),
+    inventory([entry, moduleEntry(1, 'src/library.srp', [{ target: 2 }])]),
+    inventory([moduleEntry(0, 'src/main.srp', [{ target: 9007199254740991 }])]),
+    inventory([moduleEntry(0, 'src/main.srp', [{ target: 0.5 }])])
+  ]) {
+    assert.throws(() => parseBrowsableProjectModules(bad, root),
+      /module inspection JSON/, 'Dangling or noninteger graph edges must fail closed');
+  }
+});
+
 test('schema v2 inventories with exported tuple types remain safely browsable', () => {
   const modules = [
     moduleEntry(0, 'src/main.srp', [{ path: 'records.srp', alias: 'r', target: 1 }]),
