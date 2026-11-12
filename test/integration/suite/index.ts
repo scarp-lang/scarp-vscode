@@ -37,7 +37,8 @@ export async function run(): Promise<void> {
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
     'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
-    'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject']) {
+    'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject',
+    'scarp.listProjectTests']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -545,6 +546,12 @@ export async function run(): Promise<void> {
       if (supportsProjectTests) {
         const testsRoot = path.join(projectParent, 'alpha8 test project');
         await promisify(execFile)(binary, ['init', '--', testsRoot], { timeout: 10000 });
+        // Listing an empty project must return without opening a terminal or
+        // invoking a Quick Pick, even with a real compiler.
+        const existingTerminals = vscode.window.terminals.length;
+        await vscode.commands.executeCommand('scarp.listProjectTests', vscode.Uri.file(testsRoot));
+        assert.equal(vscode.window.terminals.length, existingTerminals,
+          'Read-only test discovery must not execute project code');
         await fs.writeFile(path.join(testsRoot, 'tests', 'addition.srp'),
           'assert(2 + 3 == 5, "sum");\n');
         const terminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {
