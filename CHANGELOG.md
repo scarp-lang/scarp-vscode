@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add opt-in, per-file Run/Verify CodeLens actions for local `.srp` documents, disabled by default and unavailable in Restricted Mode. Bind each action to its explicit source URI rather than the active tab, and revalidate trust and source type when invoked. Source browsing never launches the compiler or adds background watchers.
+
 - Add conservative Scarp builtin IntelliSense suggestions based on the same immutable 18-function metadata used by Hover and Signature Help. Prefix filtering avoids quoted text, `//` comments, function/binding/import declarations and member calls; run entirely in the editor in trusted and Restricted Mode with real Extension Host integration coverage.
 
 - Add bounded, compiler-free signature help for 18 published numerical/text/input built-in calls in both trusted and Restricted Mode. Follow nested expression argument positions, avoid source execution and keep semantic correctness delegated to the official compiler.

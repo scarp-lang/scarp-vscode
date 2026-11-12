@@ -21,6 +21,7 @@ import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
 import { scarpSignatureAt } from './builtinSignature';
 import { scarpBuiltinCompletionAt } from './builtinCompletion';
+import { registerFileActionCodeLens } from './fileActionCodeLens';
 
 const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
@@ -64,6 +65,23 @@ function selectedFile(): vscode.TextDocument {
   if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before running Scarp.'); }
   return doc;
 }
+/**
+ * A CodeLens or editor-title action carries its own resource URI. Always
+ * execute against that explicit document rather than whichever tab happens
+ * to be active when the user clicks the command.
+ */
+async function selectedOrExplicitFile(uri?: vscode.Uri): Promise<vscode.TextDocument> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before running Scarp.');
+  }
+  if (uri === undefined) { return selectedFile(); }
+  if (!(uri instanceof vscode.Uri) || uri.scheme !== 'file' ||
+      path.extname(uri.fsPath).toLowerCase() !== '.srp') {
+    throw new Error('A local Scarp .srp source file is required.');
+  }
+  return vscode.workspace.openTextDocument(uri);
+}
+
 async function ensureSaved(doc: vscode.TextDocument): Promise<void> {
   if (doc.isDirty && !(await doc.save())) { throw new Error('Save the source file first.'); }
 }
@@ -925,7 +943,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
-    builtinHover, builtinSignatures, builtinCompletions, projectMonitors,
+    builtinHover, builtinSignatures, builtinCompletions, registerFileActionCodeLens(), projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
@@ -1019,8 +1037,10 @@ export function activate(context: vscode.ExtensionContext): void {
       })),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
-    vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
-    vscode.commands.registerCommand('scarp.checkFile', (): Promise<void> => safe(async () => check(selectedFile(), output, diagnostics, owners))),
+    vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
+      safe(async () => run(await selectedOrExplicitFile(uri), output))),
+    vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>
+      safe(async () => check(await selectedOrExplicitFile(uri), output, diagnostics, owners))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
       if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before invoking the compiler.'); }
       const { binary, version } = await validateCompiler();

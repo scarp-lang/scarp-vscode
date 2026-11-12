@@ -29,6 +29,21 @@ export async function run(): Promise<void> {
   assert.ok(symbols?.some(item => item.name === 'answer'),
     'Read-only local Scarp Outline should remain available in Restricted Mode');
 
+  // A user setting cannot expose execution shortcuts in Restricted Mode.
+  const lensSettings = vscode.workspace.getConfiguration('scarp', sourceUri);
+  const previousLenses = lensSettings.inspect<boolean>('showFileActionsCodeLens')?.globalValue;
+  try {
+    await lensSettings.update('showFileActionsCodeLens', true,
+      vscode.ConfigurationTarget.Global);
+    const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider', sourceUri, 10);
+    assert.equal(lenses?.length ?? 0, 0,
+      'Restricted Mode must hide file Run/Verify CodeLens even when explicitly enabled');
+  } finally {
+    await lensSettings.update('showFileActionsCodeLens', previousLenses,
+      vscode.ConfigurationTarget.Global);
+  }
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previousCompiler = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;

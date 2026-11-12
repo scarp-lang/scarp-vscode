@@ -244,6 +244,12 @@
           "type": "integer",
           "minimum": 0,
           "description": "Optional --max-input-reads execution limit (Number of selected read_line calls, including EOF attempts). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+        },
+        "scarp.showFileActionsCodeLens": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Opt in to Run Scarp File and Verify Scarp File CodeLens shortcuts above each .srp document in trusted workspaces. No compiler is launched merely by displaying the lenses."
         }
       }
     },

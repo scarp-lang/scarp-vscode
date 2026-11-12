@@ -9,6 +9,7 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 - **14 opt-in Scarp snippets:** type `sprint`, `sbind`, `svar`, `sif`, `sifelse`, `srepeat`, `swhile`, `sfunc`, `spurefunc`, `stuple`, `sread`, `stextint`, or `stextfloat`, or `sconditional` in a `.srp` document. These are text expansions, statically compiler-checked in CI, not semantic completion. Alpha.6 templates state their minimum version and redirected-input requirements.
 - Recognize .srp files as Scarp, with a real TextMate grammar for the current Scarp compiler's declarations, functions, types, control flow, strings, numeric literals, operators, and line comments.
 - **Native Scarp editing:** use VS Code's normal **Toggle Line Comment** shortcut (`Ctrl+/` on Windows/Linux, `Cmd+/` on macOS) to add or remove `//` without a custom keybinding; Scarp has no supported block comment syntax. Brace-aware editor rules indent lines after an opening `{` and dedent closing `}` lines, including Enter between braces. Wrap sections in `// #region NAME` and `// #endregion NAME` to fold them. These are editor-only conveniences; the official compiler still defines syntax and execution.
+- **Optional file action CodeLens (v0.1.6 development):** enable `scarp.showFileActionsCodeLens` (off by default) to show **Run Scarp File** and **Verify Scarp File** directly above each local `.srp` document. Each action explicitly targets that file, even if the active editor changes. Merely displaying the lenses never executes code; the existing command handlers enforce Workspace Trust and check the target. The Verify command uses non-executing `verify` when supported, but older compilers may fall back to evaluating `check`. Disabled entirely in Restricted Mode.
 - **Scarp: Run Current File:** launch the official compiler in the integrated terminal with program input/output. Prefer canonical `scarp exec` when the installed compiler advertises `scarp guide exec`, and retain legacy `scarp run` for older compiler versions.
 - **Scarp: Verify Current File:** use the compiler's non-executing `verify` command when supported (Scarp v0.0.5-alpha.3+), including source-span JSON diagnostics in Problems. Older compilers fall back to the legacy evaluating `check` command.
 - **Scarp: Show Compiler Version:** verify the executable.
@@ -67,6 +68,7 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 | scarp.compilerPath | Full path to executable, or scarp on PATH |
 | scarp.checkTimeoutMs | Timeout for checking (default: 30000 milliseconds) |
 | scarp.verifyOnSave | Opt in to non-executing verification after saving a `.srp` file; **off by default** |
+| scarp.showFileActionsCodeLens | Opt in to file-scoped Run/Verify inline actions in trusted `.srp` editors; **off by default** |
 | scarp.maxSteps, scarp.maxPrints | Optional execution limits |
 | scarp.maxCallDepth, scarp.maxCalls | Optional call limits |
 | scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes, scarp.maxTextBytes | Optional memory/resource limits |
