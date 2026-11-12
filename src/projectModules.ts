@@ -41,6 +41,7 @@ export function parseBrowsableProjectModules(
   const entry = raw.entry as number;
   const seenIds = new Set<number>();
   const seenPaths = new Set<string>();
+  const importTargets: number[] = [];
   const modules: BrowsableProjectModule[] = [];
 
   for (const candidate of raw.modules as unknown[]) {
@@ -73,6 +74,11 @@ export function parseBrowsableProjectModules(
       return invalid();
     }
 
+    // Graph edges may reference later modules; validate them once every node
+    // has been read. A dangling target must never be shown as a valid graph.
+    for (const imp of candidate.imports as Array<{ target: number }>) {
+      importTargets.push(imp.target);
+    }
     seenIds.add(id);
     seenPaths.add(filename);
     const relative = path.relative(canonicalProjectRoot, filename);
@@ -88,7 +94,8 @@ export function parseBrowsableProjectModules(
   }
 
   if (!seenIds.has(entry) ||
-      modules.some(module => module.id >= modules.length)) {
+      modules.some(module => module.id >= modules.length) ||
+      importTargets.some(target => !seenIds.has(target))) {
     return invalid();
   }
   return modules;
