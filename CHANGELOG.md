@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased — v0.1.5 development
+## Unreleased — v0.1.6 development
+
+- Add bounded, compiler-free signature help for 18 published numerical/text/input built-in calls in both trusted and Restricted Mode. Follow nested expression argument positions, avoid source execution and keep semantic correctness delegated to the official compiler.
+
+## v0.1.5 — 2026-11-12 experimental pre-release
 
 - Move the scoped Open VSX token-presence gate ahead of compiler qualification and public GitHub release creation. A missing secret now fails before publication instead of leaving a new GitHub pre-release stranded without its requested registries; qualification-only runs still require no token.
 

@@ -153,6 +153,11 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   }
 };
 
+/** Read-only published builtin metadata; never consult inherited object properties. */
+export function scarpBuiltinByName(name: string): ScarpBuiltinHelp | undefined {
+  return Object.prototype.hasOwnProperty.call(HELP, name) ? HELP[name] : undefined;
+}
+
 function identifierStart(ch: string | undefined): boolean {
   return ch !== undefined && /[A-Za-z_]/.test(ch);
 }
@@ -198,7 +203,7 @@ export function scarpBuiltinAt(
       while (identifierPart(line[i])) { i++; }
       const name = line.slice(start, i);
       if (character >= start && character < i) {
-        const help = HELP[name];
+        const help = scarpBuiltinByName(name);
         if (!help || previousToken === 'funcra' || previousToken === '.') {
           return undefined;
         }

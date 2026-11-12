@@ -79,6 +79,12 @@ test('calls with whitespace and an opening parenthesis on the next line are reco
   assert.equal(scarpBuiltinAt(name + ' // comment', 3, '(x,y)')?.help.name, undefined);
 });
 
+test('inherited object property names are never mistaken for published builtins', () => {
+  for (const source of ['constructor(', '__proto__(', 'toString(']) {
+    assert.equal(scarpBuiltinAt(source, 1), undefined, source);
+  }
+});
+
 test('large or invalid lexical inputs are refused without scanning an unbounded line', () => {
   const source = 'top_p([0.5,0.5], 0.9)';
   for (const position of [-1, source.length, 0.5, NaN, Infinity]) {

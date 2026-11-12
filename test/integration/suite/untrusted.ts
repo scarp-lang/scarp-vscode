@@ -62,6 +62,21 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static builtin hover must never execute the configured compiler');
 
+    // Signature help is also a read-only editor feature in Restricted Mode.
+    const signatureDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind chosen = top_p([0.6, 0.4], 0.9);'
+    });
+    const signatureSource = signatureDoc.getText();
+    const argumentPosition = signatureSource.indexOf(', 0.9') + 1;
+    const hint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+      'vscode.executeSignatureHelpProvider', signatureDoc.uri,
+      new vscode.Position(0, argumentPosition), ',');
+    assert.ok(hint?.signatures.length, 'Builtin signatures should work without workspace trust');
+    assert.match(hint.signatures[0].label, /^top_p\(/);
+    assert.equal(hint.activeParameter, 1);
+    assert.equal(fsSync.existsSync(marker), false,
+      'Static signature help must never execute the configured compiler');
+
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
