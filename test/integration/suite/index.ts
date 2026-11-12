@@ -41,6 +41,23 @@ export async function run(): Promise<void> {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
+  // Prove actual editor command behavior, not just language-configuration JSON.
+  // VS Code's default Ctrl+/ (Cmd+/ on macOS) invokes this built-in command.
+  const commentDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp',
+    content: 'bind answer = 7;\n'
+  });
+  const commentEditor = await vscode.window.showTextDocument(commentDoc, {
+    preview: false, preserveFocus: false
+  });
+  commentEditor.selection = new vscode.Selection(0, 0, 0, 0);
+  await vscode.commands.executeCommand('editor.action.commentLine');
+  assert.match(commentDoc.getText(), /^\/\/\s*bind answer = 7;\n$/,
+    'Toggle Line Comment must insert the official Scarp // syntax');
+  await vscode.commands.executeCommand('editor.action.commentLine');
+  assert.equal(commentDoc.getText(), 'bind answer = 7;\n',
+    'Toggling line comment twice must restore the original Scarp source');
+
   // Exercise the actual VS Code Outline and "Go to Symbol in Editor" API.
   // Navigation is local and does not require a compiler, file access or trust.
   const symbolDoc = await vscode.workspace.openTextDocument({
