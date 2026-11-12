@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add conservative Scarp builtin IntelliSense suggestions based on the same immutable 18-function metadata used by Hover and Signature Help. Prefix filtering avoids quoted text, `//` comments, function/binding/import declarations and member calls; run entirely in the editor in trusted and Restricted Mode with real Extension Host integration coverage.
+
 - Add bounded, compiler-free signature help for 18 published numerical/text/input built-in calls in both trusted and Restricted Mode. Follow nested expression argument positions, avoid source execution and keep semantic correctness delegated to the official compiler.
 
 ## v0.1.5 — 2026-11-12 experimental pre-release
