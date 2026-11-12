@@ -140,6 +140,29 @@ export async function run(): Promise<void> {
   assert.ok(!declarationHelp?.signatures.length,
     'Signature help must not treat user declarations as builtin calls');
 
+  // Real VS Code completion API: static published names only, without CLI
+  // capability probes or user-code evaluation.
+  const completionText = 'bind name = text_re';
+  const completionDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: completionText
+  });
+  const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', completionDoc.uri,
+    new vscode.Position(0, completionText.length));
+  const textReplace = completions?.items.find(item => item.label === 'text_replace');
+  assert.ok(textReplace, 'Scarp builtin completion must be registered');
+  assert.equal(textReplace.kind, vscode.CompletionItemKind.Function);
+  assert.match(textReplace.detail ?? '', /Scarp v0\.0\.6-alpha\.6/);
+  const declaredText = 'funcra text_re';
+  const declaredDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: declaredText
+  });
+  const declaredItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', declaredDoc.uri,
+    new vscode.Position(0, declaredText.length));
+  assert.ok(!declaredItems?.items.some(item => item.label === 'text_replace'),
+    'Declaration names must not suggest builtin function names');
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previous = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
