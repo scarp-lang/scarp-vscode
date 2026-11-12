@@ -73,7 +73,7 @@ test('public experimental releases require reviewed notes, not development draft
   assert.match(publish, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(publish, /--notes-file "docs\/releases\/\$TAG\.md"/);
   assert.match(notes, /Experimental Pre-release/);
-  assert.match(notes, /v0\.0\.6-alpha\.6/);
+  assert.match(notes, /v0\.0\.6-alpha\.7/);
   assert.match(notes, /alpha\.4/);
   assert.match(notes, /top_p/);
   assert.match(notes, /top_p_values/);
@@ -230,7 +230,7 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.7/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12]/);
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
@@ -291,8 +291,8 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
     assert.match(workflow, /schema_version !== 2/);
   }
   assert.match(alpha6, /cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e/);
-  assert.match(publish, /cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e/);
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.6'/);
+  assert.match(publish, /b1c1fd232b418267d95520c69ee563ac99ecae30/);
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.7'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
@@ -332,4 +332,8 @@ test('published compiler alpha.7 is pinned and checked without weakening alpha.6
   assert.match(gate, /scarp inspect references --json/);
   assert.match(gate, /xvfb-run -a npm run test:integration/);
   assert.match(gate, /verify-snippets\.cjs.*scarp" 7/);
+  const release = repoFile('.github/workflows/prerelease.yml');
+  assert.match(release, /compiler\/examples\/conditional_unicode\.srp/);
+  assert.match(release, /cmp compiler\/examples\/conditional_unicode\.stdout/);
+  assert.match(release, /verify-snippets\.cjs.*scarp" 7/);
 });
