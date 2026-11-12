@@ -122,6 +122,10 @@ For release policy and testing see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/
 
 **Paths containing spaces:** do not add wrapping quotes inside scarp.compilerPath.
 
+## Support development
+
+This extension and the Scarp tooling are open source. You can [support their development on GitHub Sponsors](https://github.com/sponsors/sanskarIN) (monthly or one-time). Sponsorship does not unlock editor features or affect the extension's availability.
+
 ## License
 
 MIT (extension). The separate Scarp compiler is Apache-2.0 licensed.
