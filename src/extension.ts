@@ -468,12 +468,19 @@ async function verifyProject(
  * reject unsaved buffers and discard source inventories when disk changes
  * during inspection, Quick Pick selection or opening the target document.
  */
-function unsavedProjectInput(root: string): vscode.TextDocument | undefined {
+function isProjectTestFixture(root: string, filename: string): boolean {
+  return path.dirname(path.relative(root, filename)) === 'tests' &&
+    path.extname(filename).toLowerCase() === '.stdin';
+}
+function unsavedProjectInput(
+  root: string, includeTestFixtures = false
+): vscode.TextDocument | undefined {
   return vscode.workspace.textDocuments.find(source =>
     source.uri.scheme === 'file' && source.isDirty &&
     isWithinProject(root, source.uri.fsPath) &&
     (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
-      isProjectManifestName(path.basename(source.uri.fsPath)))
+      isProjectManifestName(path.basename(source.uri.fsPath)) ||
+      (includeTestFixtures && isProjectTestFixture(root, source.uri.fsPath)))
   );
 }
 async function browseProjectModules(
@@ -550,7 +557,7 @@ async function browseProjectModules(
 }
 
 async function launchProject(explicit: vscode.Uri | undefined,
-  output: vscode.OutputChannel): Promise<void> {
+  output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch'): Promise<void> {
   // Stop can be pressed while the workspace folder picker is still open.
   const generation = stopGeneration;
   const revision = compilerRevision;
@@ -571,32 +578,44 @@ async function launchProject(explicit: vscode.Uri | undefined,
   try {
     // Launching a project while one of its sources has unsaved changes would
     // run disk bytes different from those shown in the user's editor.
-    const dirty = unsavedProjectInput(key);
+    const dirty = unsavedProjectInput(key, mode === 'test');
     if (dirty) {
-      throw new Error('Save open Scarp project files before launching: ' +
+      throw new Error('Save open Scarp project files before starting: ' +
         dirty.uri.fsPath);
     }
-    const diskBefore = await snapshotProjectDisk(key);
+    const diskBefore = await snapshotProjectDisk(key, true, mode === 'test');
     if (!isCurrent()) { return; }
     const { binary, version } = await validateProjectCompiler(controller.signal);
     if (!isCurrent()) { return; }
+    if (mode === 'test') {
+      // Only the published alpha.8 compiler advertises this executable test route.
+      // Testing is explicitly user-triggered: never run tests during discovery.
+      const help = await executeProcess(binary, ['guide', 'test'], {
+        timeoutMs: 5000, maxOutputBytes: 32768, signal: controller.signal
+      });
+      if (!isCurrent()) { return; }
+      if (help.exitCode !== 0 || !/^Usage:\s*scarp test\b/m.test(help.stdout)) {
+        throw new Error('Scarp project tests require compiler v0.0.6-alpha.8+ with guide test support.');
+      }
+    }
     // Guard against external editors and tools as well as VS Code changes.
     // No asynchronous gap remains between this final check and createTerminal.
-    const diskAfter = await snapshotProjectDisk(key);
-    if (!isCurrent() || unsavedProjectInput(key) ||
+    const diskAfter = await snapshotProjectDisk(key, true, mode === 'test');
+    if (!isCurrent() || unsavedProjectInput(key, mode === 'test') ||
         !sameProjectDisk(diskBefore, diskAfter)) {
       output.appendLine('Scarp project changed during launch preparation; ' +
         'obsolete terminal startup cancelled. Save sources and retry.');
       return;
     }
     const terminal = vscode.window.createTerminal({
-      name: 'Scarp Project: ' + path.basename(key),
+      name: (mode === 'test' ? 'Scarp Tests: ' : 'Scarp Project: ') + path.basename(key),
       shellPath: binary,
-      shellArgs: projectArgv('launch', key, budgets()),
+      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : []),
       cwd: key
     });
     running.set(key, terminal);
-    output.appendLine('Scarp ' + version + ' — launch project ' + key);
+    output.appendLine('Scarp ' + version + ' — ' + (mode === 'test' ? 'test' : 'launch') +
+      ' project ' + key);
     terminal.show();
   } catch (error) {
     // Stop, edits, and compiler switches are cancellations, not late errors.
@@ -804,6 +823,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Only Scarp source and the project manifest affect static compilation.
     // Other files, and changes in sibling projects, must not stop a check.
     if (path.extname(filename).toLowerCase() === '.srp' ||
+        path.extname(filename).toLowerCase() === '.stdin' ||
         isProjectManifestName(path.basename(filename))) {
       for (const [root, controller] of activeProjectCheckAborts) {
         if (isWithinProject(root, filename)) { controller.abort(); }
@@ -1037,6 +1057,8 @@ export function activate(context: vscode.ExtensionContext): void {
       })),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
+    vscode.commands.registerCommand('scarp.testProject',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output, 'test'))),
     vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
       safe(async () => run(await selectedOrExplicitFile(uri), output))),
     vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>

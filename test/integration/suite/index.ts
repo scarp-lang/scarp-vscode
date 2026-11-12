@@ -37,7 +37,7 @@ export async function run(): Promise<void> {
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
     'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
-    'scarp.browseProjectSymbols', 'scarp.launchProject']) {
+    'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -531,6 +531,38 @@ export async function run(): Promise<void> {
           'Stop command must terminate the project terminal');
       } finally {
         projectObserver.dispose();
+      }
+
+      // Alpha.8 project testing uses the real published compiler, not a
+      // simulated test runner. Older pinned compiler compatibility suites
+      // keep exercising the original project commands without executing tests.
+      let supportsProjectTests = false;
+      try {
+        const guide = await promisify(execFile)(binary, ['guide', 'test'],
+          { timeout: 5000 });
+        supportsProjectTests = /^Usage:\s*scarp test\b/m.test(guide.stdout);
+      } catch { /* Earlier compiler versions do not support project tests. */ }
+      if (supportsProjectTests) {
+        const testsRoot = path.join(projectParent, 'alpha8 test project');
+        await promisify(execFile)(binary, ['init', '--', testsRoot], { timeout: 10000 });
+        await fs.writeFile(path.join(testsRoot, 'tests', 'addition.srp'),
+          'assert(2 + 3 == 5, "sum");\n');
+        const terminalOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            watcher.dispose();
+            reject(new Error('Scarp project test command did not open a terminal'));
+          }, 10000);
+          const watcher = vscode.window.onDidOpenTerminal(terminal => {
+            if (terminal.name !== 'Scarp Tests: alpha8 test project') { return; }
+            clearTimeout(timer);
+            watcher.dispose();
+            resolve(terminal);
+          });
+        });
+        await vscode.commands.executeCommand('scarp.testProject', vscode.Uri.file(testsRoot));
+        const testTerminal = await terminalOpened;
+        assert.equal(testTerminal.name, 'Scarp Tests: alpha8 test project');
+        await vscode.commands.executeCommand('scarp.stopProgram');
       }
 
       // Project Launch must not start a terminal for a snapshot that becomes

@@ -625,6 +625,68 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha8-project-tests:
+    name: Official Scarp alpha.8 project tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.8
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Test immutable alpha.8 compiler project test contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "37253e7805c0ca594560700dd1deb3928458e60d"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.8'
+          compiler/target/release/scarp guide test | grep -F 'Usage: scarp test'
+          project_parent="$(mktemp -d)"
+          trap 'rm -rf "$project_parent"' EXIT
+          root="$project_parent/modern project"
+          compiler/target/release/scarp init -- "$root"
+          test -f "$root/scarp.project"
+          compiler/target/release/scarp verify -- "$root"
+          # Test suites run only when selected; the CLI's --list does not execute source.
+          compiler/target/release/scarp test --list -- "$root"
+          printf 'assert(2 + 3 == 5, "arithmetic");\n' > "$root/tests/math.srp"
+          printf 'bind name = read_line();\nassert(name == "hello", "fixture");\n' > "$root/tests/input.srp"
+          printf 'hello\n' > "$root/tests/input.stdin"
+          compiler/target/release/scarp test --require-tests -- "$root"
+          compiler/target/release/scarp test --filter math --require-tests -- "$root"
+          compiler/target/release/scarp test --json --require-tests -- "$root" |
+            node -e '
+              const fs = require("node:fs");
+              const report = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (report.schema_version !== 1 || report.mode !== "run" ||
+                  report.discovered !== 2 || report.passed !== 2 ||
+                  report.failed !== 0 || !Array.isArray(report.tests)) {
+                throw new Error("Published alpha.8 test report is incompatible.");
+              }
+            '
+          compiler/target/release/scarp test --json --list -- "$root" |
+            node -e '
+              const fs = require("node:fs");
+              const report = JSON.parse(fs.readFileSync(0, "utf8"));
+              if (report.schema_version !== 1 || report.mode !== "list" ||
+                  report.discovered !== 2 || report.passed !== 0 ||
+                  report.failed !== 0 || !report.tests.every(t => t.status === "discovered")) {
+                throw new Error("Published alpha.8 read-only discovery is incompatible.");
+              }
+            '
+      - name: Test VS Code Extension Host against published Scarp alpha.8
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest

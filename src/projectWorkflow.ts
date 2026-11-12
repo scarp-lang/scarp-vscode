@@ -33,7 +33,7 @@ export function validProjectName(name: string): boolean {
 }
 
 export function projectArgv(
-  command: 'verify' | 'launch' | 'create',
+  command: 'verify' | 'launch' | 'create' | 'test',
   directory: string,
   budgets: readonly string[] = []
 ): string[] {
@@ -45,6 +45,10 @@ export function projectArgv(
   if (command === 'create') {
     if (budgets.length) { throw new Error('Creating a project does not accept execution budgets.'); }
     return ['create', '--', directory];
+  }
+  if (command === 'test') {
+    if (budgets.length) { throw new Error('Project test runs reject execution budgets.'); }
+    return ['test', '--', directory];
   }
   return ['launch', ...budgets, '--', directory];
 }
