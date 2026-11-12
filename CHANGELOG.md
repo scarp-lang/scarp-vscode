@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Validate compiler-inspected module graph edges before browsing: reject dangling import target IDs even when a JSON inventory otherwise has valid paths and counts. Preserve forward references within the same inventory and all project-root containment checks.
+
 - Qualify the exact published Scarp v0.0.6-alpha.7 compiler in the guarded pre-release workflow, including its immutable source commit, interpreter-only conditional-value and Unicode-scalar escape fixture, and all 14 editor snippets. Retain the independent compiler alpha.1–alpha.7 compatibility jobs and both trusted/Restricted Mode Extension Host release gates. No stable release is permitted.
 
 - Add compiler-independent hover help for the 11 scientific built-ins published across Scarp alpha.3–alpha.5: show typed signatures, version requirements and domain constraints only at actual unqualified call sites. Skip comments, strings, function declarations and similarly named identifiers with bounded lexical checks. Register a non-executing VS Code Hover provider in both trusted and Restricted Mode; add unit, real Extension Host and Restricted Mode tests. No language server, background indexing or new compiler invocation is introduced.
