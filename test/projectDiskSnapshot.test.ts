@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { findProjectManifest } from '../src/projectManifest';
 import {
   snapshotProjectDisk, snapshotScarpSourceFile, sameProjectDisk
 } from '../src/projectDiskSnapshot';
@@ -52,6 +53,23 @@ test('detects an external manifest rewrite', async t => {
   await fs.writeFile(path.join(root, 'Scarp.project'),
     'scarp-project: 1\nname: different\nentry: src/main.srp\n');
   assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root)), false);
+});
+
+test('recognizes and snapshots the declarative manifest through edits and deletion', async t => {
+  const root = await project();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  assert.ok(await findProjectManifest(root));
+  await fs.unlink(path.join(root, 'Scarp.project'));
+  const manifest = path.join(root, 'scarp.project');
+  await fs.writeFile(manifest, 'project "modern" { version: "0.1.0" }\n');
+  assert.equal(await findProjectManifest(root), 'scarp.project');
+  const before = await snapshotProjectDisk(root);
+  assert.ok(before.has('scarp.project'));
+  await fs.appendFile(manifest, '\n');
+  assert.equal(sameProjectDisk(before, await snapshotProjectDisk(root)), false);
+  await fs.unlink(manifest);
+  assert.equal(await findProjectManifest(root), undefined);
+  await assert.rejects(snapshotProjectDisk(root), /manifest disappeared/);
 });
 
 test('snapshots are project-local, not matching sibling prefixes', async t => {

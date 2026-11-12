@@ -10,6 +10,7 @@ import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
 import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
+import { findProjectManifest, isProjectManifestName } from './projectManifest';
 import {
   snapshotProjectDisk, snapshotScarpSourceFile, sameProjectDisk,
   type ProjectDiskSnapshot
@@ -19,6 +20,9 @@ import { parseBrowsableProjectModules } from './projectModules';
 import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
+import { scarpSignatureAt } from './builtinSignature';
+import { scarpBuiltinCompletionAt } from './builtinCompletion';
+import { registerFileActionCodeLens } from './fileActionCodeLens';
 
 const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
@@ -62,6 +66,23 @@ function selectedFile(): vscode.TextDocument {
   if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before running Scarp.'); }
   return doc;
 }
+/**
+ * A CodeLens or editor-title action carries its own resource URI. Always
+ * execute against that explicit document rather than whichever tab happens
+ * to be active when the user clicks the command.
+ */
+async function selectedOrExplicitFile(uri?: vscode.Uri): Promise<vscode.TextDocument> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before running Scarp.');
+  }
+  if (uri === undefined) { return selectedFile(); }
+  if (!(uri instanceof vscode.Uri) || uri.scheme !== 'file' ||
+      path.extname(uri.fsPath).toLowerCase() !== '.srp') {
+    throw new Error('A local Scarp .srp source file is required.');
+  }
+  return vscode.workspace.openTextDocument(uri);
+}
+
 async function ensureSaved(doc: vscode.TextDocument): Promise<void> {
   if (doc.isDirty && !(await doc.save())) { throw new Error('Save the source file first.'); }
 }
@@ -290,14 +311,16 @@ async function validateProjectCompiler(signal?: AbortSignal): Promise<{ binary: 
 }
 
 /** Select only an explicit workspace root, never search for parent manifests. */
-async function projectDirectory(provided?: vscode.Uri): Promise<vscode.Uri | undefined> {
+async function projectDirectory(provided?: vscode.Uri): Promise<{
+  directory: vscode.Uri; manifest: vscode.Uri;
+} | undefined> {
   if (!vscode.workspace.isTrusted) {
     throw new Error('Trust the workspace before using Scarp project commands.');
   }
   let uri = provided;
   if (!uri) {
     const folder = await vscode.window.showWorkspaceFolderPick({
-      placeHolder: 'Select the Scarp project folder containing Scarp.project'
+      placeHolder: 'Select the Scarp project folder containing scarp.project or Scarp.project'
     });
     uri = folder?.uri;
   }
@@ -311,15 +334,12 @@ async function projectDirectory(provided?: vscode.Uri): Promise<vscode.Uri | und
   if ((directory.type & vscode.FileType.Directory) === 0) {
     throw new Error('Select a Scarp project directory, not an individual file.');
   }
-  const manifest = vscode.Uri.joinPath(uri, 'Scarp.project');
-  try {
-    const stat = await vscode.workspace.fs.stat(manifest);
-    if ((stat.type & vscode.FileType.File) === 0) { throw new Error('invalid'); }
-  } catch {
-    throw new Error('The selected folder has no Scarp.project file. '
+  const filename = await findProjectManifest(uri.fsPath);
+  if (!filename) {
+    throw new Error('The selected folder has no scarp.project or Scarp.project file. '
       + 'Open an existing Scarp project root or create a project first.');
   }
-  return uri;
+  return { directory: uri, manifest: vscode.Uri.joinPath(uri, filename) };
 }
 
 async function verifyProject(
@@ -327,8 +347,9 @@ async function verifyProject(
   diagnostics: vscode.DiagnosticCollection, owners: DiagnosticOwners<vscode.Diagnostic>,
   projectMonitors: ProjectWatchRegistry, onSourceChanged: (filename: string) => void
 ): Promise<void> {
-  const directory = await projectDirectory(explicit);
-  if (!directory) { return; }
+  const project = await projectDirectory(explicit);
+  if (!project) { return; }
+  const { directory, manifest } = project;
   const key = directory.fsPath;
   const revision = compilerRevision;
   if (activeProjectChecks.has(key)) {
@@ -344,14 +365,13 @@ async function verifyProject(
     revision === compilerRevision && watch.isCurrent() &&
     vscode.workspace.isTrusted;
   try {
-    const manifest = vscode.Uri.joinPath(directory, 'Scarp.project');
     const doc = await vscode.workspace.openTextDocument(manifest);
     // The real compiler reads saved files from disk, not unsaved editor buffers.
     const dirty = vscode.workspace.textDocuments.find(source =>
       source.uri.scheme === 'file' && source.isDirty &&
       isWithinProject(key, source.uri.fsPath) &&
       (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
-        path.basename(source.uri.fsPath) === 'Scarp.project')
+        isProjectManifestName(path.basename(source.uri.fsPath)))
     );
     if (dirty) {
       throw new Error('Save open Scarp project files before verifying: ' + dirty.uri.fsPath);
@@ -453,15 +473,15 @@ function unsavedProjectInput(root: string): vscode.TextDocument | undefined {
     source.uri.scheme === 'file' && source.isDirty &&
     isWithinProject(root, source.uri.fsPath) &&
     (path.extname(source.uri.fsPath).toLowerCase() === '.srp' ||
-      path.basename(source.uri.fsPath) === 'Scarp.project')
+      isProjectManifestName(path.basename(source.uri.fsPath)))
   );
 }
 async function browseProjectModules(
   explicit: vscode.Uri | undefined, output: vscode.OutputChannel
 ): Promise<void> {
-  const directory = await projectDirectory(explicit);
-  if (!directory) { return; }
-  const root = directory.fsPath;
+  const project = await projectDirectory(explicit);
+  if (!project) { return; }
+  const root = project.directory.fsPath;
   const unsaved = unsavedProjectInput(root);
   if (unsaved) {
     throw new Error('Save open Scarp project files before browsing modules: ' +
@@ -534,9 +554,9 @@ async function launchProject(explicit: vscode.Uri | undefined,
   // Stop can be pressed while the workspace folder picker is still open.
   const generation = stopGeneration;
   const revision = compilerRevision;
-  const directory = await projectDirectory(explicit);
-  if (!directory || generation !== stopGeneration || revision !== compilerRevision) { return; }
-  const key = directory.fsPath;
+  const project = await projectDirectory(explicit);
+  if (!project || generation !== stopGeneration || revision !== compilerRevision) { return; }
+  const key = project.directory.fsPath;
   if (running.has(key) || pendingStarts.has(key)) {
     running.get(key)?.show();
     throw new Error('Scarp is already running or starting this project. Stop it before relaunching.');
@@ -756,7 +776,7 @@ export function activate(context: vscode.ExtensionContext): void {
             // A folder rename can invalidate imported files even when its
             // own name does not have a .srp extension.
             if (!relative || path.extname(relative).toLowerCase() === '.srp' ||
-                relative === 'Scarp.project' ||
+                isProjectManifestName(relative) ||
                 (event === 'rename' && !path.extname(relative))) {
               changed(path.join(root, relative || 'Scarp.project'));
             }
@@ -784,7 +804,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Only Scarp source and the project manifest affect static compilation.
     // Other files, and changes in sibling projects, must not stop a check.
     if (path.extname(filename).toLowerCase() === '.srp' ||
-        path.basename(filename) === 'Scarp.project') {
+        isProjectManifestName(path.basename(filename))) {
       for (const [root, controller] of activeProjectCheckAborts) {
         if (isWithinProject(root, filename)) { controller.abort(); }
       }
@@ -864,8 +884,66 @@ export function activate(context: vscode.ExtensionContext): void {
         new vscode.Range(position.line, call.start, position.line, call.end));
     }
   });
+  // Signature help is a bounded lexical reference, not a semantic index or
+  // compiler execution. It remains usable in Restricted Mode.
+  const builtinSignatures = vscode.languages.registerSignatureHelpProvider(
+    { language: 'scarp' },
+    {
+      provideSignatureHelp(document, position, token): vscode.SignatureHelp | undefined {
+        if (token.isCancellationRequested || position.line >= document.lineCount) {
+          return undefined;
+        }
+        // Avoid scanning an entire file while typing. A truncated prefix can
+        // simply omit help for a call opened too far above the cursor.
+        const start = new vscode.Position(Math.max(0, position.line - 24), 0);
+        const prefix = document.getText(new vscode.Range(start, position));
+        const hint = scarpSignatureAt(prefix);
+        if (!hint) { return undefined; }
+        const signature = new vscode.SignatureInformation(hint.help.signature,
+          hint.help.summary + ' Requires ' + hint.help.introduced +
+          ' or later; the installed compiler is authoritative.');
+        signature.parameters = hint.parameters.map(p => new vscode.ParameterInformation(p));
+        const help = new vscode.SignatureHelp();
+        help.signatures = [signature];
+        help.activeSignature = 0;
+        help.activeParameter = hint.activeParameter;
+        return help;
+      }
+    },
+    '(', ','
+  );
+  // Static suggestions never invoke the compiler, query the network or
+  // invent user-defined symbols. Manual Ctrl+Space works in Restricted Mode.
+  const builtinCompletions = vscode.languages.registerCompletionItemProvider(
+    { language: 'scarp' },
+    {
+      provideCompletionItems(document, position, token): vscode.CompletionItem[] {
+        if (token.isCancellationRequested || position.line >= document.lineCount) {
+          return [];
+        }
+        const suggestion = scarpBuiltinCompletionAt(
+          document.lineAt(position.line).text, position.character);
+        if (!suggestion) { return []; }
+        return suggestion.matches.map(meta => {
+          const item = new vscode.CompletionItem(
+            meta.name, vscode.CompletionItemKind.Function);
+          item.detail = meta.signature + ' · Scarp ' + meta.introduced + '+';
+          const docs = new vscode.MarkdownString();
+          docs.isTrusted = false;
+          docs.supportHtml = false;
+          docs.appendMarkdown(meta.summary + '\n\n**Constraints:** ' + meta.constraints +
+            '\n\n*Lexical reference only. Verify with the installed Scarp compiler.*');
+          item.documentation = docs;
+          item.range = new vscode.Range(position.line, suggestion.start,
+            position.line, position.character);
+          item.insertText = meta.name;
+          return item;
+        });
+      }
+    }
+  );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
-    builtinHover, projectMonitors,
+    builtinHover, builtinSignatures, builtinCompletions, registerFileActionCodeLens(), projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
@@ -951,16 +1029,18 @@ export function activate(context: vscode.ExtensionContext): void {
       (uri?: vscode.Uri): Promise<void> => safe(async () => browseProjectModules(uri, output))),
     vscode.commands.registerCommand('scarp.browseProjectSymbols',
       (uri?: vscode.Uri): Promise<void> => safe(async () => {
-        const directory = await projectDirectory(uri);
-        if (!directory) { return; }
+        const project = await projectDirectory(uri);
+        if (!project) { return; }
         const { binary } = await validateProjectCompiler();
-        await browseProjectSymbols(directory.fsPath, binary, output,
+        await browseProjectSymbols(project.directory.fsPath, binary, output,
           config().get<number>('checkTimeoutMs', 30000));
       })),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
-    vscode.commands.registerCommand('scarp.runFile', () => safe(async () => run(selectedFile(), output))),
-    vscode.commands.registerCommand('scarp.checkFile', (): Promise<void> => safe(async () => check(selectedFile(), output, diagnostics, owners))),
+    vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
+      safe(async () => run(await selectedOrExplicitFile(uri), output))),
+    vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>
+      safe(async () => check(await selectedOrExplicitFile(uri), output, diagnostics, owners))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
       if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before invoking the compiler.'); }
       const { binary, version } = await validateCompiler();

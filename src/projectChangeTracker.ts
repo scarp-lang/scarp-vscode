@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { isProjectManifestName } from './projectManifest';
 
 /** Compare whole directory components, not path prefixes (/app vs /app-other). */
 export function isWithinProject(root: string, filename: string): boolean {
@@ -55,7 +56,7 @@ export class ProjectChangeTracker {
       if (isWithinProject(session.root, filename)) { session.stale = true; }
     }
     const relevant = path.extname(filename).toLowerCase() === '.srp' ||
-      path.basename(filename) === 'Scarp.project';
+      isProjectManifestName(path.basename(filename));
     if (!relevant) { return []; }
     const owners: string[] = [];
     for (const [root, owner] of this.completed) {

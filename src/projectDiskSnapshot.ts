@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import { createReadStream, type BigIntStats } from 'node:fs';
 import * as path from 'node:path';
 import { isWithinProject } from './projectChangeTracker';
+import { isProjectManifestName } from './projectManifest';
 
 /**
  * Bounded, local filesystem fingerprint for an explicit Scarp project.
@@ -29,7 +30,7 @@ function signature(stat: BigIntStats): string {
 }
 
 function isInput(relativePath: string): boolean {
-  return relativePath === 'Scarp.project' ||
+  return isProjectManifestName(relativePath) ||
     path.extname(relativePath).toLowerCase() === '.srp';
 }
 
@@ -168,7 +169,7 @@ export async function snapshotProjectDisk(
     }
   }
 
-  if (requireManifest && !result.has('Scarp.project')) {
+  if (requireManifest && !result.has('scarp.project') && !result.has('Scarp.project')) {
     throw new Error('Scarp project manifest disappeared during verification.');
   }
   return result;

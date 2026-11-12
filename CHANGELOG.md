@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased — v0.1.5 development
+## Unreleased — v0.1.6 development
+
+- Add opt-in, per-file Run/Verify CodeLens actions for local `.srp` documents, disabled by default and unavailable in Restricted Mode. Bind each action to its explicit source URI rather than the active tab, and revalidate trust and source type when invoked. Source browsing never launches the compiler or adds background watchers.
+
+- Add conservative Scarp builtin IntelliSense suggestions based on the same immutable 18-function metadata used by Hover and Signature Help. Prefix filtering avoids quoted text, `//` comments, function/binding/import declarations and member calls; run entirely in the editor in trusted and Restricted Mode with real Extension Host integration coverage.
+
+- Add bounded, compiler-free signature help for 18 published numerical/text/input built-in calls in both trusted and Restricted Mode. Follow nested expression argument positions, avoid source execution and keep semantic correctness delegated to the official compiler.
+
+## v0.1.5 — 2026-11-12 experimental pre-release
+
+- Move the scoped Open VSX token-presence gate ahead of compiler qualification and public GitHub release creation. A missing secret now fails before publication instead of leaving a new GitHub pre-release stranded without its requested registries; qualification-only runs still require no token.
+
+- Validate compiler-inspected module graph edges before browsing: reject dangling import target IDs even when a JSON inventory otherwise has valid paths and counts. Preserve forward references within the inventory and all project-root containment checks.
+
+- Improve native VS Code editing: retain compiler-valid `//` line comments for Toggle Line Comment, add conservative brace indentation and foldable `// #region` / `// #endregion` markers. Guard regex behavior with unit tests and prove actual comment toggle/restore in a real VS Code Extension Host.
+
+- Qualify the exact published Scarp v0.0.6-alpha.7 compiler in the guarded pre-release workflow, including its immutable source commit, interpreter-only conditional-value and Unicode-scalar escape fixture, and all 14 editor snippets. Retain the independent compiler alpha.1–alpha.7 compatibility jobs and both trusted/Restricted Mode Extension Host release gates. No stable release is permitted.
 
 - Add compiler-independent hover help for the 11 scientific built-ins published across Scarp alpha.3–alpha.5: show typed signatures, version requirements and domain constraints only at actual unqualified call sites. Skip comments, strings, function declarations and similarly named identifiers with bounded lexical checks. Register a non-executing VS Code Hover provider in both trusted and Restricted Mode; add unit, real Extension Host and Restricted Mode tests. No language server, background indexing or new compiler invocation is introduced.
 

@@ -208,3 +208,47 @@ test('published alpha.7 Unicode-scalar escapes and conditional values tokenize s
   assert.ok(!hasScope(commented, slash + 'u{1F44B}', 'constant.character.escape.scarp'));
   // Scope classification is lexical only; the compiler validates Unicode scalar ranges.
 });
+
+test('Scarp editor configuration supports line comments, conservative brace indentation and regions', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(root, 'language-configuration.json'), 'utf8'));
+  assert.equal(config.comments.lineComment, '//',
+    'VS Code Toggle Line Comment (Ctrl+/) must use compiler-supported Scarp comments');
+  assert.equal(config.comments.blockComment, undefined,
+    'Do not advertise unsupported block comment delimiters');
+
+  const increase = new RegExp(config.indentationRules.increaseIndentPattern);
+  const decrease = new RegExp(config.indentationRules.decreaseIndentPattern);
+  for (const line of ['funcra run() -> unit {', '  if true {', '  {']) {
+    assert.ok(increase.test(line), 'Expected editor indentation after ' + line);
+  }
+  for (const line of ['// {', '  // comment ending {', 'print("text");', 'if true { print("ok"); }']) {
+    assert.ok(!increase.test(line), 'Do not indent from ' + line);
+  }
+  assert.ok(decrease.test('    }'), 'Closing block should decrease indentation');
+  assert.ok(!decrease.test('    // }'), 'Commented closing brace must not dedent');
+
+  assert.equal(config.onEnterRules.length, 1);
+  const enter = config.onEnterRules[0];
+  assert.equal(enter.action.indent, 'indentOutdent');
+  assert.ok(new RegExp(enter.beforeText).test('funcra main() {'));
+  assert.ok(new RegExp(enter.afterText).test('}'));
+  assert.ok(!new RegExp(enter.beforeText).test('// {'));
+
+  const start = new RegExp(config.folding.markers.start);
+  const end = new RegExp(config.folding.markers.end);
+  assert.ok(start.test('  // #region Helpers'));
+  assert.ok(end.test('  // #endregion Helpers'));
+  assert.ok(!start.test('  // regular comment'));
+  assert.ok(!end.test('  // #region not an end marker'));
+});
+
+
+test('highlights native assertions without coloring longer identifiers or strings', async () => {
+  const grammar = await tokenizer();
+  const statement = tokens('assert(true, "assert message");', grammar);
+  assert.ok(hasScope(statement, 'assert', 'keyword.control.scarp'));
+  assert.ok(hasScope(statement, 'assert message', 'string.quoted.double.scarp'));
+  const longer = tokens('assert_other(true);', grammar);
+  assert.ok(hasScope(longer, 'assert_other', 'entity.name.function.call.scarp'));
+  assert.ok(!hasScope(longer, 'assert_other', 'keyword.control.scarp'));
+});

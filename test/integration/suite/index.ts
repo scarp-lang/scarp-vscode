@@ -41,6 +41,57 @@ export async function run(): Promise<void> {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
+  // Prove actual editor command behavior, not just language-configuration JSON.
+  // VS Code's default Ctrl+/ (Cmd+/ on macOS) invokes this built-in command.
+  const commentDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp',
+    content: 'bind answer = 7;\n'
+  });
+  const commentEditor = await vscode.window.showTextDocument(commentDoc, {
+    preview: false, preserveFocus: false
+  });
+  commentEditor.selection = new vscode.Selection(0, 0, 0, 0);
+  await vscode.commands.executeCommand('editor.action.commentLine');
+  assert.match(commentDoc.getText(), /^\/\/\s*bind answer = 7;\n$/,
+    'Toggle Line Comment must insert the official Scarp // syntax');
+  await vscode.commands.executeCommand('editor.action.commentLine');
+  assert.equal(commentDoc.getText(), 'bind answer = 7;\n',
+    'Toggling line comment twice must restore the original Scarp source');
+
+  // CodeLens stays opt-in, local-only and non-executing until the user
+  // selects a command. VS Code must preserve each lens's file URI.
+  const lensDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-code-lens-'));
+  const lensUri = vscode.Uri.file(path.join(lensDir, 'source with spaces.srp'));
+  await fs.writeFile(lensUri.fsPath, 'bind answer = 7;\n');
+  const lensDoc = await vscode.workspace.openTextDocument(lensUri);
+  const lensConfig = vscode.workspace.getConfiguration('scarp', lensUri);
+  const priorLenses = lensConfig.inspect<boolean>('showFileActionsCodeLens')?.globalValue;
+  try {
+    await lensConfig.update('showFileActionsCodeLens', false,
+      vscode.ConfigurationTarget.Global);
+    const hidden = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider', lensDoc.uri, 10);
+    assert.equal(hidden?.length ?? 0, 0,
+      'Opt-out must avoid cluttering a Scarp document with file actions');
+
+    await lensConfig.update('showFileActionsCodeLens', true,
+      vscode.ConfigurationTarget.Global);
+    const visible = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider', lensDoc.uri, 10);
+    assert.deepEqual(visible?.map(lens => lens.command?.command),
+      ['scarp.runFile', 'scarp.checkFile']);
+    for (const lens of visible ?? []) {
+      assert.equal(lens.range.start.line, 0);
+      assert.equal(lens.command?.arguments?.length, 1);
+      assert.equal((lens.command?.arguments?.[0] as vscode.Uri).toString(),
+        lensUri.toString(), 'Each file action must target its own source URI');
+    }
+  } finally {
+    await lensConfig.update('showFileActionsCodeLens', priorLenses,
+      vscode.ConfigurationTarget.Global);
+    await fs.rm(lensDir, { recursive: true, force: true });
+  }
+
   // Exercise the actual VS Code Outline and "Go to Symbol in Editor" API.
   // Navigation is local and does not require a compiler, file access or trust.
   const symbolDoc = await vscode.workspace.openTextDocument({
@@ -94,11 +145,83 @@ export async function run(): Promise<void> {
     'Comments and strings must not present builtin help');
   }
 
+  // Signature Help is a live VS Code provider (not an internal test-only
+  // helper). It tracks nested calls and selects the correct active argument.
+  const signatureSource = 'bind scores = top_p(softmax_temp([0.2, 0.8], 0.5), 0.9);';
+  const signatureDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: signatureSource
+  });
+  const innerPosition = signatureSource.indexOf(', 0.5') + 1;
+  const innerHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', signatureDoc.uri,
+    new vscode.Position(0, innerPosition), ',');
+  assert.ok(innerHint?.signatures.length, 'Scarp signature help must be registered');
+  assert.match(innerHint.signatures[0].label, /^softmax_temp\(/);
+  assert.equal(innerHint.activeParameter, 1);
+  const outerPosition = signatureSource.indexOf(', 0.9') + 1;
+  const outerHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', signatureDoc.uri,
+    new vscode.Position(0, outerPosition), ',');
+  assert.ok(outerHint?.signatures.length);
+  assert.match(outerHint.signatures[0].label, /^top_p\(/);
+  assert.equal(outerHint.activeParameter, 1);
+  assert.equal(outerHint.signatures[0].parameters.length, 2);
+  const nonBuiltin = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'funcra top_p('
+  });
+  const declarationHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', nonBuiltin.uri, new vscode.Position(0, 'funcra top_p('.length), '(');
+  assert.ok(!declarationHelp?.signatures.length,
+    'Signature help must not treat user declarations as builtin calls');
+
+  // Real VS Code completion API: static published names only, without CLI
+  // capability probes or user-code evaluation.
+  const completionText = 'bind name = text_re';
+  const completionDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: completionText
+  });
+  const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', completionDoc.uri,
+    new vscode.Position(0, completionText.length));
+  const textReplace = completions?.items.find(item => item.label === 'text_replace');
+  assert.ok(textReplace, 'Scarp builtin completion must be registered');
+  assert.equal(textReplace.kind, vscode.CompletionItemKind.Function);
+  assert.match(textReplace.detail ?? '', /Scarp v0\.0\.6-alpha\.6/);
+  const declaredText = 'funcra text_re';
+  const declaredDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: declaredText
+  });
+  const declaredItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', declaredDoc.uri,
+    new vscode.Position(0, declaredText.length));
+  assert.ok(!declaredItems?.items.some(item => item.label === 'text_replace'),
+    'Declaration names must not suggest builtin function names');
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previous = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
   await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
   try {
+    // An explicit URI must win over the active editor. This regression uses
+    // the real official compiler instead of mocking the selected file.
+    const explicitRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-explicit-file-'));
+    try {
+      const brokenUri = vscode.Uri.file(path.join(explicitRoot, 'broken.srp'));
+      const selectedUri = vscode.Uri.file(path.join(explicitRoot, 'selected.srp'));
+      await fs.writeFile(brokenUri.fsPath, 'bind = 1;\n');
+      await fs.writeFile(selectedUri.fsPath, 'bind selected = 2;\n');
+      const selectedDoc = await vscode.workspace.openTextDocument(selectedUri);
+      await vscode.window.showTextDocument(selectedDoc, { preview: false });
+      await vscode.commands.executeCommand('scarp.checkFile', brokenUri);
+      const broken = vscode.languages.getDiagnostics(brokenUri);
+      assert.ok(broken.length > 0,
+        'Verify action must inspect the supplied URI, not the active editor');
+      assert.equal(vscode.languages.getDiagnostics(selectedUri).length, 0,
+        'An unrelated active editor must not receive diagnostics from the supplied source');
+    } finally {
+      await fs.rm(explicitRoot, { recursive: true, force: true });
+    }
+
     // End-to-end integration with the official alpha.4 Scarp project workflow.
     const projectParent = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-vscode-project-'));
     const projectPath = path.join(projectParent, 'project with spaces');

@@ -65,6 +65,22 @@ test('manual runs qualify without publishing unless GitHub release is explicitly
   assert.match(publish, /--prerelease/);
 });
 
+test('Open VSX credentials are checked before any public GitHub release upload', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const consent = publish.indexOf('name: Require explicit GitHub release opt-in');
+  const token = publish.indexOf('name: Verify Open VSX secret exists before publishing');
+  const compiler = publish.indexOf('repository: scarp-lang/scarp');
+  const asset = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
+  assert.ok(consent >= 0 && token > consent && compiler > token && asset > compiler,
+    'Missing registry credentials must fail before compiler work or a public GitHub upload');
+  const check = publish.slice(token, compiler);
+  assert.match(check, /if: github\.event_name == 'release' \|\| inputs\.publish_openvsx/);
+  assert.match(check, /OVSX_PAT:/);
+  assert.match(check, /if \[\[ -z/);
+  assert.equal((publish.match(/name: Verify Open VSX secret exists before publishing/g) ?? []).length, 1);
+  assert.doesNotMatch(publish.slice(asset), /name: Verify Open VSX secret exists before publishing/);
+});
+
 test('public experimental releases require reviewed notes, not development drafts', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
   const notes = repoFile('docs/releases/v0.1.5-public.md');
@@ -73,7 +89,7 @@ test('public experimental releases require reviewed notes, not development draft
   assert.match(publish, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(publish, /--notes-file "docs\/releases\/\$TAG\.md"/);
   assert.match(notes, /Experimental Pre-release/);
-  assert.match(notes, /v0\.0\.6-alpha\.6/);
+  assert.match(notes, /v0\.0\.6-alpha\.7/);
   assert.match(notes, /alpha\.4/);
   assert.match(notes, /top_p/);
   assert.match(notes, /top_p_values/);
@@ -230,7 +246,7 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.7/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12]/);
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
     ci.indexOf('  editor-untrusted:'));
@@ -291,8 +307,8 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
     assert.match(workflow, /schema_version !== 2/);
   }
   assert.match(alpha6, /cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e/);
-  assert.match(publish, /cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e/);
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.6'/);
+  assert.match(publish, /b1c1fd232b418267d95520c69ee563ac99ecae30/);
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.7'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
@@ -332,4 +348,8 @@ test('published compiler alpha.7 is pinned and checked without weakening alpha.6
   assert.match(gate, /scarp inspect references --json/);
   assert.match(gate, /xvfb-run -a npm run test:integration/);
   assert.match(gate, /verify-snippets\.cjs.*scarp" 7/);
+  const release = repoFile('.github/workflows/prerelease.yml');
+  assert.match(release, /compiler\/examples\/conditional_unicode\.srp/);
+  assert.match(release, /cmp compiler\/examples\/conditional_unicode\.stdout/);
+  assert.match(release, /verify-snippets\.cjs.*scarp" 7/);
 });

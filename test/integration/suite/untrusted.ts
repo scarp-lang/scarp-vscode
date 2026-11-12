@@ -29,6 +29,21 @@ export async function run(): Promise<void> {
   assert.ok(symbols?.some(item => item.name === 'answer'),
     'Read-only local Scarp Outline should remain available in Restricted Mode');
 
+  // A user setting cannot expose execution shortcuts in Restricted Mode.
+  const lensSettings = vscode.workspace.getConfiguration('scarp', sourceUri);
+  const previousLenses = lensSettings.inspect<boolean>('showFileActionsCodeLens')?.globalValue;
+  try {
+    await lensSettings.update('showFileActionsCodeLens', true,
+      vscode.ConfigurationTarget.Global);
+    const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider', sourceUri, 10);
+    assert.equal(lenses?.length ?? 0, 0,
+      'Restricted Mode must hide file Run/Verify CodeLens even when explicitly enabled');
+  } finally {
+    await lensSettings.update('showFileActionsCodeLens', previousLenses,
+      vscode.ConfigurationTarget.Global);
+  }
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previousCompiler = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
@@ -61,6 +76,33 @@ export async function run(): Promise<void> {
     assert.match(markdown, /top_p\(probabilities: vector, mass: float\)/);
     assert.equal(fsSync.existsSync(marker), false,
       'Static builtin hover must never execute the configured compiler');
+
+    // Signature help is also a read-only editor feature in Restricted Mode.
+    const signatureDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind chosen = top_p([0.6, 0.4], 0.9);'
+    });
+    const signatureSource = signatureDoc.getText();
+    const argumentPosition = signatureSource.indexOf(', 0.9') + 1;
+    const hint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+      'vscode.executeSignatureHelpProvider', signatureDoc.uri,
+      new vscode.Position(0, argumentPosition), ',');
+    assert.ok(hint?.signatures.length, 'Builtin signatures should work without workspace trust');
+    assert.match(hint.signatures[0].label, /^top_p\(/);
+    assert.equal(hint.activeParameter, 1);
+    assert.equal(fsSync.existsSync(marker), false,
+      'Static signature help must never execute the configured compiler');
+
+    // Compiler-free builtin completions remain available in Restricted Mode.
+    const completionDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind value = top_p_val'
+    });
+    const completionList = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider', completionDoc.uri,
+      new vscode.Position(0, completionDoc.getText().length));
+    assert.ok(completionList?.items.some(item => item.label === 'top_p_values'),
+      'Static builtin completion should work in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'Static completions must never execute the configured compiler');
 
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
