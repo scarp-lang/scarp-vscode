@@ -38,10 +38,12 @@ test('builds argv without a shell or implicit ancestor discovery', () => {
   assert.deepEqual(projectArgv('verify', directory), [
     'verify', '--diagnostic-format=json', '--', directory
   ]);
+  assert.deepEqual(projectArgv('test', directory), ['test', '--', directory]);
   assert.deepEqual(projectArgv('launch', directory, ['--max-steps', '99']), [
     'launch', '--max-steps', '99', '--', directory
   ]);
   assert.throws(() => projectArgv('verify', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('create', directory, ['--max-steps', '1']), /budgets/);
+  assert.throws(() => projectArgv('test', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('launch', ''), /required/);
 });
