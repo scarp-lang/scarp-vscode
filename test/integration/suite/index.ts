@@ -58,6 +58,40 @@ export async function run(): Promise<void> {
   assert.equal(commentDoc.getText(), 'bind answer = 7;\n',
     'Toggling line comment twice must restore the original Scarp source');
 
+  // CodeLens stays opt-in, local-only and non-executing until the user
+  // selects a command. VS Code must preserve each lens's file URI.
+  const lensDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-code-lens-'));
+  const lensUri = vscode.Uri.file(path.join(lensDir, 'source with spaces.srp'));
+  await fs.writeFile(lensUri.fsPath, 'bind answer = 7;\n');
+  const lensDoc = await vscode.workspace.openTextDocument(lensUri);
+  const lensConfig = vscode.workspace.getConfiguration('scarp', lensUri);
+  const priorLenses = lensConfig.inspect<boolean>('showFileActionsCodeLens')?.globalValue;
+  try {
+    await lensConfig.update('showFileActionsCodeLens', false,
+      vscode.ConfigurationTarget.Global);
+    const hidden = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider', lensDoc.uri, 10);
+    assert.equal(hidden?.length ?? 0, 0,
+      'Opt-out must avoid cluttering a Scarp document with file actions');
+
+    await lensConfig.update('showFileActionsCodeLens', true,
+      vscode.ConfigurationTarget.Global);
+    const visible = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider', lensDoc.uri, 10);
+    assert.deepEqual(visible?.map(lens => lens.command?.command),
+      ['scarp.runFile', 'scarp.checkFile']);
+    for (const lens of visible ?? []) {
+      assert.equal(lens.range.start.line, 0);
+      assert.equal(lens.command?.arguments?.length, 1);
+      assert.equal((lens.command?.arguments?.[0] as vscode.Uri).toString(),
+        lensUri.toString(), 'Each file action must target its own source URI');
+    }
+  } finally {
+    await lensConfig.update('showFileActionsCodeLens', priorLenses,
+      vscode.ConfigurationTarget.Global);
+    await fs.rm(lensDir, { recursive: true, force: true });
+  }
+
   // Exercise the actual VS Code Outline and "Go to Symbol in Editor" API.
   // Navigation is local and does not require a compiler, file access or trust.
   const symbolDoc = await vscode.workspace.openTextDocument({
