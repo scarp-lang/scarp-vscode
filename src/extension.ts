@@ -19,6 +19,7 @@ import { parseBrowsableProjectModules } from './projectModules';
 import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
+import { scarpSignatureAt } from './builtinSignature';
 
 const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
@@ -864,8 +865,36 @@ export function activate(context: vscode.ExtensionContext): void {
         new vscode.Range(position.line, call.start, position.line, call.end));
     }
   });
+  // Signature help is a bounded lexical reference, not a semantic index or
+  // compiler execution. It remains usable in Restricted Mode.
+  const builtinSignatures = vscode.languages.registerSignatureHelpProvider(
+    { language: 'scarp' },
+    {
+      provideSignatureHelp(document, position, token): vscode.SignatureHelp | undefined {
+        if (token.isCancellationRequested || position.line >= document.lineCount) {
+          return undefined;
+        }
+        // Avoid scanning an entire file while typing. A truncated prefix can
+        // simply omit help for a call opened too far above the cursor.
+        const start = new vscode.Position(Math.max(0, position.line - 24), 0);
+        const prefix = document.getText(new vscode.Range(start, position));
+        const hint = scarpSignatureAt(prefix);
+        if (!hint) { return undefined; }
+        const signature = new vscode.SignatureInformation(hint.help.signature,
+          hint.help.summary + ' Requires ' + hint.help.introduced +
+          ' or later; the installed compiler is authoritative.');
+        signature.parameters = hint.parameters.map(p => new vscode.ParameterInformation(p));
+        const help = new vscode.SignatureHelp();
+        help.signatures = [signature];
+        help.activeSignature = 0;
+        help.activeParameter = hint.activeParameter;
+        return help;
+      }
+    },
+    '(', ','
+  );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
-    builtinHover, projectMonitors,
+    builtinHover, builtinSignatures, projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
