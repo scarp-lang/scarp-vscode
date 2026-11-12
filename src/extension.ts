@@ -20,6 +20,7 @@ import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
 import { scarpSignatureAt } from './builtinSignature';
+import { scarpBuiltinCompletionAt } from './builtinCompletion';
 
 const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
@@ -893,8 +894,38 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     '(', ','
   );
+  // Static suggestions never invoke the compiler, query the network or
+  // invent user-defined symbols. Manual Ctrl+Space works in Restricted Mode.
+  const builtinCompletions = vscode.languages.registerCompletionItemProvider(
+    { language: 'scarp' },
+    {
+      provideCompletionItems(document, position, token): vscode.CompletionItem[] {
+        if (token.isCancellationRequested || position.line >= document.lineCount) {
+          return [];
+        }
+        const suggestion = scarpBuiltinCompletionAt(
+          document.lineAt(position.line).text, position.character);
+        if (!suggestion) { return []; }
+        return suggestion.matches.map(meta => {
+          const item = new vscode.CompletionItem(
+            meta.name, vscode.CompletionItemKind.Function);
+          item.detail = meta.signature + ' · Scarp ' + meta.introduced + '+';
+          const docs = new vscode.MarkdownString();
+          docs.isTrusted = false;
+          docs.supportHtml = false;
+          docs.appendMarkdown(meta.summary + '\n\n**Constraints:** ' + meta.constraints +
+            '\n\n*Lexical reference only. Verify with the installed Scarp compiler.*');
+          item.documentation = docs;
+          item.range = new vscode.Range(position.line, suggestion.start,
+            position.line, position.character);
+          item.insertText = meta.name;
+          return item;
+        });
+      }
+    }
+  );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
-    builtinHover, builtinSignatures, projectMonitors,
+    builtinHover, builtinSignatures, builtinCompletions, projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {

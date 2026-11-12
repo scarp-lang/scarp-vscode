@@ -1,0 +1,65 @@
+import { test } from 'node:test';
+import * as assert from 'node:assert/strict';
+import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
+import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
+
+test('all published builtins are discoverable with typed prefixes', () => {
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 18);
+  for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
+    const line = 'bind result = ' + builtIn.name;
+    const hint = scarpBuiltinCompletionAt(line, line.length);
+    assert.ok(hint, builtIn.name);
+    assert.equal(hint.start, line.indexOf(builtIn.name));
+    assert.ok(hint.matches.some(match =>
+      match.name === builtIn.name && match.signature === builtIn.signature &&
+      match.introduced === builtIn.introduced));
+  }
+  const choices = scarpBuiltinCompletionAt('bind result = top', 17);
+  assert.deepEqual(choices?.matches.map(x => x.name).sort(), [
+    'top_p', 'top_p_values', 'topk', 'topk_values'
+  ]);
+});
+
+test('completion refuses strings, comments, declarations, member accesses and aliases', () => {
+  for (const line of [
+    '// text_repl',
+    'print("text_repl',
+    'print("quoted \\" text_repl',
+    'funcra text_repl',
+    'pure funcra text_repl',
+    'pub pure funcra text_repl',
+    'bind text_repl',
+    'var text_repl',
+    'import text_repl',
+    'import "lib.srp" as text_repl',
+    'module.text_repl',
+    'module . text_repl',
+    'top_p("hello text_repl'
+  ]) {
+    assert.equal(scarpBuiltinCompletionAt(line, line.length), undefined, line);
+  }
+  const line = 'print("text_repl"); bind result = text_repl';
+  const hint = scarpBuiltinCompletionAt(line, line.length);
+  assert.deepEqual(hint?.matches.map(item => item.name), ['text_replace']);
+});
+
+test('prefix matching is case-sensitive and does not advertise arbitrary functions', () => {
+  for (const prefix of ['TO', 'integar', '__proto__', 'constructor', 'custom']) {
+    assert.equal(scarpBuiltinCompletionAt(prefix, prefix.length), undefined, prefix);
+  }
+  assert.equal(scarpBuiltinCompletionAt('t', 1), undefined,
+    'At least two characters avoid noisy single-letter suggestions');
+  assert.equal(scarpBuiltinCompletionAt('te', 2)?.matches.length, 4);
+});
+
+test('completion ranges are UTF-16 correct and bounded', () => {
+  const line = 'print("🙂"); bind label = text_re';
+  const result = scarpBuiltinCompletionAt(line, line.length);
+  assert.equal(result?.start, line.indexOf('text_re'));
+  assert.deepEqual(result?.matches.map(x => x.name), ['text_replace']);
+  for (const index of [-1, line.length + 1, 1.5, NaN, Infinity]) {
+    assert.equal(scarpBuiltinCompletionAt(line, index), undefined);
+  }
+  assert.equal(scarpBuiltinCompletionAt('x'.repeat(16385) + 'top', 16388), undefined);
+  assert.equal(scarpBuiltinCompletionAt('top', 0), undefined);
+});

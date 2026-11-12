@@ -77,6 +77,18 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static signature help must never execute the configured compiler');
 
+    // Compiler-free builtin completions remain available in Restricted Mode.
+    const completionDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind value = top_p_val'
+    });
+    const completionList = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider', completionDoc.uri,
+      new vscode.Position(0, completionDoc.getText().length));
+    assert.ok(completionList?.items.some(item => item.label === 'top_p_values'),
+      'Static builtin completion should work in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'Static completions must never execute the configured compiler');
+
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
