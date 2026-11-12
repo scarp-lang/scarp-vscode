@@ -594,7 +594,7 @@ async function launchProject(explicit: vscode.Uri | undefined,
         timeoutMs: 5000, maxOutputBytes: 32768, signal: controller.signal
       });
       if (!isCurrent()) { return; }
-      if (help.exitCode !== 0 || !/^Usage:\\s*scarp test\\b/m.test(help.stdout)) {
+      if (help.exitCode !== 0 || !/^Usage:\s*scarp test\b/m.test(help.stdout)) {
         throw new Error('Scarp project tests require compiler v0.0.6-alpha.8+ with guide test support.');
       }
     }
