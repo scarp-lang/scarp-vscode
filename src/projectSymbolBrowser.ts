@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { executeProcess } from './cli';
 import { utf16OffsetForScalarColumn } from './diagnostics';
 import { isWithinProject } from './projectChangeTracker';
+import { isProjectManifestName } from './projectManifest';
 import { type SourceSpan, parseProjectSymbols } from './navigationIndex';
 import { sameProjectDisk, snapshotProjectDisk } from './projectDiskSnapshot';
 
@@ -11,7 +12,7 @@ function hasUnsavedProjectSource(root: string): boolean {
   return vscode.workspace.textDocuments.some(doc => doc.uri.scheme === 'file' &&
     doc.isDirty && isWithinProject(root, doc.uri.fsPath) &&
     (path.extname(doc.uri.fsPath).toLowerCase() === '.srp' ||
-      path.basename(doc.uri.fsPath) === 'Scarp.project'));
+      isProjectManifestName(path.basename(doc.uri.fsPath))));
 }
 
 /**

@@ -241,3 +241,14 @@ test('Scarp editor configuration supports line comments, conservative brace inde
   assert.ok(!start.test('  // regular comment'));
   assert.ok(!end.test('  // #region not an end marker'));
 });
+
+
+test('highlights native assertions without coloring longer identifiers or strings', async () => {
+  const grammar = await tokenizer();
+  const statement = tokens('assert(true, "assert message");', grammar);
+  assert.ok(hasScope(statement, 'assert', 'keyword.control.scarp'));
+  assert.ok(hasScope(statement, 'assert message', 'string.quoted.double.scarp'));
+  const longer = tokens('assert_other(true);', grammar);
+  assert.ok(hasScope(longer, 'assert_other', 'entity.name.function.call.scarp'));
+  assert.ok(!hasScope(longer, 'assert_other', 'keyword.control.scarp'));
+});
