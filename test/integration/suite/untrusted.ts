@@ -77,8 +77,6 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static signature help must never execute the configured compiler');
 
-
-
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
