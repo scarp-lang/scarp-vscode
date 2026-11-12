@@ -69,6 +69,7 @@ export function scarpSignatureAt(prefix: string): ScarpSignatureHint | undefined
     if (ch === '"' ) { inString = true; continue; }
     if (ch === '/' && prefix[i + 1] === '/') {
       while (i < prefix.length && prefix[i] !== '\n' && prefix[i] !== '\r') { i++; }
+      if (i === prefix.length) { return undefined; } // Cursor is still in a comment.
       i--;
       continue;
     }
