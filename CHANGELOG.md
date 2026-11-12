@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Introduce opt-in `Scarp: Initialize Modern Project` via the published alpha.8 `scarp init` contract. It checks the installed compiler's `guide init` capability before creating a fresh declarative `scarp.project` project, keeps the original legacy Create Project command and never overwrites existing paths or runs source.
+
 - Add opt-in `Scarp: List Project Tests` using the published alpha.8 compiler's read-only `--json --list` contract. Strictly validate schema v1 and project-local test file names, retain bounded disk snapshots around inspection and Quick Pick navigation, and refuse untrusted or unsaved projects. No Scarp source execution occurs during listing.
 
 - Prepare compiler alpha.8 project testing integration: add an explicit trusted-workspace `Scarp: Run Project Tests` command that probes `guide test`, rejects unsaved source and test input fixtures, and uses bounded source/fixture snapshots before terminal launch. No automatic test execution, release, or native build is introduced. Add real VS Code Extension Host command coverage, and a separate immutable alpha.8 compiler CI gate for declarative project initialization, assertions, input fixtures, filtered test execution, JSON reports and read-only discovery.
