@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Prepare compiler alpha.8 project testing integration: add an explicit trusted-workspace `Scarp: Run Project Tests` command that probes `guide test`, rejects unsaved source and test input fixtures, and uses bounded source/fixture snapshots before terminal launch. No automatic test execution, release, or native build is introduced. Add real VS Code Extension Host command coverage, and a separate immutable alpha.8 compiler CI gate for declarative project initialization, assertions, input fixtures, filtered test execution, JSON reports and read-only discovery.
+
 - Add opt-in, per-file Run/Verify CodeLens actions for local `.srp` documents, disabled by default and unavailable in Restricted Mode. Bind each action to its explicit source URI rather than the active tab, and revalidate trust and source type when invoked. Source browsing never launches the compiler or adds background watchers.
 
 - Add conservative Scarp builtin IntelliSense suggestions based on the same immutable 18-function metadata used by Hover and Signature Help. Prefix filtering avoids quoted text, `//` comments, function/binding/import declarations and member calls; run entirely in the editor in trusted and Restricted Mode with real Extension Host integration coverage.

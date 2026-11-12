@@ -29,9 +29,11 @@ function signature(stat: BigIntStats): string {
     stat.mtimeNs, stat.ctimeNs].map(String).join(':');
 }
 
-function isInput(relativePath: string): boolean {
+function isInput(relativePath: string, includeTestFixtures: boolean): boolean {
   return isProjectManifestName(relativePath) ||
-    path.extname(relativePath).toLowerCase() === '.srp';
+    path.extname(relativePath).toLowerCase() === '.srp' ||
+    (includeTestFixtures && path.dirname(relativePath) === 'tests' &&
+      path.extname(relativePath).toLowerCase() === '.stdin');
 }
 
 /** Detect rewrites even when a tool restores size/mtime after saving. */
@@ -92,7 +94,7 @@ export async function snapshotScarpSourceFile(filename: string): Promise<string>
 }
 
 export async function snapshotProjectDisk(
-  root: string, requireManifest = true
+  root: string, requireManifest = true, includeTestFixtures = false
 ): Promise<ProjectDiskSnapshot> {
   const rootPath = path.resolve(root);
   const canonicalRoot = await fs.realpath(rootPath);
@@ -123,7 +125,7 @@ export async function snapshotProjectDisk(
           throw new Error('Scarp project contains an unmonitored symlinked directory: ' +
             relative);
         }
-        if (isInput(relative)) {
+        if (isInput(relative, includeTestFixtures)) {
           if (!target.isFile()) { throw new Error('Scarp input is not a file: ' + relative); }
           const canonical = await fs.realpath(absolute);
           if (!isWithinProject(canonicalRoot, canonical)) {
@@ -151,7 +153,7 @@ export async function snapshotProjectDisk(
           throw new Error('Scarp project directory nesting exceeds the verification limit.');
         }
         stack.push({ directory: absolute, depth: depth + 1 });
-      } else if (isInput(relative)) {
+      } else if (isInput(relative, includeTestFixtures)) {
         const stat = await fs.lstat(absolute, { bigint: true });
         if (!stat.isFile()) {
           throw new Error('Scarp input is not a regular file: ' + relative);
