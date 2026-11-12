@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { projectManifestGlob } from './projectManifest';
 import {
   ProjectDiskSnapshot, sameProjectDisk, snapshotProjectDisk
 } from './projectDiskSnapshot';
@@ -52,7 +53,7 @@ export class ProjectWatchRegistry implements WatchDisposable {
     const watchers: WatchDisposable[] = [];
     try {
       watchers.push(this.factory(key, '**/*.srp', changed));
-      watchers.push(this.factory(key, 'Scarp.project', changed));
+      watchers.push(this.factory(key, projectManifestGlob, changed));
     } catch (error) {
       watchers.forEach(watcher => watcher.dispose());
       throw error;

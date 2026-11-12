@@ -20,12 +20,12 @@ test('scoped source and manifest watchers are disposed with their owner', () => 
   const events: EventWatch[] = [];
   const watchers = new ProjectWatchRegistry(factory(events), () => {});
   watchers.track('a', 'manifest-a', () => {}, baseline);
-  assert.deepEqual(events.map(e => e.pattern), ['**/*.srp', 'Scarp.project']);
+  assert.deepEqual(events.map(e => e.pattern), ['**/*.srp', '{scarp.project,Scarp.project}']);
   watchers.stopOwner('manifest-a');
   assert.ok(events.every(e => e.disposed));
 });
 
-test('external source event invalidates its project but preserves independent owners', () => {
+test('declarative manifest event invalidates its project but preserves independent owners', () => {
   const events: EventWatch[] = [];
   const tracker = new ProjectChangeTracker();
   const diagnostics = new DiagnosticOwners<string>();
@@ -40,7 +40,7 @@ test('external source event invalidates its project but preserves independent ow
       diagnostics.replace(owner, new Map());
     }
   }, baseline);
-  events[0].changed(path.join(root, 'src', 'external.srp'));
+  events[1].changed(path.join(root, 'scarp.project'));
   assert.ok(events.every(e => e.disposed));
   assert.deepEqual([...diagnostics.replace('standalone', new Map())], [['other.srp', []]]);
   assert.deepEqual([...diagnostics.invalidateChanged('src/main.srp')], []);
@@ -65,7 +65,7 @@ test('oldest watch is evicted at a bounded capacity; replacement does not evict'
 test('watcher setup failure disposes already installed event watchers', () => {
   let disposed = false;
   const watchers = new ProjectWatchRegistry((_root, pattern) => {
-    if (pattern === 'Scarp.project') { throw Error('unavailable'); }
+    if (pattern === '{scarp.project,Scarp.project}') { throw Error('unavailable'); }
     return { dispose: () => { disposed = true; } };
   }, () => {});
   assert.throws(() => watchers.track('root', 'manifest', () => {}, baseline), /unavailable/);

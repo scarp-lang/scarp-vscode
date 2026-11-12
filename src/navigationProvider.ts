@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { executeProcess } from './cli';
 import { isWithinProject } from './projectChangeTracker';
+import { findProjectManifest, isProjectManifestName } from './projectManifest';
 import {
   parseNavigationIndex, referencesFor, symbolAt,
   type NavigationIndex, type SourceSpan
@@ -24,7 +25,7 @@ interface NavigationSnapshot {
 function isNavigationInput(root: string, filename: string): boolean {
   return isWithinProject(root, filename) &&
     (path.extname(filename).toLowerCase() === '.srp' ||
-      path.basename(filename) === 'Scarp.project');
+      isProjectManifestName(path.basename(filename)));
 }
 
 function configuredCompilerPath(): string {
@@ -40,8 +41,7 @@ async function sourceScope(uri: vscode.Uri): Promise<{ root: string; target: str
       isWithinProject(folder.uri.fsPath, filename)) {
     const root = folder.uri.fsPath;
     try {
-      const stat = await fs.lstat(path.join(root, 'Scarp.project'));
-      if (stat.isFile() && !stat.isSymbolicLink()) {
+      if (await findProjectManifest(root)) {
         return { root, target: root };
       }
     } catch { /* An ordinary standalone file need not have a manifest. */ }

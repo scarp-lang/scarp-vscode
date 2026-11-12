@@ -98,7 +98,7 @@
       "patterns": [
         {
           "name": "keyword.control.scarp",
-          "match": "\\b(?:if|elif|else|while|repeat|as|return|break|continue)\\b"
+          "match": "\\b(?:if|elif|else|while|repeat|as|return|break|continue|assert)\\b"
         }
       ]
     },
