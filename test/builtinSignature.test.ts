@@ -90,7 +90,10 @@ test('escaped quotes, Unicode scalars and UTF-16 offsets do not change call nest
   const call = scarpSignatureAt(source);
   assert.equal(call?.help.name, 'text_replace');
   assert.equal(call?.activeParameter, 2);
-  assert.equal(scarpSignatureAt('top_p("quoted \\" bracket ) still string"'), undefined);
+  assert.equal(scarpSignatureAt('top_p("quoted \\" bracket ) still string'), undefined,
+    'An unfinished string must not display the outer signature');
+  assert.equal(scarpSignatureAt('top_p("quoted \\" bracket ) still string"')?.help.name,
+    'top_p', 'A completed string argument retains the outer signature');
 });
 
 test('malformed or oversized sources fail closed with a strict nesting budget', () => {
