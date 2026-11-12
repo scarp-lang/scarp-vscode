@@ -108,7 +108,7 @@ export async function run(): Promise<void> {
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
       'scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
-      'scarp.createProject', 'scarp.verifyProject', 'scarp.launchProject',
+      'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject', 'scarp.launchProject',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
       'scarp.testProject', 'scarp.listProjectTests'
     ]) {
