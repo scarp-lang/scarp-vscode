@@ -111,6 +111,35 @@ export async function run(): Promise<void> {
     'Comments and strings must not present builtin help');
   }
 
+  // Signature Help is a live VS Code provider (not an internal test-only
+  // helper). It tracks nested calls and selects the correct active argument.
+  const signatureSource = 'bind scores = top_p(softmax_temp([0.2, 0.8], 0.5), 0.9);';
+  const signatureDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: signatureSource
+  });
+  const innerPosition = signatureSource.indexOf(', 0.5') + 1;
+  const innerHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', signatureDoc.uri,
+    new vscode.Position(0, innerPosition), ',');
+  assert.ok(innerHint?.signatures.length, 'Scarp signature help must be registered');
+  assert.match(innerHint.signatures[0].label, /^softmax_temp\(/);
+  assert.equal(innerHint.activeParameter, 1);
+  const outerPosition = signatureSource.indexOf(', 0.9') + 1;
+  const outerHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', signatureDoc.uri,
+    new vscode.Position(0, outerPosition), ',');
+  assert.ok(outerHint?.signatures.length);
+  assert.match(outerHint.signatures[0].label, /^top_p\(/);
+  assert.equal(outerHint.activeParameter, 1);
+  assert.equal(outerHint.signatures[0].parameters.length, 2);
+  const nonBuiltin = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'funcra top_p('
+  });
+  const declarationHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', nonBuiltin.uri, new vscode.Position(0, 15), '(');
+  assert.ok(!declarationHelp?.signatures.length,
+    'Signature help must not treat user declarations as builtin calls');
+
   const settings = vscode.workspace.getConfiguration('scarp');
   const previous = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
