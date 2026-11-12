@@ -68,6 +68,7 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 | scarp.compilerPath | Full path to executable, or scarp on PATH |
 | scarp.checkTimeoutMs | Timeout for checking (default: 30000 milliseconds) |
 | scarp.verifyOnSave | Opt in to non-executing verification after saving a `.srp` file; **off by default** |
+| scarp.showFileActionsCodeLens | Opt in to file-scoped Run/Verify inline actions in trusted `.srp` editors; **off by default** |
 | scarp.maxSteps, scarp.maxPrints | Optional execution limits |
 | scarp.maxCallDepth, scarp.maxCalls | Optional call limits |
 | scarp.maxLiveSlots, scarp.maxCaptureBytes, scarp.maxVectorBytes, scarp.maxTextBytes | Optional memory/resource limits |
