@@ -71,6 +71,19 @@ jobs:
             exit 1
           fi
 
+      # Fail early if an explicitly requested registry cannot be authenticated.
+      # In particular, do not create a public GitHub release asset first.
+      - name: Verify Open VSX secret exists before publishing
+        if: github.event_name == 'release' || inputs.publish_openvsx
+        shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [[ -z "${OVSX_PAT:-}" ]]; then
+            echo "Add OVSX_PAT in Settings > Secrets and variables > Actions before publishing." >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
@@ -291,17 +304,6 @@ jobs:
           VSIX: ${{ steps.release.outputs.vsix }}
           VERSION: ${{ steps.release.outputs.version }}
         run: bash scripts/verify-vsix.sh "$VSIX" "$VERSION"
-
-      - name: Verify Open VSX secret exists before publishing
-        if: github.event_name == 'release' || inputs.publish_openvsx
-        shell: bash
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: |
-          if [[ -z "${OVSX_PAT:-}" ]]; then
-            echo "Add OVSX_PAT in Settings > Secrets and variables > Actions before publishing." >&2
-            exit 1
-          fi
 
       - name: Publish Visual Studio Marketplace pre-release (Trusted Publishing)
         if: github.event_name == 'release' || inputs.publish_marketplace
