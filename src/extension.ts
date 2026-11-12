@@ -913,8 +913,8 @@ export function activate(context: vscode.ExtensionContext): void {
           const docs = new vscode.MarkdownString();
           docs.isTrusted = false;
           docs.supportHtml = false;
-          docs.appendMarkdown(meta.summary + '\\n\\n**Constraints:** ' + meta.constraints +
-            '\\n\\n*Lexical reference only. Verify with the installed Scarp compiler.*');
+          docs.appendMarkdown(meta.summary + '\n\n**Constraints:** ' + meta.constraints +
+            '\n\n*Lexical reference only. Verify with the installed Scarp compiler.*');
           item.documentation = docs;
           item.range = new vscode.Range(position.line, suggestion.start,
             position.line, position.character);
