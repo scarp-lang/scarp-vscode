@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.5 development
 
+- Improve native VS Code editing: retain compiler-valid `//` line comments for Toggle Line Comment, add conservative brace indentation and foldable `// #region` / `// #endregion` markers. Guard regex behavior with unit tests and prove actual comment toggle/restore in a real VS Code Extension Host.
+
 - Qualify the exact published Scarp v0.0.6-alpha.7 compiler in the guarded pre-release workflow, including its immutable source commit, interpreter-only conditional-value and Unicode-scalar escape fixture, and all 14 editor snippets. Retain the independent compiler alpha.1–alpha.7 compatibility jobs and both trusted/Restricted Mode Extension Host release gates. No stable release is permitted.
 
 - Add compiler-independent hover help for the 11 scientific built-ins published across Scarp alpha.3–alpha.5: show typed signatures, version requirements and domain constraints only at actual unqualified call sites. Skip comments, strings, function declarations and similarly named identifiers with bounded lexical checks. Register a non-executing VS Code Hover provider in both trusted and Restricted Mode; add unit, real Extension Host and Restricted Mode tests. No language server, background indexing or new compiler invocation is introduced.
