@@ -65,6 +65,22 @@ test('manual runs qualify without publishing unless GitHub release is explicitly
   assert.match(publish, /--prerelease/);
 });
 
+test('Open VSX credentials are checked before any public GitHub release upload', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const consent = publish.indexOf('name: Require explicit GitHub release opt-in');
+  const token = publish.indexOf('name: Verify Open VSX secret exists before publishing');
+  const compiler = publish.indexOf('repository: scarp-lang/scarp');
+  const asset = publish.indexOf('name: Ensure approved GitHub pre-release has the VSIX');
+  assert.ok(consent >= 0 && token > consent && compiler > token && asset > compiler,
+    'Missing registry credentials must fail before compiler work or a public GitHub upload');
+  const check = publish.slice(token, compiler);
+  assert.match(check, /if: github\.event_name == 'release' \|\| inputs\.publish_openvsx/);
+  assert.match(check, /OVSX_PAT:/);
+  assert.match(check, /if \[\[ -z/);
+  assert.equal((publish.match(/name: Verify Open VSX secret exists before publishing/g) ?? []).length, 1);
+  assert.doesNotMatch(publish.slice(asset), /name: Verify Open VSX secret exists before publishing/);
+});
+
 test('public experimental releases require reviewed notes, not development drafts', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
   const notes = repoFile('docs/releases/v0.1.5-public.md');
