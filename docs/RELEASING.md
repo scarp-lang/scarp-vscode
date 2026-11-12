@@ -90,7 +90,7 @@ The shared `scripts/verify-vsix.sh` pre-release packaging gate checks the packag
 
 The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The release workflow independently builds and checks the published `v0.0.6-alpha.7` compiler, including `verify`, `exec`, project creation/verification/launch, read-only `inspect modules --json PROJECT_DIRECTORY`, static references, and exact alpha.3–alpha.7 scientific, text, tuple, redirected-input and conditional-Unicode fixtures. CI retains separately pinned alpha.1–alpha.7 compiler checks with real VS Code Extension Host integration. This does **not** imply that native executable generation is available.
 
-**The PAT secret's existence cannot be verified by reading public repository files.** If `OVSX_PAT` is missing or empty, publishing fails before uploading to either registry.
+**The PAT secret's existence cannot be verified by reading public repository files.** If Open VSX publishing is requested and `OVSX_PAT` is missing or empty, the workflow fails before compiler qualification, VSIX creation or any GitHub pre-release asset upload. An existing GitHub pre-release published externally still requires the secret for the registry step.
 
 ## Pages
 
