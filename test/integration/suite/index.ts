@@ -136,7 +136,7 @@ export async function run(): Promise<void> {
     language: 'scarp', content: 'funcra top_p('
   });
   const declarationHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
-    'vscode.executeSignatureHelpProvider', nonBuiltin.uri, new vscode.Position(0, 15), '(');
+    'vscode.executeSignatureHelpProvider', nonBuiltin.uri, new vscode.Position(0, 'funcra top_p('.length), '(');
   assert.ok(!declarationHelp?.signatures.length,
     'Signature help must not treat user declarations as builtin calls');
 
