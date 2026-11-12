@@ -109,7 +109,8 @@ export async function run(): Promise<void> {
     for (const command of [
       'scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
       'scarp.createProject', 'scarp.verifyProject', 'scarp.launchProject',
-      'scarp.browseProjectModules', 'scarp.browseProjectSymbols'
+      'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
+      'scarp.testProject', 'scarp.listProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
     }
