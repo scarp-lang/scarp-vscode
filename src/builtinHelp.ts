@@ -158,6 +158,10 @@ export function scarpBuiltinByName(name: string): ScarpBuiltinHelp | undefined {
   return Object.prototype.hasOwnProperty.call(HELP, name) ? HELP[name] : undefined;
 }
 
+/** Immutable list for read-only editor completion; no runtime feature probing. */
+export const PUBLISHED_SCARP_BUILTINS: readonly ScarpBuiltinHelp[] =
+  Object.freeze(Object.values(HELP));
+
 function identifierStart(ch: string | undefined): boolean {
   return ch !== undefined && /[A-Za-z_]/.test(ch);
 }
