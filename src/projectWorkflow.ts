@@ -33,7 +33,7 @@ export function validProjectName(name: string): boolean {
 }
 
 export function projectArgv(
-  command: 'verify' | 'launch' | 'create' | 'test',
+  command: 'verify' | 'launch' | 'create' | 'init' | 'test',
   directory: string,
   budgets: readonly string[] = []
 ): string[] {
@@ -42,9 +42,9 @@ export function projectArgv(
     if (budgets.length) { throw new Error('Static project verification rejects execution budgets.'); }
     return ['verify', '--diagnostic-format=json', '--', directory];
   }
-  if (command === 'create') {
+  if (command === 'create' || command === 'init') {
     if (budgets.length) { throw new Error('Creating a project does not accept execution budgets.'); }
-    return ['create', '--', directory];
+    return [command, '--', directory];
   }
   if (command === 'test') {
     if (budgets.length) { throw new Error('Project test runs reject execution budgets.'); }

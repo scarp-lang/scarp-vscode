@@ -17,6 +17,7 @@ import {
 } from './projectDiskSnapshot';
 import { ProjectWatchRegistry } from './projectWatchRegistry';
 import { parseBrowsableProjectModules } from './projectModules';
+import { parseListedProjectTests } from './projectTestListing';
 import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
@@ -556,6 +557,81 @@ async function browseProjectModules(
   output.appendLine('Scarp ' + version + ' — opened project module ' + canonicalFile);
 }
 
+/** Read-only compiler-provided test discovery, never test execution or implicit search. */
+async function listProjectTests(explicit: vscode.Uri | undefined,
+  output: vscode.OutputChannel): Promise<void> {
+  const project = await projectDirectory(explicit);
+  if (!project) { return; }
+  const root = project.directory.fsPath;
+  const revision = compilerRevision;
+  const fresh = (): boolean => vscode.workspace.isTrusted && revision === compilerRevision &&
+    !unsavedProjectInput(root);
+
+  if (!fresh()) {
+    throw new Error('Save open Scarp project files before listing tests.');
+  }
+  const before = await snapshotProjectDisk(root);
+  const { binary, version } = await validateProjectCompiler();
+  if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
+  const guide = await executeProcess(binary, ['guide', 'test'], {
+    timeoutMs: 5000, maxOutputBytes: 32768
+  });
+  if (guide.exitCode !== 0 || !/^Usage:\s*scarp test\b/m.test(guide.stdout)) {
+    throw new Error('Listing tests requires Scarp v0.0.6-alpha.8+ with guide test support.');
+  }
+  if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
+  const result = await executeProcess(binary,
+    ['test', '--json', '--list', '--', root], {
+      cwd: root, timeoutMs: config().get<number>('checkTimeoutMs', 30000),
+      maxOutputBytes: 1024 * 1024
+    });
+  if (result.exitCode !== 0) {
+    output.appendLine('Scarp ' + version + ' — test discovery failed for ' + root);
+    if (result.stderr) { output.append(result.stderr); }
+    output.show(true);
+    throw new Error('The Scarp compiler could not list tests. See Scarp Output.');
+  }
+  const after = await snapshotProjectDisk(root);
+  if (!fresh() || !sameProjectDisk(before, after)) {
+    throw new Error('Scarp project changed during test discovery. Save files and retry.');
+  }
+  const paths = parseListedProjectTests(result.stdout);
+  if (!paths.length) {
+    void vscode.window.showInformationMessage('No Scarp tests found under tests/*.srp.');
+    return;
+  }
+  const selected = await vscode.window.showQuickPick(paths.map(filename => ({
+    label: filename, filename: path.join(root, filename)
+  })), {
+    title: 'Scarp: List Project Tests (read-only)',
+    placeHolder: 'Choose a discovered test source to open; no test code is executed'
+  });
+  if (!selected) { return; }
+  if (!fresh() || !sameProjectDisk(after, await snapshotProjectDisk(root))) {
+    throw new Error('Scarp project changed while selecting a test. Retry discovery.');
+  }
+
+  // The CLI path is merely a label until independently checked on disk.
+  // Reject symlinks and escapes even if a malformed/custom compiler lists them.
+  const stat = await fs.lstat(selected.filename);
+  const canonicalRoot = await fs.realpath(root);
+  const canonicalFile = await fs.realpath(selected.filename);
+  if (!stat.isFile() || !isWithinProject(canonicalRoot, canonicalFile) ||
+      path.dirname(path.relative(canonicalRoot, canonicalFile)) !== 'tests') {
+    throw new Error('Listed Scarp test is not an ordinary file inside the project tests directory.');
+  }
+  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(canonicalFile));
+  if (doc.isDirty || !Buffer.from(doc.getText(), 'utf8')
+    .equals(await fs.readFile(canonicalFile))) {
+    throw new Error('Listed Scarp test no longer matches the saved compiler snapshot.');
+  }
+  if (!fresh() || !sameProjectDisk(after, await snapshotProjectDisk(root))) {
+    throw new Error('Scarp project changed before opening the listed test. Retry discovery.');
+  }
+  await vscode.window.showTextDocument(doc, { preview: true });
+  output.appendLine('Scarp ' + version + ' — opened discovered test ' + canonicalFile);
+}
+
 async function launchProject(explicit: vscode.Uri | undefined,
   output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch'): Promise<void> {
   // Stop can be pressed while the workspace folder picker is still open.
@@ -628,7 +704,7 @@ async function launchProject(explicit: vscode.Uri | undefined,
   }
 }
 
-async function createProject(output: vscode.OutputChannel): Promise<void> {
+async function createProject(output: vscode.OutputChannel, modern = false): Promise<void> {
   if (!vscode.workspace.isTrusted) {
     throw new Error('Trust the workspace before creating a Scarp project.');
   }
@@ -640,7 +716,7 @@ async function createProject(output: vscode.OutputChannel): Promise<void> {
     throw new Error('Scarp project creation requires a local workspace folder.');
   }
   const name = await vscode.window.showInputBox({
-    title: 'Create Scarp Project',
+    title: modern ? 'Initialize Modern Scarp Project' : 'Create Legacy Scarp Project',
     prompt: 'Name for a new subfolder (existing destinations are never overwritten)',
     placeHolder: 'hello-world',
     validateInput: text => validProjectName(text) ? undefined
@@ -650,7 +726,16 @@ async function createProject(output: vscode.OutputChannel): Promise<void> {
   if (!validProjectName(name)) { throw new Error('Invalid Scarp project folder name.'); }
   const destination = path.join(parent.uri.fsPath, name);
   const { binary, version } = await validateProjectCompiler();
-  const result = await executeProcess(binary, projectArgv('create', destination), {
+  if (modern) {
+    // Older compilers may expose legacy create but cannot initialize v2 manifests.
+    const help = await executeProcess(binary, ['guide', 'init'], {
+      timeoutMs: 5000, maxOutputBytes: 32768
+    });
+    if (help.exitCode !== 0 || !/^Usage:\s*scarp init\b/m.test(help.stdout)) {
+      throw new Error('Modern projects require Scarp v0.0.6-alpha.8+ with guide init support.');
+    }
+  }
+  const result = await executeProcess(binary, projectArgv(modern ? 'init' : 'create', destination), {
     cwd: parent.uri.fsPath, timeoutMs: 30000, maxOutputBytes: 65536
   });
   if (result.stdout) { output.append(result.stdout); }
@@ -660,7 +745,8 @@ async function createProject(output: vscode.OutputChannel): Promise<void> {
     throw new Error('Scarp project creation failed. The compiler will not overwrite '
       + 'an existing directory. See Scarp output.');
   }
-  output.appendLine('Created Scarp ' + version + ' project ' + destination);
+  output.appendLine('Created Scarp ' + version + (modern ? ' declarative' : ' legacy') +
+    ' project ' + destination);
   const choice = await vscode.window.showInformationMessage(
     'Created Scarp project ' + name + '.', 'Open Project'
   );
@@ -1040,6 +1126,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('scarp.createProject',
       (): Promise<void> => safe(async () => createProject(output))),
+    vscode.commands.registerCommand('scarp.initProject',
+      (): Promise<void> => safe(async () => createProject(output, true))),
     vscode.commands.registerCommand('scarp.verifyProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => verifyProject(
         uri, output, diagnostics, owners, projectMonitors, invalidateProject))),
@@ -1059,6 +1147,8 @@ export function activate(context: vscode.ExtensionContext): void {
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.testProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output, 'test'))),
+    vscode.commands.registerCommand('scarp.listProjectTests',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => listProjectTests(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
       safe(async () => run(await selectedOrExplicitFile(uri), output))),
     vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>

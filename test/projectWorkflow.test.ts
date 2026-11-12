@@ -35,6 +35,7 @@ test('name validator allows Unicode but rejects traversal, separators and compil
 test('builds argv without a shell or implicit ancestor discovery', () => {
   const directory = '/tmp/my project;$(id)';
   assert.deepEqual(projectArgv('create', directory), ['create', '--', directory]);
+  assert.deepEqual(projectArgv('init', directory), ['init', '--', directory]);
   assert.deepEqual(projectArgv('verify', directory), [
     'verify', '--diagnostic-format=json', '--', directory
   ]);
@@ -44,6 +45,7 @@ test('builds argv without a shell or implicit ancestor discovery', () => {
   ]);
   assert.throws(() => projectArgv('verify', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('create', directory, ['--max-steps', '1']), /budgets/);
+  assert.throws(() => projectArgv('init', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('test', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('launch', ''), /required/);
 });

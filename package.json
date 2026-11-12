@@ -40,7 +40,9 @@
     "onCommand:scarp.reconcileProjects",
     "onCommand:scarp.browseProjectModules",
     "onCommand:scarp.browseProjectSymbols",
-    "onCommand:scarp.testProject"
+    "onCommand:scarp.testProject",
+    "onCommand:scarp.listProjectTests",
+    "onCommand:scarp.initProject"
   ],
   "contributes": {
     "languages": [
@@ -115,6 +117,16 @@
         "command": "scarp.testProject",
         "title": "Scarp: Run Project Tests",
         "category": "Scarp"
+      },
+      {
+        "command": "scarp.listProjectTests",
+        "title": "Scarp: List Project Tests",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.initProject",
+        "title": "Scarp: Initialize Modern Project",
+        "category": "Scarp"
       }
     ],
     "menus": {
@@ -169,6 +181,14 @@
         },
         {
           "command": "scarp.testProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.listProjectTests",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.initProject",
           "when": "isWorkspaceTrusted"
         }
       ]
