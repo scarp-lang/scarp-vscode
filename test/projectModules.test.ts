@@ -30,11 +30,11 @@ test('browses entry and imported modules with public symbol counts', () => {
   ]);
 });
 
-test('requires supported schema v1/v2, a real entry module and bounded module arrays', () => {
+test('requires a supported schema, a real entry module and bounded module arrays', () => {
   const good = JSON.parse(inventory([moduleEntry(0, 'src/main.srp')]));
   for (const bad of [
     '{not json', '{}',
-    ...([0, 3, '2', 1.5].map(schema_version => JSON.stringify({ ...good, schema_version }))),
+    ...([0, 4, '3', 1.5].map(schema_version => JSON.stringify({ ...good, schema_version }))),
     inventory([], 0), inventory([moduleEntry(0, 'src/main.srp')], 3),
     inventory([moduleEntry(-1, 'src/main.srp')]),
     inventory([moduleEntry(0, 'src/main.srp'), moduleEntry(0, 'src/lib.srp')]),
@@ -73,19 +73,24 @@ test('rejects invalid imports, symbols, non-source paths and abnormal IDs', () =
   }
 });
 
-test('schema v2 inventories with exported tuple types remain safely browsable', () => {
-  const modules = [
-    moduleEntry(0, 'src/main.srp', [{ path: 'records.srp', alias: 'r', target: 1 }]),
-    moduleEntry(1, 'src/records.srp', [], [{
-      name: 'read', public: true, kind: 'function',
-      result: 'tuple<integer, string>', parameters: []
-    }])
-  ];
-  assert.deepEqual(parseBrowsableProjectModules(inventory(modules, 0, 2), root).map(
-    module => [module.displayPath, module.isEntry, module.publicSymbols]
-  ), [['src/main.srp', true, 0], ['src/records.srp', false, 1]]);
-  const malformed = JSON.parse(inventory(modules, 0, 2));
-  malformed.modules[1].path = path.resolve('elsewhere/records.srp');
-  assert.throws(() => parseBrowsableProjectModules(JSON.stringify(malformed), root),
-    /module inspection JSON/);
-});
+for (const [schema, resultType] of [
+  [2, 'tuple<integer, string>'],
+  [3, 'tuple<array<string, 2>, integer>']
+] as const) {
+  test(`browses schema v${schema} inventories with structural signatures within the project`, () => {
+    const modules = [
+      moduleEntry(0, 'src/main.srp', [{ path: 'records.srp', alias: 'r', target: 1 }]),
+      moduleEntry(1, 'src/records.srp', [], [{
+        name: 'read', public: true, kind: 'function',
+        result: resultType, parameters: []
+      }])
+    ];
+    assert.deepEqual(parseBrowsableProjectModules(inventory(modules, 0, schema), root).map(
+      module => [module.displayPath, module.isEntry, module.publicSymbols]
+    ), [['src/main.srp', true, 0], ['src/records.srp', false, 1]]);
+    const malformed = JSON.parse(inventory(modules, 0, schema));
+    malformed.modules[1].path = path.resolve('elsewhere/records.srp');
+    assert.throws(() => parseBrowsableProjectModules(JSON.stringify(malformed), root),
+      /module inspection JSON/);
+  });
+}
