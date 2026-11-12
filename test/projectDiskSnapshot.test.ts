@@ -196,3 +196,23 @@ test('single-file fingerprint detects unlink, oversize and symlink target rewrit
   await fs.unlink(source);
   await assert.rejects(snapshotScarpSourceFile(source), /ENOENT/);
 });
+
+
+test('test-run snapshots include only immediate .stdin fixtures when opted in', async t => {
+  const root = await project();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.mkdir(path.join(root, 'tests'));
+  const fixture = path.join(root, 'tests', 'greeting.stdin');
+  await fs.writeFile(fixture, 'first\\n');
+  const baseline = await snapshotProjectDisk(root);
+  const testBefore = await snapshotProjectDisk(root, true, true);
+  assert.equal(baseline.has(path.join('tests', 'greeting.stdin')), false);
+  assert.equal(testBefore.has(path.join('tests', 'greeting.stdin')), true);
+  await fs.writeFile(fixture, 'second\\n');
+  assert.equal(sameProjectDisk(baseline, await snapshotProjectDisk(root)), true);
+  assert.equal(sameProjectDisk(testBefore, await snapshotProjectDisk(root, true, true)), false);
+  await fs.writeFile(path.join(root, 'unrelated.stdin'), 'ignored\\n');
+  const testAfter = await snapshotProjectDisk(root, true, true);
+  await fs.writeFile(path.join(root, 'unrelated.stdin'), 'changed\\n');
+  assert.equal(sameProjectDisk(testAfter, await snapshotProjectDisk(root, true, true)), true);
+});
