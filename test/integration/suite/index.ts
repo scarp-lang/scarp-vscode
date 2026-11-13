@@ -39,7 +39,7 @@ export async function run(): Promise<void> {
     'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject',
-    'scarp.listProjectTests']) {
+    'scarp.testProjectFiltered', 'scarp.listProjectTests']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -593,6 +593,35 @@ export async function run(): Promise<void> {
         await vscode.commands.executeCommand('scarp.testProject', vscode.Uri.file(testsRoot));
         const testTerminal = await terminalOpened;
         assert.equal(testTerminal.name, 'Scarp Tests: alpha8 test project');
+        await vscode.commands.executeCommand('scarp.stopProgram');
+
+        // Published alpha.8 accepts a literal --filter filename substring.
+        // Use two test files to prove the exact argument is carried to the
+        // official CLI instead of running a wildcard or guessed path.
+        await fs.writeFile(path.join(testsRoot, 'tests', 'boundary.srp'),
+          'assert(4 > 2, "boundary");\n');
+        const filteredOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            observer.dispose();
+            reject(new Error('Filtered Scarp test command did not open a terminal'));
+          }, 10000);
+          const observer = vscode.window.onDidOpenTerminal(terminal => {
+            if (terminal.name !== 'Scarp Tests (filtered): alpha8 test project') {
+              return;
+            }
+            clearTimeout(timer);
+            observer.dispose();
+            resolve(terminal);
+          });
+        });
+        await vscode.commands.executeCommand('scarp.testProjectFiltered',
+          vscode.Uri.file(testsRoot), 'addition');
+        const filtered = await filteredOpened;
+        const options = filtered.creationOptions;
+        assert.ok('shellArgs' in options, 'Filtered test terminal must use explicit argv');
+        assert.deepEqual(options.shellArgs, [
+          'test', '--filter', 'addition', '--', testsRoot
+        ]);
         await vscode.commands.executeCommand('scarp.stopProgram');
       }
 
