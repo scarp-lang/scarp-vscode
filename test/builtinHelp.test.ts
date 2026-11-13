@@ -20,7 +20,11 @@ const versions: Record<string, string> = {
   text_to_integer: 'v0.0.6-alpha.6',
   text_to_float: 'v0.0.6-alpha.6',
   text_trim: 'v0.0.6-alpha.6',
-  text_replace: 'v0.0.6-alpha.6'
+  text_replace: 'v0.0.6-alpha.6',
+  bigint: 'v0.0.6-alpha.9',
+  bigint_from_integer: 'v0.0.6-alpha.9',
+  bigint_to_integer: 'v0.0.6-alpha.9',
+  bigint_abs: 'v0.0.6-alpha.9'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
