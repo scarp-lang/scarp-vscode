@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import { runTests } from '@vscode/test-electron';
+import { withHostDownloadRetry } from './downloadRetry';
 
 async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
@@ -8,7 +9,7 @@ async function main(): Promise<void> {
   if (!compiler || !path.isAbsolute(compiler)) {
     throw new Error('SCARP_TEST_BINARY must name an absolute official compiler path');
   }
-  await runTests({
+  await withHostDownloadRetry(() => runTests({
     version: '1.96.0',
     extensionDevelopmentPath,
     extensionTestsPath,
@@ -20,7 +21,7 @@ async function main(): Promise<void> {
       '--skip-release-notes',
       '--no-sandbox'
     ]
-  });
+  }), attempt => console.warn(`Retrying VS Code test host download (attempt ${attempt}/3).`));
 }
 void main().catch(error => {
   console.error('VS Code integration tests failed:', error);
