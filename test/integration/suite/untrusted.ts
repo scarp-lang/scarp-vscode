@@ -47,6 +47,7 @@ export async function run(): Promise<void> {
   const settings = vscode.workspace.getConfiguration('scarp');
   const previousCompiler = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
+  const previousStrict = settings.inspect<boolean>('requireNonemptyProjectTests')?.globalValue;
   const marker = path.join(root, 'compiler-invoked');
   const fakeCompiler = path.join(root, 'scarp-probe');
   await fs.writeFile(fakeCompiler, [
@@ -59,6 +60,8 @@ export async function run(): Promise<void> {
   try {
     await settings.update('compilerPath', fakeCompiler, vscode.ConfigurationTarget.Global);
     await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
+    await settings.update('requireNonemptyProjectTests', true,
+      vscode.ConfigurationTarget.Global);
     const initialTerminals = vscode.window.terminals.length;
 
     // Hover help must remain a pure editor operation in Restricted Mode.
@@ -154,6 +157,8 @@ export async function run(): Promise<void> {
 
     console.log('Scarp Restricted Mode Extension Host integration checks passed');
   } finally {
+    await settings.update('requireNonemptyProjectTests', previousStrict,
+      vscode.ConfigurationTarget.Global);
     await settings.update('verifyOnSave', previousVerifyOnSave,
       vscode.ConfigurationTarget.Global);
     await settings.update('compilerPath', previousCompiler,
