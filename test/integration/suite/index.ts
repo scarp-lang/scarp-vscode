@@ -660,7 +660,8 @@ export async function run(): Promise<void> {
             promisify(execFile)(binary,
               ['test', '--require-tests', '--filter', 'nonexistent-filter', '--', testsRoot],
               { timeout: 10000 }),
-            error => (error as NodeJS.ErrnoException & { code?: number }).code === 1
+            error => typeof error === 'object' && error !== null &&
+              'code' in error && error.code === 1
           );
         } finally {
           await strictSettings.update('requireNonemptyProjectTests', previousStrict,
