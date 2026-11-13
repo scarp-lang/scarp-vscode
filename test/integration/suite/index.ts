@@ -822,8 +822,14 @@ export async function run(): Promise<void> {
           const quotaArgs = quotaTerminal.creationOptions.shellArgs as string[];
           assert.ok(['run', 'exec'].includes(quotaArgs[0]),
             'BigInt quotas must only be forwarded to explicit Scarp execution');
-          assert.deepEqual(quotaArgs.slice(1, 5),
+          // Other user-configured budgets may precede the BigInt flags.
+          // Verify the new pair without assuming an empty prior budget set.
+          const digitFlag = quotaArgs.indexOf('--max-bigint-digits');
+          assert.ok(digitFlag > 0, 'BigInt digit quota must be forwarded');
+          assert.deepEqual(quotaArgs.slice(digitFlag, digitFlag + 4),
             ['--max-bigint-digits', '64', '--max-bigint-bytes', '4096']);
+          assert.equal(quotaArgs.filter(arg => arg === '--max-bigint-digits').length, 1);
+          assert.equal(quotaArgs.filter(arg => arg === '--max-bigint-bytes').length, 1);
           assert.equal(quotaArgs[quotaArgs.length - 1], quotaUri.fsPath);
           await vscode.commands.executeCommand('scarp.stopProgram');
         } finally {
