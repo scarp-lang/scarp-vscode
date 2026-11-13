@@ -35,7 +35,8 @@ export async function run(): Promise<void> {
 
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
-    'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject', 'scarp.initProject',
+    'scarp.stopProgram', 'scarp.showOutput', 'scarp.explainDiagnostic',
+    'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject',
     'scarp.listProjectTests']) {
@@ -217,6 +218,29 @@ export async function run(): Promise<void> {
       const broken = vscode.languages.getDiagnostics(brokenUri);
       assert.ok(broken.length > 0,
         'Verify action must inspect the supplied URI, not the active editor');
+      // Real compiler diagnostic -> VS Code Problems -> explicit Quick Fix.
+      // Merely discovering Code Actions must never launch Scarp.
+      const located = broken.find(d => d.source === 'Scarp' &&
+        typeof d.code === 'string' && /^E\d{4}$/.test(d.code));
+      assert.ok(located, 'Official Scarp errors should include a canonical explain code');
+      const explainActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider', brokenUri, located.range,
+        vscode.CodeActionKind.QuickFix.value);
+      const explanation = explainActions?.find(action =>
+        action.command?.command === 'scarp.explainDiagnostic' &&
+        action.command.arguments?.[0] === located.code);
+      assert.ok(explanation,
+        'Scarp diagnostic should offer an explicit explanation without an edit');
+      assert.equal(explanation.edit, undefined,
+        'An explanation Code Action must never mutate a source file');
+      assert.equal(explanation.command?.arguments?.length, 1);
+      // The real pinned compiler must accept the exact canonical diagnostic.
+      const described = await promisify(execFile)(binary, ['explain', String(located.code)],
+        { timeout: 10000 });
+      assert.ok(described.stdout.length > 0);
+      await vscode.commands.executeCommand('scarp.explainDiagnostic', located.code);
+      assert.equal((await fs.readFile(brokenUri.fsPath, 'utf8')), 'bind = 1;\n',
+        'Explaining a compiler error must not change Scarp source');
       assert.equal(vscode.languages.getDiagnostics(selectedUri).length, 0,
         'An unrelated active editor must not receive diagnostics from the supplied source');
     } finally {

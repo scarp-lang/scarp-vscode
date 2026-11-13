@@ -108,12 +108,25 @@ export async function run(): Promise<void> {
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
       'scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
+      'scarp.explainDiagnostic',
       'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject', 'scarp.launchProject',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
       'scarp.testProject', 'scarp.listProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
     }
+
+    // The diagnostic explainer must be unusable in Restricted Mode even
+    // when another extension invokes it with a syntactically valid code.
+    await vscode.commands.executeCommand('scarp.explainDiagnostic', 'E0004');
+    const explainActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      'vscode.executeCodeActionProvider', sourceUri, new vscode.Range(0, 0, 0, 5),
+      vscode.CodeActionKind.QuickFix.value);
+    assert.ok(!(explainActions ?? []).some(action =>
+      action.command?.command === 'scarp.explainDiagnostic'),
+    'Compiler-backed explanations must be absent in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'Explaining a diagnostic in Restricted Mode must not start a compiler');
 
     const edit = new vscode.WorkspaceEdit();
     edit.insert(sourceUri, new vscode.Position(0, 0), '// untrusted workspace edit\n');

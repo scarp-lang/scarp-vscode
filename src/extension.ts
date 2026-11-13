@@ -4,6 +4,7 @@ import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
 import { compilerVersion, executeProcess, preferredExecutionVerb } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
+import { diagnosticExplanationArgs, explainableDiagnosticCode } from './diagnosticExplanation';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
@@ -102,6 +103,44 @@ async function validateCompiler(signal?: AbortSignal): Promise<{ binary: string;
   if (!version) { throw new Error('Invalid Scarp --version response from ' + binary); }
   return { binary, version };
 }
+/**
+ * Display published compiler catalogue guidance only after an explicit user
+ * action. No Scarp source file is read, verified or executed by explain.
+ */
+async function explainDiagnostic(code: unknown, output: vscode.OutputChannel): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before invoking the Scarp compiler.');
+  }
+  let requested = code;
+  if (requested === undefined) {
+    requested = await vscode.window.showInputBox({
+      prompt: 'Enter a Scarp compiler diagnostic code',
+      placeHolder: 'E0004',
+      validateInput: value => explainableDiagnosticCode(value)
+        ? undefined : 'Use an uppercase diagnostic code such as E0004.'
+    });
+  }
+  if (requested === undefined) { return; } // User cancelled the input prompt.
+  const args = diagnosticExplanationArgs(requested);
+  const revision = compilerRevision;
+  const { binary, version } = await validateCompiler();
+  if (revision !== compilerRevision || !vscode.workspace.isTrusted) { return; }
+  const result = await executeProcess(binary, args, {
+    timeoutMs: 5000, maxOutputBytes: 32768
+  });
+  if (revision !== compilerRevision || !vscode.workspace.isTrusted) { return; }
+  if (result.exitCode !== 0) {
+    output.appendLine('Scarp ' + version + ' has no available explanation for ' + args[1] + '.');
+    if (result.stderr) { output.append(result.stderr); }
+    output.show(true);
+    throw new Error('Scarp diagnostic explanation unavailable for ' + args[1] +
+      ' (exit ' + String(result.exitCode) + ').');
+  }
+  output.appendLine('Scarp ' + version + ' — explanation for ' + args[1]);
+  if (result.stdout) { output.append(result.stdout); }
+  output.show(true);
+}
+
 /**
  * Probe a compiler capability instead of guessing from its version string.
  * Alpha.3 introduces a non-executing verify route. Older releases use check,
@@ -1048,8 +1087,39 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
   );
+  // Quick Fix entries explain diagnostics; they never apply edits or invoke
+  // a compiler until the user selects the action. Restricted Mode stays inert.
+  const explainActions = vscode.languages.registerCodeActionsProvider(
+    { language: 'scarp', scheme: 'file' },
+    {
+      provideCodeActions(document, _range, context, token): vscode.CodeAction[] {
+        if (!vscode.workspace.isTrusted || token.isCancellationRequested ||
+            path.extname(document.uri.fsPath).toLowerCase() !== '.srp') { return []; }
+        const codes = new Set<string>();
+        const actions: vscode.CodeAction[] = [];
+        for (const diagnostic of context.diagnostics) {
+          if (diagnostic.source !== 'Scarp') { continue; }
+          const code = explainableDiagnosticCode(diagnostic.code);
+          if (!code || codes.has(code)) { continue; }
+          codes.add(code);
+          const action = new vscode.CodeAction('Explain Scarp ' + code,
+            vscode.CodeActionKind.QuickFix);
+          action.diagnostics = [diagnostic];
+          action.command = {
+            command: 'scarp.explainDiagnostic',
+            title: 'Explain Scarp ' + code,
+            arguments: [code]
+          };
+          actions.push(action);
+          if (actions.length >= 16) { break; }
+        }
+        return actions;
+      }
+    }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+  );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
-    builtinHover, builtinSignatures, builtinCompletions, registerFileActionCodeLens(), projectMonitors,
+    builtinHover, builtinSignatures, builtinCompletions, explainActions,
+    registerFileActionCodeLens(), projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
@@ -1153,6 +1223,8 @@ export function activate(context: vscode.ExtensionContext): void {
       safe(async () => run(await selectedOrExplicitFile(uri), output))),
     vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>
       safe(async () => check(await selectedOrExplicitFile(uri), output, diagnostics, owners))),
+    vscode.commands.registerCommand('scarp.explainDiagnostic', (code?: unknown): Promise<void> =>
+      safe(async () => explainDiagnostic(code, output))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
       if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before invoking the compiler.'); }
       const { binary, version } = await validateCompiler();
