@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **published compiler v0.0.6-alpha.9 BigInt editor compatibility**: recognize the `bigint` type and exact string constructor, explicit signed i64 conversions and absolute-value builtin with compiler-free lexical highlighting, hover, signature help, completion, and an `sbigint` starter snippet. Add an immutable alpha.9 GitHub Actions gate that verifies real compiler BigInt arithmetic/module/sequence examples, verifies all snippets statically, and exercises the real VS Code Extension Host. No compiler emulation, package version bump or pre-release.
+
 - Add **Scarp: List Filtered Project Tests**, a read-only compiler-backed test discovery command for published alpha.8 `scarp test --json --list --filter`. Share the same bounded literal filter validation as filtered execution without running programs, with trusted-workspace guards, scoped cancellation, on-disk snapshots, canonical source paths and editor-host/Restricted Mode regression tests. No extension release or automatic test run.
 
 - Cancel stale `Scarp: List Project Tests` compiler work promptly on project source/manifest edits or compiler-path changes; keep detection scoped per selected project root, reject overlapping discovery requests, and stop aborted child processes without false user errors. Retain external-disk snapshot checks and explicit-only test execution. Add real Extension Host regression tests for unrelated edits, SIGTERM-resistant compiler cancellation, recovery and compiler switching.
