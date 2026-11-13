@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { hasProjectWorkflow, validProjectName, validProjectTestFilter, projectArgv } from '../src/projectWorkflow';
+import { hasProjectWorkflow, validProjectName, validProjectTestFilter, projectArgv, projectTestListArgv } from '../src/projectWorkflow';
 
 const report = (extra: object = {}): string => JSON.stringify({
   schema_version: 1, version: '0.0.5-alpha.4',
@@ -102,4 +102,21 @@ test('nonempty-suite guard is opt-in and does not change legacy test argv', () =
     assert.throws(() => projectArgv(command, root, [], undefined, true),
       /nonempty-suite guard/);
   }
+});
+
+test('read-only test listing builds a bounded literal substring filter argv', () => {
+  const root = '/tmp/project with spaces;$(echo untouched)';
+  assert.deepEqual(projectTestListArgv(root),
+    ['test', '--json', '--list', '--', root]);
+  for (const filter of ['add', 'नमस्ते', 'test.srp', 'a filter with spaces']) {
+    assert.deepEqual(projectTestListArgv(root, filter),
+      ['test', '--json', '--list', '--filter', filter, '--', root]);
+  }
+  assert.deepEqual(projectTestListArgv(root, '😀'.repeat(32)),
+    ['test', '--json', '--list', '--filter', '😀'.repeat(32), '--', root]);
+  for (const invalid of ['', '--help', 'tests/name.srp', 'a\\\\b', 'a:b',
+    'a\\nb', 'a'.repeat(129), '😀'.repeat(33)]) {
+    assert.throws(() => projectTestListArgv(root, invalid), /filter/);
+  }
+  assert.throws(() => projectTestListArgv(''), /directory is required/);
 });
