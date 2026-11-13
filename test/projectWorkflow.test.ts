@@ -81,3 +81,25 @@ test('passes filtered test names as one literal argument, without a shell', () =
       /Only project test runs/);
   }
 });
+
+test('nonempty-suite guard is opt-in and does not change legacy test argv', () => {
+  const root = '/tmp/scarp project;$(echo unsafe)';
+  assert.deepEqual(projectArgv('test', root, [], undefined, false),
+    ['test', '--', root]);
+  assert.deepEqual(projectArgv('test', root, [], undefined, true),
+    ['test', '--require-tests', '--', root]);
+  assert.deepEqual(projectArgv('test', root, [], 'योग', true),
+    ['test', '--require-tests', '--filter', 'योग', '--', root]);
+  assert.deepEqual(projectArgv('test', root, [], 'math', false),
+    ['test', '--filter', 'math', '--', root]);
+  assert.throws(() => projectArgv('test', root, ['--max-steps', '1'], 'math', true),
+    /budgets/);
+  assert.throws(() => projectArgv('test', root, [], '-invalid', true),
+    /filter/);
+  assert.throws(() => projectArgv('test', root, [], undefined,
+    'true' as unknown as boolean), /nonempty-suite guard/);
+  for (const command of ['create', 'init', 'verify', 'launch'] as const) {
+    assert.throws(() => projectArgv(command, root, [], undefined, true),
+      /nonempty-suite guard/);
+  }
+});
