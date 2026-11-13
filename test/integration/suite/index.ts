@@ -607,11 +607,17 @@ export async function run(): Promise<void> {
         // A nonmatching literal filter avoids an interactive Quick Pick in CI.
         const beforeFilteredList = await fs.readFile(
           path.join(testsRoot, 'tests', 'addition.srp'));
-        const terminalCountBeforeList = vscode.window.terminals.length;
-        await vscode.commands.executeCommand('scarp.listFilteredProjectTests',
-          vscode.Uri.file(testsRoot), 'no-such-test-filename');
-        assert.equal(vscode.window.terminals.length, terminalCountBeforeList,
-          'Filtered read-only discovery must not open a test terminal');
+        const newlyOpenedTerminals: vscode.Terminal[] = [];
+        const listTerminalObserver = vscode.window.onDidOpenTerminal(
+          terminal => newlyOpenedTerminals.push(terminal));
+        try {
+          await vscode.commands.executeCommand('scarp.listFilteredProjectTests',
+            vscode.Uri.file(testsRoot), 'no-such-test-filename');
+          assert.deepEqual(newlyOpenedTerminals, [],
+            'Filtered read-only discovery must not open a test terminal');
+        } finally {
+          listTerminalObserver.dispose();
+        }
         assert.deepEqual(await fs.readFile(path.join(testsRoot, 'tests', 'addition.srp')),
           beforeFilteredList, 'Read-only listing must not edit test sources');
 
