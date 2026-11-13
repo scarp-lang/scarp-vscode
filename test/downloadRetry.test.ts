@@ -34,6 +34,25 @@ test('does not hide VS Code extension test failures behind retries', async () =>
   assert.equal(attempts, 1);
 });
 
+test('retries a nested TCP connection timeout while downloading', async () => {
+  const connection = Object.assign(new Error('connect ETIMEDOUT 150.171.109.151:443'),
+    { code: 'ETIMEDOUT' });
+  const aggregate = new AggregateError(
+    [connection, Object.assign(new Error('network unreachable'), { code: 'ENETUNREACH' })],
+    'All attempted connections failed'
+  );
+  let attempts = 0;
+  const retries: number[] = [];
+  const result = await withHostDownloadRetry(async () => {
+    attempts++;
+    if (attempts === 1) { throw aggregate; }
+    return 'downloaded host';
+  }, attempt => retries.push(attempt));
+  assert.equal(result, 'downloaded host');
+  assert.equal(attempts, 2);
+  assert.deepEqual(retries, [2]);
+});
+
 test('does not retry unrelated request timeouts', async () => {
   let attempts = 0;
   const unrelated = new Error('extension test request timeout after 15000ms');
