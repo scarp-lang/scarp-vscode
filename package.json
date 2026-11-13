@@ -300,6 +300,12 @@
           "default": false,
           "scope": "resource",
           "description": "Opt in to Run Scarp File and Verify Scarp File CodeLens shortcuts above each .srp document in trusted workspaces. No compiler is launched merely by displaying the lenses."
+        },
+        "scarp.requireNonemptyProjectTests": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Require at least one selected test when explicitly running a Scarp project test suite (published compiler v0.0.6-alpha.8+). Adds --require-tests to both full-suite and filename-filtered test commands. An empty or unmatched suite then fails instead of reporting success. No automatic test execution."
         }
       }
     },
