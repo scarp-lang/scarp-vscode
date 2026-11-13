@@ -41,6 +41,16 @@ export function validProjectTestFilter(value: unknown): value is string {
     !/[\\/:\x00-\x1F\x7F]/.test(value);
 }
 
+/** Build only alpha.8 read-only discovery argv. Never execute test programs. */
+export function projectTestListArgv(directory: string, filter?: string): string[] {
+  if (!directory) { throw new Error('Project directory is required.'); }
+  if (filter !== undefined && !validProjectTestFilter(filter)) {
+    throw new Error('Invalid Scarp project test filename filter.');
+  }
+  return ['test', '--json', '--list',
+    ...(filter === undefined ? [] : ['--filter', filter]), '--', directory];
+}
+
 export function projectArgv(
   command: 'verify' | 'launch' | 'create' | 'init' | 'test',
   directory: string,
