@@ -1,6 +1,7 @@
 /** The published Scarp CLI accepts only canonical E#### explanation codes. */
 export function explainableDiagnosticCode(input: unknown): string | undefined {
-  return typeof input === 'string' && /^E\d{4}$/.test(input) ? input : undefined;
+  return typeof input === 'string' && input.length === 5 && /^E[0-9]{4}$/.test(input)
+    ? input : undefined;
 }
 
 /** Construct exact, shell-free argv; reject injected or unsupported inputs. */
