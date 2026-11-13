@@ -9,7 +9,7 @@ import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
-import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
+import { hasProjectWorkflow, projectArgv, validProjectName, validProjectTestFilter } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { findProjectManifest, isProjectManifestName } from './projectManifest';
 import {
@@ -671,8 +671,32 @@ async function listProjectTests(explicit: vscode.Uri | undefined,
   output.appendLine('Scarp ' + version + ' — opened discovered test ' + canonicalFile);
 }
 
+/** Explicit filename-substring selection: never triggers test execution automatically. */
+async function runFilteredProjectTests(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel, suppliedFilter?: unknown
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before running Scarp project tests.');
+  }
+  const filter = suppliedFilter === undefined
+    ? await vscode.window.showInputBox({
+      title: 'Scarp: Run Filtered Project Tests',
+      prompt: 'Enter a literal, case-sensitive filename substring (not a glob or regex).',
+      placeHolder: 'addition',
+      validateInput: value => validProjectTestFilter(value)
+        ? undefined : 'Use 1–128 UTF-8 bytes without leading -, path separators, colons or controls.'
+    })
+    : suppliedFilter;
+  if (filter === undefined) { return; } // Cancelled by the user.
+  if (!validProjectTestFilter(filter)) {
+    throw new Error('Invalid Scarp project test filename filter.');
+  }
+  await launchProject(explicit, output, 'test', filter);
+}
+
 async function launchProject(explicit: vscode.Uri | undefined,
-  output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch'): Promise<void> {
+  output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch',
+  testFilter?: string): Promise<void> {
   // Stop can be pressed while the workspace folder picker is still open.
   const generation = stopGeneration;
   const revision = compilerRevision;
@@ -723,14 +747,17 @@ async function launchProject(explicit: vscode.Uri | undefined,
       return;
     }
     const terminal = vscode.window.createTerminal({
-      name: (mode === 'test' ? 'Scarp Tests: ' : 'Scarp Project: ') + path.basename(key),
+      name: (mode === 'test'
+        ? (testFilter === undefined ? 'Scarp Tests: ' : 'Scarp Tests (filtered): ')
+        : 'Scarp Project: ') + path.basename(key),
       shellPath: binary,
-      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : []),
+      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : [], testFilter),
       cwd: key
     });
     running.set(key, terminal);
     output.appendLine('Scarp ' + version + ' — ' + (mode === 'test' ? 'test' : 'launch') +
-      ' project ' + key);
+      ' project ' + key + (testFilter === undefined ? '' :
+        ' (literal filename filter: ' + testFilter + ')'));
     terminal.show();
   } catch (error) {
     // Stop, edits, and compiler switches are cancellations, not late errors.
@@ -1217,6 +1244,9 @@ export function activate(context: vscode.ExtensionContext): void {
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.testProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output, 'test'))),
+    vscode.commands.registerCommand('scarp.testProjectFiltered',
+      (uri?: vscode.Uri, filter?: unknown): Promise<void> =>
+        safe(async () => runFilteredProjectTests(uri, output, filter))),
     vscode.commands.registerCommand('scarp.listProjectTests',
       (uri?: vscode.Uri): Promise<void> => safe(async () => listProjectTests(uri, output))),
     vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>

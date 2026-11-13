@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add explicit **Scarp: Run Filtered Project Tests** using the published alpha.8 literal `scarp test --filter` contract. Preserve the existing full-suite command, validate filter length and control/path characters before compiler execution, and pass the requested substring as one shell-free terminal argument. Reuse trusted project checks, source/fixture snapshots, cancellation and stop behavior. Add unit, real compiler and Restricted Mode tests. No automatic execution or pre-release.
+
 - Add explicit compiler-backed diagnostic explanations via the published `scarp explain E####` contract: a Quick Fix action on verified Scarp Problems and a Command Palette entry. Strictly validate exact uppercase codes, never invoke a shell or modify source, and guard Workspace Trust and compiler configuration changes. Add unit tests plus real compiler and Restricted Mode Extension Host coverage; this is development work only, not an extension pre-release.
 
 - Introduce opt-in `Scarp: Initialize Modern Project` via the published alpha.8 `scarp init` contract. It checks the installed compiler's `guide init` capability before creating a fresh declarative `scarp.project` project, keeps the original legacy Create Project command and never overwrites existing paths or runs source.

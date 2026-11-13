@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { hasProjectWorkflow, validProjectName, projectArgv } from '../src/projectWorkflow';
+import { hasProjectWorkflow, validProjectName, validProjectTestFilter, projectArgv } from '../src/projectWorkflow';
 
 const report = (extra: object = {}): string => JSON.stringify({
   schema_version: 1, version: '0.0.5-alpha.4',
@@ -48,4 +48,36 @@ test('builds argv without a shell or implicit ancestor discovery', () => {
   assert.throws(() => projectArgv('init', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('test', directory, ['--max-steps', '1']), /budgets/);
   assert.throws(() => projectArgv('launch', ''), /required/);
+});
+
+test('accepts only bounded literal filename-substring filters', () => {
+  for (const good of ['addition', 'test.srp', 'नमस्ते', 'a'.repeat(128), 'filter with spaces']) {
+    assert.equal(validProjectTestFilter(good), true, good);
+  }
+  for (const bad of ['', '-all', '--help', '/', 'tests/add.srp', 'test\\\\bad',
+    'bad:name', 'bad\\nname', 'bad\\rname', 'bad\\tname',
+    String.fromCharCode(0), String.fromCharCode(127), 'a'.repeat(129),
+    '😀'.repeat(33), null, undefined, 42, { filter: 'addition' }]) {
+    assert.equal(validProjectTestFilter(bad), false, String(bad));
+  }
+  assert.equal(validProjectTestFilter('😀'.repeat(32)), true);
+});
+
+test('passes filtered test names as one literal argument, without a shell', () => {
+  const directory = '/tmp/a project;$(id)';
+  assert.deepEqual(projectArgv('test', directory, [], 'नमस्ते'), [
+    'test', '--filter', 'नमस्ते', '--', directory
+  ]);
+  assert.deepEqual(projectArgv('test', directory, [], 'a test'), [
+    'test', '--filter', 'a test', '--', directory
+  ]);
+  assert.deepEqual(projectArgv('test', directory), ['test', '--', directory]);
+  assert.throws(() => projectArgv('test', directory, [], '--help'), /filter/);
+  assert.throws(() => projectArgv('test', directory, [], 'tests/secret'), /filter/);
+  assert.throws(() => projectArgv('test', directory, ['--max-steps', '1'], 'add'),
+    /budgets/);
+  for (const command of ['create', 'init', 'verify', 'launch'] as const) {
+    assert.throws(() => projectArgv(command, directory, [], 'add'),
+      /Only project test runs/);
+  }
 });
