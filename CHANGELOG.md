@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **opt-in published alpha.9 BigInt execution quotas** `scarp.maxBigIntDigits` and `scarp.maxBigIntBytes`, with shell-free Run/Launch argv, safe integer and 1,000,000-digit validation, default-off compatibility with older compilers, actual editor-host argument tests and exact official compiler success/failure budget smoke tests. These flags never reach static verification or read-only test discovery, and do not claim physical-memory isolation.
+
 - Add **published compiler v0.0.6-alpha.9 BigInt editor compatibility**: recognize the `bigint` type and exact string constructor, explicit signed i64 conversions and absolute-value builtin with compiler-free lexical highlighting, hover, signature help, completion, and an `sbigint` starter snippet. Add an immutable alpha.9 GitHub Actions gate that verifies real compiler BigInt arithmetic/module/sequence examples, verifies all snippets statically, and exercises the real VS Code Extension Host. No compiler emulation, package version bump or pre-release.
 
 - Add **Scarp: List Filtered Project Tests**, a read-only compiler-backed test discovery command for published alpha.8 `scarp test --json --list --filter`. Share the same bounded literal filter validation as filtered execution without running programs, with trusted-workspace guards, scoped cancellation, on-disk snapshots, canonical source paths and editor-host/Restricted Mode regression tests. No extension release or automatic test run.

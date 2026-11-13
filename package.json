@@ -316,6 +316,17 @@
           "default": false,
           "scope": "resource",
           "description": "Require at least one selected test when explicitly running a Scarp project test suite (published compiler v0.0.6-alpha.8+). Adds --require-tests to both full-suite and filename-filtered test commands. An empty or unmatched suite then fails instead of reporting success. No automatic test execution."
+        },
+        "scarp.maxBigIntDigits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "description": "Optional --max-bigint-digits interpreter budget. Published Scarp v0.0.6-alpha.9+ only; earlier compilers reject this flag. Limits both raw constructor digits and normalized result digits; defaults to 10,000 if unset, and the compiler ceiling is 1,000,000. 0 disables BigInt construction. No effect on static Verify."
+        },
+        "scarp.maxBigIntBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-bigint-bytes interpreter budget. Published Scarp v0.0.6-alpha.9+ only; earlier compilers reject this flag. Limits cumulative logical BigInt u32 limb/scratch allocations; defaults to 8,388,608 bytes if unset. 0 disallows BigInt limb allocation. Not a physical process-memory limit; no effect on static Verify."
         }
       }
     },

@@ -723,6 +723,24 @@ jobs:
           # Static verification of every visible .srp starter snippet,
           # skipping nothing supported by this published compiler.
           node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 9
+          # Verify published interpreter execution quotas: known-good limits
+          # reproduce exact official output; deliberately tight limits reject
+          # construction without leaking partial program output.
+          compiler/target/release/scarp exec --max-bigint-digits 10000 --max-bigint-bytes 8388608 \
+            compiler/examples/bigint_arithmetic.srp > "$RUNNER_TEMP/bigint-budgeted.stdout"
+          cmp compiler/examples/bigint_arithmetic.stdout "$RUNNER_TEMP/bigint-budgeted.stdout"
+          if compiler/target/release/scarp exec --max-bigint-digits 3 \
+              compiler/examples/bigint_arithmetic.srp > "$RUNNER_TEMP/bigint-small.stdout" 2> "$RUNNER_TEMP/bigint-small.stderr"; then
+            echo "Unsafe BigInt digit budget accepted out-of-quota construction." >&2
+            exit 1
+          fi
+          test ! -s "$RUNNER_TEMP/bigint-small.stdout"
+          if compiler/target/release/scarp exec --max-bigint-bytes 0 \
+              compiler/examples/bigint_arithmetic.srp > "$RUNNER_TEMP/bigint-zero.stdout" 2> "$RUNNER_TEMP/bigint-zero.stderr"; then
+            echo "Unsafe zero BigInt limb budget accepted construction." >&2
+            exit 1
+          fi
+          test ! -s "$RUNNER_TEMP/bigint-zero.stdout"
       - name: Exercise real VS Code Extension Host with published Scarp alpha.9
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
