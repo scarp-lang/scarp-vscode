@@ -73,6 +73,34 @@ test('rejects invalid imports, symbols, non-source paths and abnormal IDs', () =
   }
 });
 
+test('rejects dangling import edges in all supported schemas', () => {
+  // Inventory order does not have to match import order: forward references work.
+  const entry = moduleEntry(0, 'src/main.srp', [
+    { path: 'library.srp', alias: 'lib', target: 1 }
+  ]);
+  const library = moduleEntry(1, 'src/library.srp');
+
+  for (const schema of [1, 2, 3]) {
+    assert.equal(
+      parseBrowsableProjectModules(inventory([entry, library], 0, schema), root).length,
+      2, `Schema v${schema} must permit forward module references`
+    );
+    for (const bad of [
+      inventory([entry], 0, schema),
+      inventory([entry, moduleEntry(1, 'src/library.srp', [{ target: 2 }])], 0, schema),
+      inventory([moduleEntry(0, 'src/main.srp', [{ target: Number.MAX_SAFE_INTEGER }])],
+        0, schema),
+      inventory([moduleEntry(0, 'src/main.srp', [{ target: 0.5 }])], 0, schema)
+    ]) {
+      assert.throws(
+        () => parseBrowsableProjectModules(bad, root),
+        /module inspection JSON/,
+        `Schema v${schema} must reject dangling and non-integer import targets`
+      );
+    }
+  }
+});
+
 for (const [schema, resultType] of [
   [2, 'tuple<integer, string>'],
   [3, 'tuple<array<string, 2>, integer>']
