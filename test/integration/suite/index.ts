@@ -790,6 +790,50 @@ export async function run(): Promise<void> {
         }
       }
 
+      // Alpha.9's resource quotas must flow through the actual Run command
+      // as separate argv elements, not a command-line string. Older compilers
+      // never receive these opt-in settings.
+      const compilerVersionString = (await promisify(execFile)(binary, ['--version'],
+        { timeout: 5000 })).stdout;
+      if (/0\.0\.6-alpha\.9\b/.test(compilerVersionString)) {
+        const quotaUri = vscode.Uri.file(path.join(projectParent, 'bigint quotas.srp'));
+        await fs.writeFile(quotaUri.fsPath,
+          'bind number: bigint = bigint("12345678901234567890");\nprint(number);\n');
+        const previousDigits = settings.inspect<number>('maxBigIntDigits')?.globalValue;
+        const previousBytes = settings.inspect<number>('maxBigIntBytes')?.globalValue;
+        try {
+          await settings.update('maxBigIntDigits', 64, vscode.ConfigurationTarget.Global);
+          await settings.update('maxBigIntBytes', 4096, vscode.ConfigurationTarget.Global);
+          const quotaOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              listener.dispose();
+              reject(new Error('Alpha.9 BigInt quota Run did not open a terminal'));
+            }, 10000);
+            const listener = vscode.window.onDidOpenTerminal(terminal => {
+              if (terminal.name !== 'Scarp: bigint quotas.srp') { return; }
+              clearTimeout(timer);
+              listener.dispose();
+              resolve(terminal);
+            });
+          });
+          await vscode.commands.executeCommand('scarp.runFile', quotaUri);
+          const quotaTerminal = await quotaOpened;
+          assert.ok('shellArgs' in quotaTerminal.creationOptions);
+          const quotaArgs = quotaTerminal.creationOptions.shellArgs as string[];
+          assert.ok(['run', 'exec'].includes(quotaArgs[0]),
+            'BigInt quotas must only be forwarded to explicit Scarp execution');
+          assert.deepEqual(quotaArgs.slice(1, 5),
+            ['--max-bigint-digits', '64', '--max-bigint-bytes', '4096']);
+          assert.equal(quotaArgs[quotaArgs.length - 1], quotaUri.fsPath);
+          await vscode.commands.executeCommand('scarp.stopProgram');
+        } finally {
+          await settings.update('maxBigIntDigits', previousDigits,
+            vscode.ConfigurationTarget.Global);
+          await settings.update('maxBigIntBytes', previousBytes,
+            vscode.ConfigurationTarget.Global);
+        }
+      }
+
       // Project Launch must not start a terminal for a snapshot that becomes
       // obsolete while Scarp's version or project-capability probe is running.
       // Also detect unobserved external disk rewrites, and retain independence
