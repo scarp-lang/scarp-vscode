@@ -107,6 +107,43 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static completions must never execute the configured compiler');
 
+    // Published alpha.9 BigInt editor hints are entirely static metadata,
+    // including in Restricted Mode; they must not probe the installed compiler.
+    const bigIntDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp',
+      content: 'bind number: bigint = bigint("12345678901234567890");'
+    });
+    const bigIntText = bigIntDoc.getText();
+    const bigIntAt = bigIntText.indexOf('bigint("') + 2;
+    const bigIntHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider', bigIntDoc.uri, bigIntDoc.positionAt(bigIntAt));
+    assert.ok(bigIntHovers?.length, 'Exact bigint builtin hover works without trust');
+    const bigIntMarkdown = (bigIntHovers ?? []).flatMap(item => item.contents)
+      .map(item => typeof item === 'string' ? item : item.value).join('\n');
+    assert.match(bigIntMarkdown, /v0\.0\.6-alpha\.9/);
+    assert.match(bigIntMarkdown, /bigint\(value: string\)/);
+
+    const bigIntSigDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind value = bigint_from_integer('
+    });
+    const bigIntSignature = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+      'vscode.executeSignatureHelpProvider', bigIntSigDoc.uri,
+      bigIntSigDoc.positionAt(bigIntSigDoc.getText().length), '(');
+    assert.ok(bigIntSignature?.signatures.some(item =>
+      item.label.startsWith('bigint_from_integer(')),
+    'Alpha.9 BigInt signature help needs no compiler');
+
+    const bigIntCompletionDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind value = bigint_fr'
+    });
+    const bigIntCompletion = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider', bigIntCompletionDoc.uri,
+      bigIntCompletionDoc.positionAt(bigIntCompletionDoc.getText().length));
+    assert.ok(bigIntCompletion?.items.some(item => item.label === 'bigint_from_integer'),
+      'Alpha.9 BigInt builtin completion must work in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'BigInt language help in Restricted Mode must never execute a configured compiler');
+
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [

@@ -23,6 +23,7 @@ const alpha3 = 'v0.0.6-alpha.3';
 const alpha4 = 'v0.0.6-alpha.4';
 const alpha5 = 'v0.0.6-alpha.5';
 const alpha6 = 'v0.0.6-alpha.6';
+const alpha9 = 'v0.0.6-alpha.9';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -150,6 +151,34 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha6,
     summary: 'Replaces nonoverlapping exact UTF-8 substring matches from left to right.',
     constraints: 'Search must not be empty. Case-sensitive literal matching, not regex.'
+  },
+  bigint: {
+    name: 'bigint',
+    signature: 'bigint(value: string) -> bigint',
+    introduced: alpha9,
+    summary: 'Constructs an exact signed integer from ASCII decimal text.',
+    constraints: 'Accepts optional + or - followed by ASCII digits; no whitespace, decimal point, radix prefix, underscore or implicit integer conversion. Default 10,000-digit and 8 MiB limb-allocation quotas.'
+  },
+  bigint_from_integer: {
+    name: 'bigint_from_integer',
+    signature: 'bigint_from_integer(value: integer) -> bigint',
+    introduced: alpha9,
+    summary: 'Converts any signed 64-bit integer into an exact bigint.',
+    constraints: 'Explicit conversion, including the minimum signed 64-bit integer; bigint and integer do not mix implicitly.'
+  },
+  bigint_to_integer: {
+    name: 'bigint_to_integer',
+    signature: 'bigint_to_integer(value: bigint) -> integer',
+    introduced: alpha9,
+    summary: 'Converts an exact bigint to a signed 64-bit integer.',
+    constraints: 'Fails with E0044 when outside the i64 range; this is not a lossy or truncating conversion.'
+  },
+  bigint_abs: {
+    name: 'bigint_abs',
+    signature: 'bigint_abs(value: bigint) -> bigint',
+    introduced: alpha9,
+    summary: 'Returns the nonnegative absolute value of an exact signed bigint.',
+    constraints: 'Uses immutable shared magnitude storage; BigInt remains interpreter-only and subject to bounded work and allocation limits.'
   }
 };
 
