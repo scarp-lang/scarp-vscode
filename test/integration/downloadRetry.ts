@@ -1,23 +1,32 @@
 /**
- * Retry only transient downloads of the VS Code test host. Never re-run an
- * extension test failure: this narrow error originates in the test-electron
- * HTTP request used when resolving or downloading the host binary.
+ * Only the VS Code test-host downloader calls this helper. Retrying that
+ * network operation is safe; repeating the extension test process is not.
+ *
+ * GitHub-hosted runners have produced both the test-electron request timeout
+ * and an AggregateError containing a TCP ETIMEDOUT during version resolution.
  */
-function isHostRequestTimeout(error: unknown): boolean {
-  return error instanceof Error &&
-    error.name === 'TimeoutError' &&
-    /@vscode\/test-electron request timeout.*after \d+ms/.test(error.message);
+function isTransientDownloadTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) { return false; }
+  if (error.name === 'TimeoutError' &&
+      /@vscode\/test-electron request timeout.*after \d+ms/.test(error.message)) {
+    return true;
+  }
+  if ((error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    return true;
+  }
+  return error instanceof AggregateError &&
+    error.errors.some((part: unknown) => isTransientDownloadTimeout(part));
 }
 
 export async function withHostDownloadRetry<T>(
-  operation: () => Promise<T>, onRetry: (attempt: number) => void
+  download: () => Promise<T>, onRetry: (attempt: number) => void
 ): Promise<T> {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await operation();
+      return await download();
     } catch (error) {
-      if (attempt === maxAttempts || !isHostRequestTimeout(error)) {
+      if (attempt === maxAttempts || !isTransientDownloadTimeout(error)) {
         throw error;
       }
       onRetry(attempt + 1);
