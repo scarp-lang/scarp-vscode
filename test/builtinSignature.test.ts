@@ -7,7 +7,8 @@ const builtins = [
   'sample_area', 'sample_slopes', 'sample_cumulative_area',
   'cosine_similarity', 'top_p', 'top_p_values', 'pearson_correlation',
   'read_line', 'integer_to_text', 'float_to_text',
-  'text_to_integer', 'text_to_float', 'text_trim', 'text_replace'
+  'text_to_integer', 'text_to_float', 'text_trim', 'text_replace',
+  'bigint', 'bigint_from_integer', 'bigint_to_integer', 'bigint_abs'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
