@@ -701,8 +701,8 @@ export async function run(): Promise<void> {
           await settings.update('compilerPath', blockedBinary, vscode.ConfigurationTarget.Global);
           let pendingList: Promise<unknown> | undefined;
           try {
-            pendingList = vscode.commands.executeCommand('scarp.listProjectTests',
-              vscode.Uri.file(testsRoot));
+            pendingList = Promise.resolve(vscode.commands.executeCommand(
+              'scarp.listProjectTests', vscode.Uri.file(testsRoot)));
             await waitFor(() => fsSync.existsSync(discoveryPid) ? true : undefined,
               'Blocked Scarp test listing never reached its compiler process');
             const pid = Number(await fs.readFile(discoveryPid, 'utf8'));
@@ -734,8 +734,8 @@ export async function run(): Promise<void> {
             await pendingList;
 
             await fs.rm(discoveryPid, { force: true });
-            pendingList = vscode.commands.executeCommand('scarp.listProjectTests',
-              vscode.Uri.file(testsRoot));
+            pendingList = Promise.resolve(vscode.commands.executeCommand(
+              'scarp.listProjectTests', vscode.Uri.file(testsRoot)));
             await waitFor(() => fsSync.existsSync(discoveryPid) ? true : undefined,
               'Second blocked listing never started after source-edit cancellation');
             const switchedPid = Number(await fs.readFile(discoveryPid, 'utf8'));
