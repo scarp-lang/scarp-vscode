@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **Scarp: List Filtered Project Tests**, a read-only compiler-backed test discovery command for published alpha.8 `scarp test --json --list --filter`. Share the same bounded literal filter validation as filtered execution without running programs, with trusted-workspace guards, scoped cancellation, on-disk snapshots, canonical source paths and editor-host/Restricted Mode regression tests. No extension release or automatic test run.
+
 - Cancel stale `Scarp: List Project Tests` compiler work promptly on project source/manifest edits or compiler-path changes; keep detection scoped per selected project root, reject overlapping discovery requests, and stop aborted child processes without false user errors. Retain external-disk snapshot checks and explicit-only test execution. Add real Extension Host regression tests for unrelated edits, SIGTERM-resistant compiler cancellation, recovery and compiler switching.
 
 - Add opt-in resource-scoped `scarp.requireNonemptyProjectTests` for published alpha.8 project tests. Explicit full-suite and filtered test terminal launches can pass `--require-tests` so empty selections fail; defaults and previous commands remain unchanged. Validate argument construction for every command mode and use real compiler/VS Code Host plus Restricted Mode coverage. No automatic test execution or pre-release.
