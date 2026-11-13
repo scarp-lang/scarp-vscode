@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Cancel stale `Scarp: List Project Tests` compiler work promptly on project source/manifest edits or compiler-path changes; keep detection scoped per selected project root, reject overlapping discovery requests, and stop aborted child processes without false user errors. Retain external-disk snapshot checks and explicit-only test execution. Add real Extension Host regression tests for unrelated edits, SIGTERM-resistant compiler cancellation, recovery and compiler switching.
+
 - Add opt-in resource-scoped `scarp.requireNonemptyProjectTests` for published alpha.8 project tests. Explicit full-suite and filtered test terminal launches can pass `--require-tests` so empty selections fail; defaults and previous commands remain unchanged. Validate argument construction for every command mode and use real compiler/VS Code Host plus Restricted Mode coverage. No automatic test execution or pre-release.
 
 - Add explicit **Scarp: Run Filtered Project Tests** using the published alpha.8 literal `scarp test --filter` contract. Preserve the existing full-suite command, validate filter length and control/path characters before compiler execution, and pass the requested substring as one shell-free terminal argument. Reuse trusted project checks, source/fixture snapshots, cancellation and stop behavior. Add unit, real compiler and Restricted Mode tests. No automatic execution or pre-release.
