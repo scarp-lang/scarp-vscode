@@ -667,6 +667,92 @@ export async function run(): Promise<void> {
           await strictSettings.update('requireNonemptyProjectTests', previousStrict,
             vscode.ConfigurationTarget.Global);
         }
+
+        // Cancellation is bounded to this root. An unrelated source edit
+        // must not stop a read-only test listing, whereas an in-root edit
+        // or compiler switch must promptly stop its compiler subprocess.
+        if (process.platform !== 'win32') {
+          const blockedBinary = path.join(projectParent, 'blocked-test-discovery');
+          const discoveryPid = path.join(projectParent, 'blocked-test-discovery-pid');
+          const unrelatedUri = vscode.Uri.file(
+            path.join(projectParent, 'unrelated-test-discovery.srp'));
+          await fs.writeFile(unrelatedUri.fsPath, 'bind value = 1;\n');
+          await fs.writeFile(blockedBinary, [
+            '#!/usr/bin/env node',
+            'const fs = require("node:fs");',
+            'const args = process.argv.slice(2);',
+            'if (args[0] === "--version") {',
+            '  console.log("scarp 0.0.6-alpha.8"); process.exit(0);',
+            '}',
+            'if (args[0] === "diagnose" && args[1] === "--json") {',
+            '  console.log(JSON.stringify({schema_version:1, version:"0.0.6-alpha.8", execution:"interpreter", static_verify:true, project_workflow:true}));',
+            '  process.exit(0);',
+            '}',
+            'if (args[0] === "guide" && args[1] === "test") {',
+            '  console.log("Usage: scarp test [options] PROJECT"); process.exit(0);',
+            '}',
+            'if (args[0] === "test") {',
+            '  fs.writeFileSync(' + JSON.stringify(discoveryPid) + ', String(process.pid));',
+            '  process.on("SIGTERM", () => {});',
+            '  setInterval(() => {}, 1000);',
+            '} else process.exit(2);'
+          ].join('\n'), { mode: 0o755 });
+          await fs.chmod(blockedBinary, 0o755);
+          await settings.update('compilerPath', blockedBinary, vscode.ConfigurationTarget.Global);
+          let pendingList: Promise<unknown> | undefined;
+          try {
+            pendingList = Promise.resolve(vscode.commands.executeCommand(
+              'scarp.listProjectTests', vscode.Uri.file(testsRoot)));
+            await waitFor(() => fsSync.existsSync(discoveryPid) ? true : undefined,
+              'Blocked Scarp test listing never reached its compiler process');
+            const pid = Number(await fs.readFile(discoveryPid, 'utf8'));
+            const unrelatedDoc = await vscode.workspace.openTextDocument(unrelatedUri);
+            const unrelatedEdit = new vscode.WorkspaceEdit();
+            unrelatedEdit.insert(unrelatedUri, new vscode.Position(0, 0),
+              '// unrelated edit\n');
+            assert.ok(await vscode.workspace.applyEdit(unrelatedEdit));
+            assert.ok(await unrelatedDoc.save());
+            assert.doesNotThrow(() => process.kill(pid, 0),
+              'Unrelated source edits must not cancel a test listing');
+            const mainUri = vscode.Uri.file(path.join(testsRoot, 'src', 'main.srp'));
+            const mainDoc = await vscode.workspace.openTextDocument(mainUri);
+            const projectEdit = new vscode.WorkspaceEdit();
+            projectEdit.insert(mainUri, new vscode.Position(0, 0),
+              '// edited during discovery\n');
+            const cancelAt = Date.now();
+            assert.ok(await vscode.workspace.applyEdit(projectEdit));
+            assert.ok(await mainDoc.save());
+            await waitFor(() => {
+              try { process.kill(pid, 0); return undefined; }
+              catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ESRCH') { return true; }
+                throw error;
+              }
+            }, 'Editing a Scarp project source did not stop its discovery compiler');
+            assert.ok(Date.now() - cancelAt < 3000,
+              'Test discovery cancellation must not wait for the full CLI timeout');
+            await pendingList;
+
+            await fs.rm(discoveryPid, { force: true });
+            pendingList = Promise.resolve(vscode.commands.executeCommand(
+              'scarp.listProjectTests', vscode.Uri.file(testsRoot)));
+            await waitFor(() => fsSync.existsSync(discoveryPid) ? true : undefined,
+              'Second blocked listing never started after source-edit cancellation');
+            const switchedPid = Number(await fs.readFile(discoveryPid, 'utf8'));
+            await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+            await waitFor(() => {
+              try { process.kill(switchedPid, 0); return undefined; }
+              catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ESRCH') { return true; }
+                throw error;
+              }
+            }, 'Changing the configured compiler did not cancel test discovery');
+            await pendingList;
+          } finally {
+            await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+            if (pendingList) { await pendingList; }
+          }
+        }
       }
 
       // Project Launch must not start a terminal for a snapshot that becomes
