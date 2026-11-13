@@ -746,18 +746,26 @@ async function launchProject(explicit: vscode.Uri | undefined,
         'obsolete terminal startup cancelled. Save sources and retry.');
       return;
     }
+    // Read this resource setting only at launch. Modifying it while a test
+    // terminal is running does not silently restart or alter the process.
+    // The separately installed compiler is authoritative for the guard.
+    const requireNonemptyTests = mode === 'test' &&
+      vscode.workspace.getConfiguration('scarp', project.directory)
+        .get<boolean>('requireNonemptyProjectTests', false);
     const terminal = vscode.window.createTerminal({
       name: (mode === 'test'
         ? (testFilter === undefined ? 'Scarp Tests: ' : 'Scarp Tests (filtered): ')
         : 'Scarp Project: ') + path.basename(key),
       shellPath: binary,
-      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : [], testFilter),
+      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : [],
+        testFilter, requireNonemptyTests),
       cwd: key
     });
     running.set(key, terminal);
     output.appendLine('Scarp ' + version + ' — ' + (mode === 'test' ? 'test' : 'launch') +
       ' project ' + key + (testFilter === undefined ? '' :
-        ' (literal filename filter: ' + testFilter + ')'));
+        ' (literal filename filter: ' + testFilter + ')') +
+      (requireNonemptyTests ? ' (requires at least one selected test)' : ''));
     terminal.show();
   } catch (error) {
     // Stop, edits, and compiler switches are cancellations, not late errors.

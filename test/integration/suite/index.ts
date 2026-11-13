@@ -623,6 +623,50 @@ export async function run(): Promise<void> {
           'test', '--filter', 'addition', '--', testsRoot
         ]);
         await vscode.commands.executeCommand('scarp.stopProgram');
+
+        // The opt-in nonempty-suite guard applies to BOTH full and filtered
+        // project tests, and never changes unfiltered default behavior.
+        const strictSettings = vscode.workspace.getConfiguration(
+          'scarp', vscode.Uri.file(testsRoot));
+        const previousStrict =
+          strictSettings.inspect<boolean>('requireNonemptyProjectTests')?.globalValue;
+        try {
+          await strictSettings.update('requireNonemptyProjectTests', true,
+            vscode.ConfigurationTarget.Global);
+          const strictOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              subscription.dispose();
+              reject(new Error('Strict Scarp test command did not open a terminal'));
+            }, 10000);
+            const subscription = vscode.window.onDidOpenTerminal(terminal => {
+              if (terminal.name !== 'Scarp Tests (filtered): alpha8 test project') { return; }
+              clearTimeout(timer);
+              subscription.dispose();
+              resolve(terminal);
+            });
+          });
+          await vscode.commands.executeCommand('scarp.testProjectFiltered',
+            vscode.Uri.file(testsRoot), 'nonexistent-filter');
+          const strictTerminal = await strictOpened;
+          assert.ok('shellArgs' in strictTerminal.creationOptions);
+          assert.deepEqual(strictTerminal.creationOptions.shellArgs, [
+            'test', '--require-tests', '--filter', 'nonexistent-filter', '--', testsRoot
+          ], 'Opt-in strict mode must retain the requested filter exactly');
+          await vscode.commands.executeCommand('scarp.stopProgram');
+
+          // Check the actual published compiler, not just the constructed
+          // terminal options: an unmatched strict filter must exit nonzero.
+          await assert.rejects(
+            promisify(execFile)(binary,
+              ['test', '--require-tests', '--filter', 'nonexistent-filter', '--', testsRoot],
+              { timeout: 10000 }),
+            error => typeof error === 'object' && error !== null &&
+              'code' in error && error.code === 1
+          );
+        } finally {
+          await strictSettings.update('requireNonemptyProjectTests', previousStrict,
+            vscode.ConfigurationTarget.Global);
+        }
       }
 
       // Project Launch must not start a terminal for a snapshot that becomes

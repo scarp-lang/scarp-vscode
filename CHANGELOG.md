@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add opt-in resource-scoped `scarp.requireNonemptyProjectTests` for published alpha.8 project tests. Explicit full-suite and filtered test terminal launches can pass `--require-tests` so empty selections fail; defaults and previous commands remain unchanged. Validate argument construction for every command mode and use real compiler/VS Code Host plus Restricted Mode coverage. No automatic test execution or pre-release.
+
 - Add explicit **Scarp: Run Filtered Project Tests** using the published alpha.8 literal `scarp test --filter` contract. Preserve the existing full-suite command, validate filter length and control/path characters before compiler execution, and pass the requested substring as one shell-free terminal argument. Reuse trusted project checks, source/fixture snapshots, cancellation and stop behavior. Add unit, real compiler and Restricted Mode tests. No automatic execution or pre-release.
 
 - Add explicit compiler-backed diagnostic explanations via the published `scarp explain E####` contract: a Quick Fix action on verified Scarp Problems and a Command Palette entry. Strictly validate exact uppercase codes, never invoke a shell or modify source, and guard Workspace Trust and compiler configuration changes. Add unit tests plus real compiler and Restricted Mode Extension Host coverage; this is development work only, not an extension pre-release.

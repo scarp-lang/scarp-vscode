@@ -45,11 +45,16 @@ export function projectArgv(
   command: 'verify' | 'launch' | 'create' | 'init' | 'test',
   directory: string,
   budgets: readonly string[] = [],
-  testFilter?: string
+  testFilter?: string,
+  requireNonemptyTests = false
 ): string[] {
   if (!directory) { throw new Error('Project directory is required.'); }
   if (testFilter !== undefined && command !== 'test') {
     throw new Error('Only project test runs accept a test filename filter.');
+  }
+  if (typeof requireNonemptyTests !== 'boolean' ||
+      (requireNonemptyTests && command !== 'test')) {
+    throw new Error('Only project test runs accept the nonempty-suite guard.');
   }
   if (command === 'verify') {
     if (budgets.length) { throw new Error('Static project verification rejects execution budgets.'); }
@@ -64,7 +69,8 @@ export function projectArgv(
     if (testFilter !== undefined && !validProjectTestFilter(testFilter)) {
       throw new Error('Invalid Scarp project test filename filter.');
     }
-    return ['test', ...(testFilter === undefined ? [] : ['--filter', testFilter]),
+    return ['test', ...(requireNonemptyTests ? ['--require-tests'] : []),
+      ...(testFilter === undefined ? [] : ['--filter', testFilter]),
       '--', directory];
   }
   return ['launch', ...budgets, '--', directory];
