@@ -111,7 +111,7 @@ export async function run(): Promise<void> {
       'scarp.explainDiagnostic',
       'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject', 'scarp.launchProject',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
-      'scarp.testProject', 'scarp.listProjectTests'
+      'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
     }
@@ -127,6 +127,12 @@ export async function run(): Promise<void> {
     'Compiler-backed explanations must be absent in Restricted Mode');
     assert.equal(fsSync.existsSync(marker), false,
       'Explaining a diagnostic in Restricted Mode must not start a compiler');
+
+    // Supplying an explicit filter cannot bypass the workspace-trust check
+    // and must not open a test terminal or invoke the configured compiler.
+    await vscode.commands.executeCommand('scarp.testProjectFiltered', sourceUri, 'addition');
+    assert.equal(fsSync.existsSync(marker), false,
+      'A filtered test command must never start a compiler in Restricted Mode');
 
     const edit = new vscode.WorkspaceEdit();
     edit.insert(sourceUri, new vscode.Position(0, 0), '// untrusted workspace edit\n');
