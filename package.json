@@ -42,6 +42,7 @@
     "onCommand:scarp.browseProjectModules",
     "onCommand:scarp.browseProjectSymbols",
     "onCommand:scarp.testProject",
+    "onCommand:scarp.testProjectFiltered",
     "onCommand:scarp.listProjectTests",
     "onCommand:scarp.initProject"
   ],
@@ -125,6 +126,11 @@
         "category": "Scarp"
       },
       {
+        "command": "scarp.testProjectFiltered",
+        "title": "Scarp: Run Filtered Project Tests",
+        "category": "Scarp"
+      },
+      {
         "command": "scarp.listProjectTests",
         "title": "Scarp: List Project Tests",
         "category": "Scarp"
@@ -191,6 +197,10 @@
         },
         {
           "command": "scarp.testProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.testProjectFiltered",
           "when": "isWorkspaceTrusted"
         },
         {
