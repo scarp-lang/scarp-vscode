@@ -34,6 +34,7 @@
   "main": "./dist/src/extension.js",
   "activationEvents": [
     "onLanguage:scarp",
+    "onCommand:scarp.explainDiagnostic",
     "onCommand:scarp.createProject",
     "onCommand:scarp.verifyProject",
     "onCommand:scarp.launchProject",
@@ -71,6 +72,11 @@
       {
         "command": "scarp.showVersion",
         "title": "Scarp: Show Compiler Version",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.explainDiagnostic",
+        "title": "Scarp: Explain Diagnostic Code",
         "category": "Scarp"
       },
       {
@@ -143,6 +149,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "scarp.explainDiagnostic",
+          "when": "isWorkspaceTrusted"
+        },
         {
           "command": "scarp.runFile",
           "when": "isWorkspaceTrusted"
