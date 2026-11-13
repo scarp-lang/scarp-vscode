@@ -39,7 +39,8 @@ export async function run(): Promise<void> {
     'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject',
-    'scarp.testProjectFiltered', 'scarp.listProjectTests']) {
+    'scarp.testProjectFiltered', 'scarp.listProjectTests',
+    'scarp.listFilteredProjectTests']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -600,6 +601,40 @@ export async function run(): Promise<void> {
         // official CLI instead of running a wildcard or guessed path.
         await fs.writeFile(path.join(testsRoot, 'tests', 'boundary.srp'),
           'assert(4 > 2, "boundary");\n');
+
+        // Filtered discovery must send the published read-only --list
+        // operation, never start a test terminal or run either .srp file.
+        // A nonmatching literal filter avoids an interactive Quick Pick in CI.
+        const beforeFilteredList = await fs.readFile(
+          path.join(testsRoot, 'tests', 'addition.srp'));
+        const newlyOpenedTerminals: vscode.Terminal[] = [];
+        const listTerminalObserver = vscode.window.onDidOpenTerminal(
+          terminal => newlyOpenedTerminals.push(terminal));
+        try {
+          await vscode.commands.executeCommand('scarp.listFilteredProjectTests',
+            vscode.Uri.file(testsRoot), 'no-such-test-filename');
+          assert.deepEqual(newlyOpenedTerminals, [],
+            'Filtered read-only discovery must not open a test terminal');
+        } finally {
+          listTerminalObserver.dispose();
+        }
+        assert.deepEqual(await fs.readFile(path.join(testsRoot, 'tests', 'addition.srp')),
+          beforeFilteredList, 'Read-only listing must not edit test sources');
+
+        // The pinned official alpha.8 compiler selects by literal filename
+        // substring, as opposed to a glob or a path-based suffix.
+        const filteredList = await promisify(execFile)(binary,
+          ['test', '--json', '--list', '--filter', 'addition', '--', testsRoot],
+          { timeout: 10000 });
+        const listed = JSON.parse(filteredList.stdout) as {
+          mode: string; discovered: number; tests: Array<{ path: string; status: string }>
+        };
+        assert.equal(listed.mode, 'list');
+        assert.equal(listed.discovered, 1);
+        assert.deepEqual(listed.tests, [
+          { path: 'tests/addition.srp', status: 'discovered' }
+        ]);
+
         const filteredOpened = new Promise<vscode.Terminal>((resolve, reject) => {
           const timer = setTimeout(() => {
             observer.dispose();

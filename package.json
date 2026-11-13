@@ -44,6 +44,7 @@
     "onCommand:scarp.testProject",
     "onCommand:scarp.testProjectFiltered",
     "onCommand:scarp.listProjectTests",
+    "onCommand:scarp.listFilteredProjectTests",
     "onCommand:scarp.initProject"
   ],
   "contributes": {
@@ -136,6 +137,11 @@
         "category": "Scarp"
       },
       {
+        "command": "scarp.listFilteredProjectTests",
+        "title": "Scarp: List Filtered Project Tests",
+        "category": "Scarp"
+      },
+      {
         "command": "scarp.initProject",
         "title": "Scarp: Initialize Modern Project",
         "category": "Scarp"
@@ -205,6 +211,10 @@
         },
         {
           "command": "scarp.listProjectTests",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.listFilteredProjectTests",
           "when": "isWorkspaceTrusted"
         },
         {

@@ -114,7 +114,8 @@ export async function run(): Promise<void> {
       'scarp.explainDiagnostic',
       'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject', 'scarp.launchProject',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
-      'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests'
+      'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests',
+      'scarp.listFilteredProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
     }
@@ -134,6 +135,8 @@ export async function run(): Promise<void> {
     // Supplying an explicit filter cannot bypass the workspace-trust check
     // and must not open a test terminal or invoke the configured compiler.
     await vscode.commands.executeCommand('scarp.testProjectFiltered', sourceUri, 'addition');
+    await vscode.commands.executeCommand('scarp.listFilteredProjectTests',
+      sourceUri, 'addition');
     assert.equal(fsSync.existsSync(marker), false,
       'A filtered test command must never start a compiler in Restricted Mode');
 

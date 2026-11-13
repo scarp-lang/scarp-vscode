@@ -9,7 +9,7 @@ import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
-import { hasProjectWorkflow, projectArgv, validProjectName, validProjectTestFilter } from './projectWorkflow';
+import { hasProjectWorkflow, projectArgv, projectTestListArgv, validProjectName, validProjectTestFilter } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { findProjectManifest, isProjectManifestName } from './projectManifest';
 import {
@@ -601,7 +601,10 @@ async function browseProjectModules(
 
 /** Read-only compiler-provided test discovery, never test execution or implicit search. */
 async function listProjectTests(explicit: vscode.Uri | undefined,
-  output: vscode.OutputChannel): Promise<void> {
+  output: vscode.OutputChannel, filter?: string): Promise<void> {
+  if (filter !== undefined && !validProjectTestFilter(filter)) {
+    throw new Error('Invalid Scarp project test filename filter.');
+  }
   const project = await projectDirectory(explicit);
   if (!project) { return; }
   const root = project.directory.fsPath;
@@ -641,7 +644,7 @@ async function listProjectTests(explicit: vscode.Uri | undefined,
     }
     if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
     const result = await executeProcess(binary,
-      ['test', '--json', '--list', '--', root], {
+      projectTestListArgv(root, filter), {
         cwd: root, timeoutMs: config().get<number>('checkTimeoutMs', 30000),
         maxOutputBytes: 1024 * 1024, signal: controller.signal
       });
@@ -657,13 +660,17 @@ async function listProjectTests(explicit: vscode.Uri | undefined,
     }
     const paths = parseListedProjectTests(result.stdout);
     if (!paths.length) {
-      void vscode.window.showInformationMessage('No Scarp tests found under tests/*.srp.');
+      void vscode.window.showInformationMessage(filter === undefined
+        ? 'No Scarp tests found under tests/*.srp.'
+        : 'No Scarp tests match this filename filter.');
       return;
     }
     const selected = await vscode.window.showQuickPick(paths.map(filename => ({
       label: filename, filename: path.join(root, filename)
     })), {
-      title: 'Scarp: List Project Tests (read-only)',
+      title: filter === undefined
+        ? 'Scarp: List Project Tests (read-only)'
+        : 'Scarp: List Filtered Project Tests (read-only)',
       placeHolder: 'Choose a discovered test source to open; no test code is executed'
     });
     if (!selected) { return; }
@@ -703,27 +710,46 @@ async function listProjectTests(explicit: vscode.Uri | undefined,
   }
 }
 
-/** Explicit filename-substring selection: never triggers test execution automatically. */
-async function runFilteredProjectTests(
-  explicit: vscode.Uri | undefined, output: vscode.OutputChannel, suppliedFilter?: unknown
-): Promise<void> {
-  if (!vscode.workspace.isTrusted) {
-    throw new Error('Trust the workspace before running Scarp project tests.');
-  }
+/** A literal filename substring shared by explicit Run and read-only List. */
+async function resolveProjectTestFilter(
+  title: string, suppliedFilter?: unknown
+): Promise<string | undefined> {
   const filter = suppliedFilter === undefined
     ? await vscode.window.showInputBox({
-      title: 'Scarp: Run Filtered Project Tests',
+      title,
       prompt: 'Enter a literal, case-sensitive filename substring (not a glob or regex).',
       placeHolder: 'addition',
       validateInput: value => validProjectTestFilter(value)
         ? undefined : 'Use 1–128 UTF-8 bytes without leading -, path separators, colons or controls.'
     })
     : suppliedFilter;
-  if (filter === undefined) { return; } // Cancelled by the user.
+  if (filter === undefined) { return undefined; } // User cancelled.
   if (!validProjectTestFilter(filter)) {
     throw new Error('Invalid Scarp project test filename filter.');
   }
-  await launchProject(explicit, output, 'test', filter);
+  return filter;
+}
+
+/** Explicit filename-substring selection: never triggers execution automatically. */
+async function runFilteredProjectTests(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel, suppliedFilter?: unknown
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before running Scarp project tests.');
+  }
+  const filter = await resolveProjectTestFilter('Scarp: Run Filtered Project Tests', suppliedFilter);
+  if (filter !== undefined) { await launchProject(explicit, output, 'test', filter); }
+}
+
+/** A filtered read-only discovery still uses the official compiler's --list path. */
+async function listFilteredProjectTests(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel, suppliedFilter?: unknown
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before listing Scarp project tests.');
+  }
+  const filter = await resolveProjectTestFilter('Scarp: List Filtered Project Tests', suppliedFilter);
+  if (filter !== undefined) { await listProjectTests(explicit, output, filter); }
 }
 
 async function launchProject(explicit: vscode.Uri | undefined,
@@ -1292,6 +1318,9 @@ export function activate(context: vscode.ExtensionContext): void {
         safe(async () => runFilteredProjectTests(uri, output, filter))),
     vscode.commands.registerCommand('scarp.listProjectTests',
       (uri?: vscode.Uri): Promise<void> => safe(async () => listProjectTests(uri, output))),
+    vscode.commands.registerCommand('scarp.listFilteredProjectTests',
+      (uri?: vscode.Uri, filter?: unknown): Promise<void> =>
+        safe(async () => listFilteredProjectTests(uri, output, filter))),
     vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
       safe(async () => run(await selectedOrExplicitFile(uri), output))),
     vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>
