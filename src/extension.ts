@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
-import { compilerVersion, executeProcess, preferredExecutionVerb } from './cli';
+import { compilerVersion, executeProcess, preferredExecutionVerb, supportsInteractiveExecution } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { diagnosticExplanationArgs, explainableDiagnosticCode } from './diagnosticExplanation';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
@@ -754,7 +754,7 @@ async function listFilteredProjectTests(
 
 async function launchProject(explicit: vscode.Uri | undefined,
   output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch',
-  testFilter?: string): Promise<void> {
+  testFilter?: string, interactive = false): Promise<void> {
   // Stop can be pressed while the workspace folder picker is still open.
   const generation = stopGeneration;
   const revision = compilerRevision;
@@ -795,6 +795,14 @@ async function launchProject(explicit: vscode.Uri | undefined,
         throw new Error('Scarp project tests require compiler v0.0.6-alpha.8+ with guide test support.');
       }
     }
+    if (interactive) {
+      if (mode !== 'launch' || !await supportsInteractiveExecution(
+        binary, 'launch', controller.signal)) {
+        if (!isCurrent()) { return; }
+        throw new Error('Interactive Scarp project input requires compiler v0.0.6-alpha.10+ with --interactive support.');
+      }
+      if (!isCurrent()) { return; }
+    }
     // Guard against external editors and tools as well as VS Code changes.
     // No asynchronous gap remains between this final check and createTerminal.
     const diskAfter = await snapshotProjectDisk(key, true, mode === 'test');
@@ -816,12 +824,12 @@ async function launchProject(explicit: vscode.Uri | undefined,
         : 'Scarp Project: ') + path.basename(key),
       shellPath: binary,
       shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : [],
-        testFilter, requireNonemptyTests),
+        testFilter, requireNonemptyTests, interactive),
       cwd: key
     });
     running.set(key, terminal);
     output.appendLine('Scarp ' + version + ' — ' + (mode === 'test' ? 'test' : 'launch') +
-      ' project ' + key + (testFilter === undefined ? '' :
+      (interactive ? ' --interactive' : '') + ' project ' + key + (testFilter === undefined ? '' :
         ' (literal filename filter: ' + testFilter + ')') +
       (requireNonemptyTests ? ' (requires at least one selected test)' : ''));
     terminal.show();
@@ -888,7 +896,8 @@ async function createProject(output: vscode.OutputChannel, modern = false): Prom
   }
 }
 
-async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Promise<void> {
+async function run(doc: vscode.TextDocument, output: vscode.OutputChannel,
+  interactive = false): Promise<void> {
   const filename = doc.uri.fsPath;
   const generation = stopGeneration;
   const revision = compilerRevision;
@@ -928,6 +937,13 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
       output.appendLine('Scarp file run cancelled before terminal startup.');
       return;
     }
+    if (interactive) {
+      if (!await supportsInteractiveExecution(binary, command, controller.signal)) {
+        if (!isCurrent()) { return; }
+        throw new Error('Interactive Scarp input requires compiler v0.0.6-alpha.10+ with --interactive support.');
+      }
+      if (!isCurrent()) { return; }
+    }
     // The terminal reads the saved file from disk, not the editor buffer.
     // Refuse a stale launch if external tools replaced or rewrote that file
     // during our asynchronous compiler probes. A missing/deleted file also
@@ -949,11 +965,12 @@ async function run(doc: vscode.TextDocument, output: vscode.OutputChannel): Prom
     const terminal = vscode.window.createTerminal({
       name: 'Scarp: ' + path.basename(filename),
       shellPath: binary,
-      shellArgs: [command, ...budgets(), '--', filename],
+      shellArgs: [command, ...(interactive ? ['--interactive'] : []), ...budgets(), '--', filename],
       cwd: path.dirname(filename)
     });
     running.set(filename, terminal);
-    output.appendLine('Scarp ' + version + ' — ' + command + ' ' + filename);
+    output.appendLine('Scarp ' + version + ' — ' + command +
+      (interactive ? ' --interactive ' : ' ') + filename);
     terminal.show();
   } catch (error) {
     // An edited/closed document or a canceled probe cannot open a terminal
@@ -1311,6 +1328,9 @@ export function activate(context: vscode.ExtensionContext): void {
       })),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
+    vscode.commands.registerCommand('scarp.launchProjectInteractive',
+      (uri?: vscode.Uri): Promise<void> => safe(async () =>
+        launchProject(uri, output, 'launch', undefined, true))),
     vscode.commands.registerCommand('scarp.testProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output, 'test'))),
     vscode.commands.registerCommand('scarp.testProjectFiltered',
@@ -1323,6 +1343,8 @@ export function activate(context: vscode.ExtensionContext): void {
         safe(async () => listFilteredProjectTests(uri, output, filter))),
     vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
       safe(async () => run(await selectedOrExplicitFile(uri), output))),
+    vscode.commands.registerCommand('scarp.runFileInteractive', (uri?: vscode.Uri) =>
+      safe(async () => run(await selectedOrExplicitFile(uri), output, true))),
     vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>
       safe(async () => check(await selectedOrExplicitFile(uri), output, diagnostics, owners))),
     vscode.commands.registerCommand('scarp.explainDiagnostic', (code?: unknown): Promise<void> =>

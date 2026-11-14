@@ -746,6 +746,49 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha10-interactive:
+    name: Official Scarp alpha.10 interactive I/O and arrays (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.10
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify immutable alpha.10 source and real compiler contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "44fcd0f77ccb92648cdb1fc7632495c506c87cb3"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.10'
+          compiler/target/release/scarp guide exec | grep -F -- '--interactive'
+          compiler/target/release/scarp guide launch | grep -F -- '--interactive'
+          compiler/target/release/scarp verify compiler/examples/fixed_arrays.srp
+          compiler/target/release/scarp exec --max-array-bytes 8388608 \
+            compiler/examples/fixed_arrays.srp > "$RUNNER_TEMP/fixed-arrays.actual"
+          cmp compiler/examples/fixed_arrays.stdout "$RUNNER_TEMP/fixed-arrays.actual"
+          for example in greeting typed_calculator exact_integer; do
+            compiler/target/release/scarp verify "compiler/examples/interactive/$example.srp"
+            compiler/target/release/scarp exec --interactive \
+              --input-file "compiler/examples/interactive/$example.stdin" \
+              "compiler/examples/interactive/$example.srp" \
+              > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/interactive/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+      - name: Exercise actual VS Code Extension Host with Scarp alpha.10
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest

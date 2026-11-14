@@ -53,3 +53,15 @@ test('alpha.9 exact BigInt limits are explicit and preserve older compiler defau
   assert.deepEqual(budgetArguments({} as BudgetSettings), [],
     'Unconfigured BigInt limits never reach pre-alpha.9 compilers');
 });
+
+test('alpha.10 fixed array budget is opt-in and checked', () => {
+  assert.deepEqual(budgetArguments({ maxArrayBytes: 8_388_608 } as BudgetSettings),
+    ['--max-array-bytes', '8388608']);
+  assert.deepEqual(budgetArguments({ maxArrayBytes: 0 } as BudgetSettings),
+    ['--max-array-bytes', '0']);
+  for (const bad of [-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => budgetArguments({ maxArrayBytes: bad } as BudgetSettings),
+      /Invalid Scarp execution limit: maxArrayBytes/);
+  }
+  assert.ok(!budgetArguments({} as BudgetSettings).includes('--max-array-bytes'));
+});

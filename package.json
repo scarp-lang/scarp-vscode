@@ -45,7 +45,9 @@
     "onCommand:scarp.testProjectFiltered",
     "onCommand:scarp.listProjectTests",
     "onCommand:scarp.listFilteredProjectTests",
-    "onCommand:scarp.initProject"
+    "onCommand:scarp.initProject",
+    "onCommand:scarp.runFileInteractive",
+    "onCommand:scarp.launchProjectInteractive"
   ],
   "contributes": {
     "languages": [
@@ -145,6 +147,16 @@
         "command": "scarp.initProject",
         "title": "Scarp: Initialize Modern Project",
         "category": "Scarp"
+      },
+      {
+        "command": "scarp.runFileInteractive",
+        "title": "Scarp: Run Current File Interactively",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.launchProjectInteractive",
+        "title": "Scarp: Launch Project Interactively",
+        "category": "Scarp"
       }
     ],
     "menus": {
@@ -219,6 +231,14 @@
         },
         {
           "command": "scarp.initProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.runFileInteractive",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.launchProjectInteractive",
           "when": "isWorkspaceTrusted"
         }
       ]
@@ -327,6 +347,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "Optional --max-bigint-bytes interpreter budget. Published Scarp v0.0.6-alpha.9+ only; earlier compilers reject this flag. Limits cumulative logical BigInt u32 limb/scratch allocations; defaults to 8,388,608 bytes if unset. 0 disallows BigInt limb allocation. Not a physical process-memory limit; no effect on static Verify."
+        },
+        "scarp.maxArrayBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-array-bytes cumulative fixed-array allocation budget for explicit Scarp execution. Requires published compiler v0.0.6-alpha.10+; earlier compilers reject this flag. Defaults to 8,388,608 logical bytes when unset. Does not affect static Verify."
         }
       }
     },

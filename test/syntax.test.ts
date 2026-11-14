@@ -278,3 +278,22 @@ test('highlights native assertions without coloring longer identifiers or string
   assert.ok(hasScope(longer, 'assert_other', 'entity.name.function.call.scarp'));
   assert.ok(!hasScope(longer, 'assert_other', 'keyword.control.scarp'));
 });
+
+test('alpha.10 fixed arrays and new calls receive contextual scopes', async () => {
+  const grammar = await tokenizer();
+  const typed = tokens('bind values: array<integer, 2> = [array: 1, 2];', grammar);
+  assert.ok(hasScope(typed, 'array', 'support.type.scarp'));
+  assert.ok(hasScope(typed, 'integer', 'support.type.scarp'));
+  const names = ['input_integer', 'try_read_line', 'bigint_pow_mod', 'flush_stdout'];
+  for (const name of names) {
+    assert.ok(hasScope(tokens(`bind result = ${name}();`, grammar), name,
+      'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens(`bind ${name} = 2;`, grammar), name,
+      'support.function.builtin.scarp'));
+    assert.ok(!hasScope(tokens(`// ${name}()`, grammar), name,
+      'support.function.builtin.scarp'));
+  }
+  const binding = tokens('bind array = 1;', grammar);
+  assert.ok(!hasScope(binding, 'array', 'support.type.scarp'),
+    'array is a contextual type marker, not a reserved binding name');
+});

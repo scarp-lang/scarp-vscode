@@ -122,7 +122,11 @@
       "patterns": [
         {
           "name": "support.type.scarp",
-          "match": "\\btuple\\b(?=\\s*<)"
+          "match": "\\barray\\b(?=\\s*:)"
+        },
+        {
+          "name": "support.type.scarp",
+          "match": "\\b(?:tuple|array)\\b(?=\\s*<)"
         },
         {
           "name": "support.type.scarp",
@@ -146,7 +150,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.scarp",
-          "match": "\\b(?:print|println|write|eprint|ewrite|topk|topk_values|softmax_temp|logsoftmax_temp|sample_area|sample_slopes|sample_cumulative_area|cosine_similarity|top_p|top_p_values|pearson_correlation|read_line|integer_to_text|float_to_text|text_to_integer|text_to_float|text_trim|text_replace|bigint|bigint_from_integer|bigint_to_integer|bigint_abs)\\b(?=\\s*\\()"
+          "match": "\\b(?:print|println|write|eprint|ewrite|topk|topk_values|softmax_temp|logsoftmax_temp|sample_area|sample_slopes|sample_cumulative_area|cosine_similarity|top_p|top_p_values|pearson_correlation|read_line|integer_to_text|float_to_text|text_to_integer|text_to_float|text_trim|text_replace|bigint|bigint_from_integer|bigint_to_integer|bigint_abs|read_line_or|try_read_line|ask|ask_or|input|input_integer|input_float|input_bigint|flush_stdout|flush_stderr|bigint_pow|bigint_gcd|bigint_lcm|bigint_sqrt|bigint_bit_length|bigint_to_text|bigint_from_radix|bigint_to_radix|bigint_and|bigint_or|bigint_xor|bigint_not|bigint_shl|bigint_shr|bigint_pow_mod|bigint_divmod)\\b(?=\\s*\\()"
         }
       ]
     },

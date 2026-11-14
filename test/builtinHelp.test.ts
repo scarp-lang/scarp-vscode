@@ -24,7 +24,33 @@ const versions: Record<string, string> = {
   bigint: 'v0.0.6-alpha.9',
   bigint_from_integer: 'v0.0.6-alpha.9',
   bigint_to_integer: 'v0.0.6-alpha.9',
-  bigint_abs: 'v0.0.6-alpha.9'
+  bigint_abs: 'v0.0.6-alpha.9',
+  read_line_or: 'v0.0.6-alpha.10',
+  try_read_line: 'v0.0.6-alpha.10',
+  ask: 'v0.0.6-alpha.10',
+  ask_or: 'v0.0.6-alpha.10',
+  input: 'v0.0.6-alpha.10',
+  input_integer: 'v0.0.6-alpha.10',
+  input_float: 'v0.0.6-alpha.10',
+  input_bigint: 'v0.0.6-alpha.10',
+  flush_stdout: 'v0.0.6-alpha.10',
+  flush_stderr: 'v0.0.6-alpha.10',
+  bigint_pow: 'v0.0.6-alpha.10',
+  bigint_gcd: 'v0.0.6-alpha.10',
+  bigint_lcm: 'v0.0.6-alpha.10',
+  bigint_sqrt: 'v0.0.6-alpha.10',
+  bigint_bit_length: 'v0.0.6-alpha.10',
+  bigint_to_text: 'v0.0.6-alpha.10',
+  bigint_from_radix: 'v0.0.6-alpha.10',
+  bigint_to_radix: 'v0.0.6-alpha.10',
+  bigint_and: 'v0.0.6-alpha.10',
+  bigint_or: 'v0.0.6-alpha.10',
+  bigint_xor: 'v0.0.6-alpha.10',
+  bigint_not: 'v0.0.6-alpha.10',
+  bigint_shl: 'v0.0.6-alpha.10',
+  bigint_shr: 'v0.0.6-alpha.10',
+  bigint_pow_mod: 'v0.0.6-alpha.10',
+  bigint_divmod: 'v0.0.6-alpha.10'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -98,4 +124,13 @@ test('large or invalid lexical inputs are refused without scanning an unbounded 
   assert.equal(scarpBuiltinAt(source, 2, ' '.repeat(16385)), undefined);
   assert.equal(scarpBuiltinAt('top_p value', 2), undefined,
     'A name without an actual call must not advertise builtin help');
+});
+
+test('read_line hover documents versioned interactive input correctly', () => {
+  const help = scarpBuiltinAt('read_line()', 3)?.help;
+  assert.ok(help);
+  assert.match(help.constraints, /alpha\.6/);
+  assert.match(help.constraints, /alpha\.10/);
+  assert.match(help.constraints, /--interactive/);
+  assert.match(help.constraints, /--input-file/);
 });

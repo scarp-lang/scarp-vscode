@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 22);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 48);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -68,7 +68,7 @@ test('alpha.9 exact bigint builtins are explicit, versioned, and safely complete
   assert.deepEqual(
     scarpBuiltinCompletionAt('bind exact = bigint_', 'bind exact = bigint_'.length)
       ?.matches.map(x => x.name).sort(),
-    ['bigint_abs', 'bigint_from_integer', 'bigint_to_integer']
+    ['bigint_abs', 'bigint_and', 'bigint_bit_length', 'bigint_divmod', 'bigint_from_integer', 'bigint_from_radix', 'bigint_gcd', 'bigint_lcm', 'bigint_not', 'bigint_or', 'bigint_pow', 'bigint_pow_mod', 'bigint_shl', 'bigint_shr', 'bigint_sqrt', 'bigint_to_integer', 'bigint_to_radix', 'bigint_to_text', 'bigint_xor']
   );
   for (const name of ['bigint', 'bigint_abs', 'bigint_from_integer', 'bigint_to_integer']) {
     const hint = scarpBuiltinCompletionAt(name, name.length);
@@ -77,4 +77,15 @@ test('alpha.9 exact bigint builtins are explicit, versioned, and safely complete
   }
   assert.equal(scarpBuiltinCompletionAt('module.bigint_', 14), undefined,
     'Member access never offers builtin completion');
+});
+
+test('alpha.10 builtins are versioned and only completed at actual identifiers', () => {
+  const prompt = scarpBuiltinCompletionAt('bind response = input_', 'bind response = input_'.length);
+  assert.deepEqual(prompt?.matches.map(x => x.name).sort(),
+    ['input_bigint', 'input_float', 'input_integer']);
+  for (const name of ['ask_or', 'try_read_line', 'bigint_pow_mod', 'flush_stdout']) {
+    const match = scarpBuiltinCompletionAt(name, name.length)?.matches.find(x => x.name === name);
+    assert.equal(match?.introduced, 'v0.0.6-alpha.10');
+  }
+  assert.equal(scarpBuiltinCompletionAt('module.input_', 13), undefined);
 });

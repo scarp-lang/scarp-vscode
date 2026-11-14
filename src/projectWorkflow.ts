@@ -56,7 +56,8 @@ export function projectArgv(
   directory: string,
   budgets: readonly string[] = [],
   testFilter?: string,
-  requireNonemptyTests = false
+  requireNonemptyTests = false,
+  interactive = false
 ): string[] {
   if (!directory) { throw new Error('Project directory is required.'); }
   if (testFilter !== undefined && command !== 'test') {
@@ -65,6 +66,9 @@ export function projectArgv(
   if (typeof requireNonemptyTests !== 'boolean' ||
       (requireNonemptyTests && command !== 'test')) {
     throw new Error('Only project test runs accept the nonempty-suite guard.');
+  }
+  if (interactive && command !== 'launch') {
+    throw new Error('Interactive input is supported only when launching a Scarp project.');
   }
   if (command === 'verify') {
     if (budgets.length) { throw new Error('Static project verification rejects execution budgets.'); }
@@ -83,5 +87,5 @@ export function projectArgv(
       ...(testFilter === undefined ? [] : ['--filter', testFilter]),
       '--', directory];
   }
-  return ['launch', ...budgets, '--', directory];
+  return ['launch', ...(interactive ? ['--interactive'] : []), ...budgets, '--', directory];
 }

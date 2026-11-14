@@ -120,3 +120,14 @@ test('read-only test listing builds a bounded literal substring filter argv', ()
   }
   assert.throws(() => projectTestListArgv(''), /directory is required/);
 });
+
+test('interactive project launch is explicit and never affects static or test commands', () => {
+  assert.deepEqual(projectArgv('launch', '/trusted/scarp', ['--max-array-bytes', '1024'],
+    undefined, false, true),
+    ['launch', '--interactive', '--max-array-bytes', '1024', '--', '/trusted/scarp']);
+  assert.deepEqual(projectArgv('launch', '/trusted/scarp'), ['launch', '--', '/trusted/scarp']);
+  for (const command of ['verify', 'create', 'init', 'test'] as const) {
+    assert.throws(() => projectArgv(command, '/trusted/scarp', [], undefined, false, true),
+      /Interactive input is supported only/);
+  }
+});
