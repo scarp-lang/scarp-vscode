@@ -209,6 +209,32 @@ test('published alpha.7 Unicode-scalar escapes and conditional values tokenize s
   // Scope classification is lexical only; the compiler validates Unicode scalar ranges.
 });
 
+test('published alpha.9 exact bigint syntax separates contextual type from calls', async () => {
+  const grammar = await tokenizer();
+  const line = 'bind total: bigint = bigint("1234567890123456789012345");';
+  const highlighted = tokens(line, grammar);
+  assert.ok(hasScope(highlighted, 'bigint', 'support.type.scarp'),
+    'The annotation is a first-class bigint type');
+  assert.ok(hasScope(highlighted, 'bigint', 'support.function.builtin.scarp'),
+    'The constructor call is a real builtin, not a type name');
+  const constructor = tokens('bigint("42");', grammar);
+  assert.ok(hasScope(constructor, 'bigint', 'support.function.builtin.scarp'));
+  assert.ok(!hasScope(constructor, 'bigint', 'support.type.scarp'),
+    'Calling bigint must not be colored as a type annotation');
+  for (const name of ['bigint_from_integer', 'bigint_to_integer', 'bigint_abs']) {
+    assert.ok(hasScope(tokens(name + '(value);', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens(name + '_helper(value);', grammar),
+      name + '_helper', 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens('// ' + name + '(value)', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens('print("' + name + '(value)");', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(hasScope(tokens('funcra ' + name + '() {', grammar),
+      name, 'entity.name.function.definition.scarp'), name);
+  }
+});
+
 test('Scarp editor configuration supports line comments, conservative brace indentation and regions', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'language-configuration.json'), 'utf8'));
   assert.equal(config.comments.lineComment, '//',

@@ -2,6 +2,20 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **opt-in published alpha.9 BigInt execution quotas** `scarp.maxBigIntDigits` and `scarp.maxBigIntBytes`, with shell-free Run/Launch argv, safe integer and 1,000,000-digit validation, default-off compatibility with older compilers, actual editor-host argument tests and exact official compiler success/failure budget smoke tests. These flags never reach static verification or read-only test discovery, and do not claim physical-memory isolation.
+
+- Add **published compiler v0.0.6-alpha.9 BigInt editor compatibility**: recognize the `bigint` type and exact string constructor, explicit signed i64 conversions and absolute-value builtin with compiler-free lexical highlighting, hover, signature help, completion, and an `sbigint` starter snippet. Add an immutable alpha.9 GitHub Actions gate that verifies real compiler BigInt arithmetic/module/sequence examples, verifies all snippets statically, and exercises the real VS Code Extension Host. No compiler emulation, package version bump or pre-release.
+
+- Add **Scarp: List Filtered Project Tests**, a read-only compiler-backed test discovery command for published alpha.8 `scarp test --json --list --filter`. Share the same bounded literal filter validation as filtered execution without running programs, with trusted-workspace guards, scoped cancellation, on-disk snapshots, canonical source paths and editor-host/Restricted Mode regression tests. No extension release or automatic test run.
+
+- Cancel stale `Scarp: List Project Tests` compiler work promptly on project source/manifest edits or compiler-path changes; keep detection scoped per selected project root, reject overlapping discovery requests, and stop aborted child processes without false user errors. Retain external-disk snapshot checks and explicit-only test execution. Add real Extension Host regression tests for unrelated edits, SIGTERM-resistant compiler cancellation, recovery and compiler switching.
+
+- Add opt-in resource-scoped `scarp.requireNonemptyProjectTests` for published alpha.8 project tests. Explicit full-suite and filtered test terminal launches can pass `--require-tests` so empty selections fail; defaults and previous commands remain unchanged. Validate argument construction for every command mode and use real compiler/VS Code Host plus Restricted Mode coverage. No automatic test execution or pre-release.
+
+- Add explicit **Scarp: Run Filtered Project Tests** using the published alpha.8 literal `scarp test --filter` contract. Preserve the existing full-suite command, validate filter length and control/path characters before compiler execution, and pass the requested substring as one shell-free terminal argument. Reuse trusted project checks, source/fixture snapshots, cancellation and stop behavior. Add unit, real compiler and Restricted Mode tests. No automatic execution or pre-release.
+
+- Add explicit compiler-backed diagnostic explanations via the published `scarp explain E####` contract: a Quick Fix action on verified Scarp Problems and a Command Palette entry. Strictly validate exact uppercase codes, never invoke a shell or modify source, and guard Workspace Trust and compiler configuration changes. Add unit tests plus real compiler and Restricted Mode Extension Host coverage; this is development work only, not an extension pre-release.
+
 - Introduce opt-in `Scarp: Initialize Modern Project` via the published alpha.8 `scarp init` contract. It checks the installed compiler's `guide init` capability before creating a fresh declarative `scarp.project` project, keeps the original legacy Create Project command and never overwrites existing paths or runs source.
 
 - Add opt-in `Scarp: List Project Tests` using the published alpha.8 compiler's read-only `--json --list` contract. Strictly validate schema v1 and project-local test file names, retain bounded disk snapshots around inspection and Quick Pick navigation, and refuse untrusted or unsaved projects. No Scarp source execution occurs during listing.

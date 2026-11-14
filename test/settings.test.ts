@@ -26,3 +26,30 @@ test('forwards opt-in alpha.6 tuple and redirected input quotas without changing
   ]);
   assert.deepEqual(budgetArguments({} as BudgetSettings), []);
 });
+
+test('alpha.9 exact BigInt limits are explicit and preserve older compiler defaults', () => {
+  assert.deepEqual(budgetArguments({
+    maxBigIntDigits: 10_000,
+    maxBigIntBytes: 8_388_608
+  } as BudgetSettings), [
+    '--max-bigint-digits', '10000', '--max-bigint-bytes', '8388608'
+  ]);
+  assert.deepEqual(budgetArguments({
+    maxBigIntDigits: 0, maxBigIntBytes: 0
+  } as BudgetSettings), [
+    '--max-bigint-digits', '0', '--max-bigint-bytes', '0'
+  ]);
+  assert.deepEqual(budgetArguments({ maxBigIntDigits: 1_000_000 } as BudgetSettings),
+    ['--max-bigint-digits', '1000000']);
+  for (const bad of [-1, 1.5, Infinity, NaN, 1_000_001,
+    Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => budgetArguments({ maxBigIntDigits: bad } as BudgetSettings),
+      /Invalid Scarp execution limit: maxBigIntDigits/);
+  }
+  for (const bad of [-1, 0.2, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => budgetArguments({ maxBigIntBytes: bad } as BudgetSettings),
+      /Invalid Scarp execution limit: maxBigIntBytes/);
+  }
+  assert.deepEqual(budgetArguments({} as BudgetSettings), [],
+    'Unconfigured BigInt limits never reach pre-alpha.9 compilers');
+});

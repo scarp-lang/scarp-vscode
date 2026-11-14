@@ -687,6 +687,65 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha9-bigint:
+    name: Official Scarp alpha.9 BigInt and test-report compatibility (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.9
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Check immutable alpha.9 BigInt CLI and verified editor templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Exact, published source: never replace it with compiler main.
+          test "$(git -C compiler rev-parse HEAD)" = "0814997dc43982eb707a9a1aee72aab3a7ac8b41"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.9'
+          compiler/target/release/scarp verify test/fixtures/hello.srp
+          test "$(compiler/target/release/scarp exec test/fixtures/hello.srp)" = "Hello from Scarp!"
+          # Exact signed BigInt arithmetic, module use and longer sequences
+          # must work in the real published interpreter, not an editor stub.
+          for example in bigint_arithmetic bigint_module bigint_sequences; do
+            compiler/target/release/scarp verify "compiler/examples/$example.srp"
+            compiler/target/release/scarp exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+          # Static verification of every visible .srp starter snippet,
+          # skipping nothing supported by this published compiler.
+          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 9
+          # Verify published interpreter execution quotas: known-good limits
+          # reproduce exact official output; deliberately tight limits reject
+          # construction without leaking partial program output.
+          compiler/target/release/scarp exec --max-bigint-digits 10000 --max-bigint-bytes 8388608 \
+            compiler/examples/bigint_arithmetic.srp > "$RUNNER_TEMP/bigint-budgeted.stdout"
+          cmp compiler/examples/bigint_arithmetic.stdout "$RUNNER_TEMP/bigint-budgeted.stdout"
+          if compiler/target/release/scarp exec --max-bigint-digits 3 \
+              compiler/examples/bigint_arithmetic.srp > "$RUNNER_TEMP/bigint-small.stdout" 2> "$RUNNER_TEMP/bigint-small.stderr"; then
+            echo "Unsafe BigInt digit budget accepted out-of-quota construction." >&2
+            exit 1
+          fi
+          test ! -s "$RUNNER_TEMP/bigint-small.stdout"
+          if compiler/target/release/scarp exec --max-bigint-bytes 0 \
+              compiler/examples/bigint_arithmetic.srp > "$RUNNER_TEMP/bigint-zero.stdout" 2> "$RUNNER_TEMP/bigint-zero.stderr"; then
+            echo "Unsafe zero BigInt limb budget accepted construction." >&2
+            exit 1
+          fi
+          test ! -s "$RUNNER_TEMP/bigint-zero.stdout"
+      - name: Exercise real VS Code Extension Host with published Scarp alpha.9
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest

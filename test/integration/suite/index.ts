@@ -35,10 +35,12 @@ export async function run(): Promise<void> {
 
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
-    'scarp.stopProgram', 'scarp.showOutput', 'scarp.createProject', 'scarp.initProject',
+    'scarp.stopProgram', 'scarp.showOutput', 'scarp.explainDiagnostic',
+    'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject',
-    'scarp.listProjectTests']) {
+    'scarp.testProjectFiltered', 'scarp.listProjectTests',
+    'scarp.listFilteredProjectTests']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
   }
 
@@ -217,6 +219,29 @@ export async function run(): Promise<void> {
       const broken = vscode.languages.getDiagnostics(brokenUri);
       assert.ok(broken.length > 0,
         'Verify action must inspect the supplied URI, not the active editor');
+      // Real compiler diagnostic -> VS Code Problems -> explicit Quick Fix.
+      // Merely discovering Code Actions must never launch Scarp.
+      const located = broken.find(d => d.source === 'Scarp' &&
+        typeof d.code === 'string' && /^E\d{4}$/.test(d.code));
+      assert.ok(located, 'Official Scarp errors should include a canonical explain code');
+      const explainActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider', brokenUri, located.range,
+        vscode.CodeActionKind.QuickFix.value);
+      const explanation = explainActions?.find(action =>
+        action.command?.command === 'scarp.explainDiagnostic' &&
+        action.command.arguments?.[0] === located.code);
+      assert.ok(explanation,
+        'Scarp diagnostic should offer an explicit explanation without an edit');
+      assert.equal(explanation.edit, undefined,
+        'An explanation Code Action must never mutate a source file');
+      assert.equal(explanation.command?.arguments?.length, 1);
+      // The real pinned compiler must accept the exact canonical diagnostic.
+      const described = await promisify(execFile)(binary, ['explain', String(located.code)],
+        { timeout: 10000 });
+      assert.ok(described.stdout.length > 0);
+      await vscode.commands.executeCommand('scarp.explainDiagnostic', located.code);
+      assert.equal((await fs.readFile(brokenUri.fsPath, 'utf8')), 'bind = 1;\n',
+        'Explaining a compiler error must not change Scarp source');
       assert.equal(vscode.languages.getDiagnostics(selectedUri).length, 0,
         'An unrelated active editor must not receive diagnostics from the supplied source');
     } finally {
@@ -570,6 +595,249 @@ export async function run(): Promise<void> {
         const testTerminal = await terminalOpened;
         assert.equal(testTerminal.name, 'Scarp Tests: alpha8 test project');
         await vscode.commands.executeCommand('scarp.stopProgram');
+
+        // Published alpha.8 accepts a literal --filter filename substring.
+        // Use two test files to prove the exact argument is carried to the
+        // official CLI instead of running a wildcard or guessed path.
+        await fs.writeFile(path.join(testsRoot, 'tests', 'boundary.srp'),
+          'assert(4 > 2, "boundary");\n');
+
+        // Filtered discovery must send the published read-only --list
+        // operation, never start a test terminal or run either .srp file.
+        // A nonmatching literal filter avoids an interactive Quick Pick in CI.
+        const beforeFilteredList = await fs.readFile(
+          path.join(testsRoot, 'tests', 'addition.srp'));
+        const newlyOpenedTerminals: vscode.Terminal[] = [];
+        const listTerminalObserver = vscode.window.onDidOpenTerminal(
+          terminal => newlyOpenedTerminals.push(terminal));
+        try {
+          await vscode.commands.executeCommand('scarp.listFilteredProjectTests',
+            vscode.Uri.file(testsRoot), 'no-such-test-filename');
+          assert.deepEqual(newlyOpenedTerminals, [],
+            'Filtered read-only discovery must not open a test terminal');
+        } finally {
+          listTerminalObserver.dispose();
+        }
+        assert.deepEqual(await fs.readFile(path.join(testsRoot, 'tests', 'addition.srp')),
+          beforeFilteredList, 'Read-only listing must not edit test sources');
+
+        // The pinned official alpha.8 compiler selects by literal filename
+        // substring, as opposed to a glob or a path-based suffix.
+        const filteredList = await promisify(execFile)(binary,
+          ['test', '--json', '--list', '--filter', 'addition', '--', testsRoot],
+          { timeout: 10000 });
+        const listed = JSON.parse(filteredList.stdout) as {
+          mode: string; discovered: number; tests: Array<{ path: string; status: string }>
+        };
+        assert.equal(listed.mode, 'list');
+        assert.equal(listed.discovered, 1);
+        assert.deepEqual(listed.tests, [
+          { path: 'tests/addition.srp', status: 'discovered' }
+        ]);
+
+        const filteredOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            observer.dispose();
+            reject(new Error('Filtered Scarp test command did not open a terminal'));
+          }, 10000);
+          const observer = vscode.window.onDidOpenTerminal(terminal => {
+            if (terminal.name !== 'Scarp Tests (filtered): alpha8 test project') {
+              return;
+            }
+            clearTimeout(timer);
+            observer.dispose();
+            resolve(terminal);
+          });
+        });
+        await vscode.commands.executeCommand('scarp.testProjectFiltered',
+          vscode.Uri.file(testsRoot), 'addition');
+        const filtered = await filteredOpened;
+        const options = filtered.creationOptions;
+        assert.ok('shellArgs' in options, 'Filtered test terminal must use explicit argv');
+        assert.deepEqual(options.shellArgs, [
+          'test', '--filter', 'addition', '--', testsRoot
+        ]);
+        await vscode.commands.executeCommand('scarp.stopProgram');
+
+        // The opt-in nonempty-suite guard applies to BOTH full and filtered
+        // project tests, and never changes unfiltered default behavior.
+        const strictSettings = vscode.workspace.getConfiguration(
+          'scarp', vscode.Uri.file(testsRoot));
+        const previousStrict =
+          strictSettings.inspect<boolean>('requireNonemptyProjectTests')?.globalValue;
+        try {
+          await strictSettings.update('requireNonemptyProjectTests', true,
+            vscode.ConfigurationTarget.Global);
+          const strictOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              subscription.dispose();
+              reject(new Error('Strict Scarp test command did not open a terminal'));
+            }, 10000);
+            const subscription = vscode.window.onDidOpenTerminal(terminal => {
+              if (terminal.name !== 'Scarp Tests (filtered): alpha8 test project') { return; }
+              clearTimeout(timer);
+              subscription.dispose();
+              resolve(terminal);
+            });
+          });
+          await vscode.commands.executeCommand('scarp.testProjectFiltered',
+            vscode.Uri.file(testsRoot), 'nonexistent-filter');
+          const strictTerminal = await strictOpened;
+          assert.ok('shellArgs' in strictTerminal.creationOptions);
+          assert.deepEqual(strictTerminal.creationOptions.shellArgs, [
+            'test', '--require-tests', '--filter', 'nonexistent-filter', '--', testsRoot
+          ], 'Opt-in strict mode must retain the requested filter exactly');
+          await vscode.commands.executeCommand('scarp.stopProgram');
+
+          // Check the actual published compiler, not just the constructed
+          // terminal options: an unmatched strict filter must exit nonzero.
+          await assert.rejects(
+            promisify(execFile)(binary,
+              ['test', '--require-tests', '--filter', 'nonexistent-filter', '--', testsRoot],
+              { timeout: 10000 }),
+            error => typeof error === 'object' && error !== null &&
+              'code' in error && error.code === 1
+          );
+        } finally {
+          await strictSettings.update('requireNonemptyProjectTests', previousStrict,
+            vscode.ConfigurationTarget.Global);
+        }
+
+        // Cancellation is bounded to this root. An unrelated source edit
+        // must not stop a read-only test listing, whereas an in-root edit
+        // or compiler switch must promptly stop its compiler subprocess.
+        if (process.platform !== 'win32') {
+          const blockedBinary = path.join(projectParent, 'blocked-test-discovery');
+          const discoveryPid = path.join(projectParent, 'blocked-test-discovery-pid');
+          const unrelatedUri = vscode.Uri.file(
+            path.join(projectParent, 'unrelated-test-discovery.srp'));
+          await fs.writeFile(unrelatedUri.fsPath, 'bind value = 1;\n');
+          await fs.writeFile(blockedBinary, [
+            '#!/usr/bin/env node',
+            'const fs = require("node:fs");',
+            'const args = process.argv.slice(2);',
+            'if (args[0] === "--version") {',
+            '  console.log("scarp 0.0.6-alpha.8"); process.exit(0);',
+            '}',
+            'if (args[0] === "diagnose" && args[1] === "--json") {',
+            '  console.log(JSON.stringify({schema_version:1, version:"0.0.6-alpha.8", execution:"interpreter", static_verify:true, project_workflow:true}));',
+            '  process.exit(0);',
+            '}',
+            'if (args[0] === "guide" && args[1] === "test") {',
+            '  console.log("Usage: scarp test [options] PROJECT"); process.exit(0);',
+            '}',
+            'if (args[0] === "test") {',
+            '  fs.writeFileSync(' + JSON.stringify(discoveryPid) + ', String(process.pid));',
+            '  process.on("SIGTERM", () => {});',
+            '  setInterval(() => {}, 1000);',
+            '} else process.exit(2);'
+          ].join('\n'), { mode: 0o755 });
+          await fs.chmod(blockedBinary, 0o755);
+          await settings.update('compilerPath', blockedBinary, vscode.ConfigurationTarget.Global);
+          let pendingList: Promise<unknown> | undefined;
+          try {
+            pendingList = Promise.resolve(vscode.commands.executeCommand(
+              'scarp.listProjectTests', vscode.Uri.file(testsRoot)));
+            await waitFor(() => fsSync.existsSync(discoveryPid) ? true : undefined,
+              'Blocked Scarp test listing never reached its compiler process');
+            const pid = Number(await fs.readFile(discoveryPid, 'utf8'));
+            const unrelatedDoc = await vscode.workspace.openTextDocument(unrelatedUri);
+            const unrelatedEdit = new vscode.WorkspaceEdit();
+            unrelatedEdit.insert(unrelatedUri, new vscode.Position(0, 0),
+              '// unrelated edit\n');
+            assert.ok(await vscode.workspace.applyEdit(unrelatedEdit));
+            assert.ok(await unrelatedDoc.save());
+            assert.doesNotThrow(() => process.kill(pid, 0),
+              'Unrelated source edits must not cancel a test listing');
+            const mainUri = vscode.Uri.file(path.join(testsRoot, 'src', 'main.srp'));
+            const mainDoc = await vscode.workspace.openTextDocument(mainUri);
+            const projectEdit = new vscode.WorkspaceEdit();
+            projectEdit.insert(mainUri, new vscode.Position(0, 0),
+              '// edited during discovery\n');
+            const cancelAt = Date.now();
+            assert.ok(await vscode.workspace.applyEdit(projectEdit));
+            assert.ok(await mainDoc.save());
+            await waitFor(() => {
+              try { process.kill(pid, 0); return undefined; }
+              catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ESRCH') { return true; }
+                throw error;
+              }
+            }, 'Editing a Scarp project source did not stop its discovery compiler');
+            assert.ok(Date.now() - cancelAt < 3000,
+              'Test discovery cancellation must not wait for the full CLI timeout');
+            await pendingList;
+
+            await fs.rm(discoveryPid, { force: true });
+            pendingList = Promise.resolve(vscode.commands.executeCommand(
+              'scarp.listProjectTests', vscode.Uri.file(testsRoot)));
+            await waitFor(() => fsSync.existsSync(discoveryPid) ? true : undefined,
+              'Second blocked listing never started after source-edit cancellation');
+            const switchedPid = Number(await fs.readFile(discoveryPid, 'utf8'));
+            await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+            await waitFor(() => {
+              try { process.kill(switchedPid, 0); return undefined; }
+              catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ESRCH') { return true; }
+                throw error;
+              }
+            }, 'Changing the configured compiler did not cancel test discovery');
+            await pendingList;
+          } finally {
+            await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+            if (pendingList) { await pendingList; }
+          }
+        }
+      }
+
+      // Alpha.9's resource quotas must flow through the actual Run command
+      // as separate argv elements, not a command-line string. Older compilers
+      // never receive these opt-in settings.
+      const compilerVersionString = (await promisify(execFile)(binary, ['--version'],
+        { timeout: 5000 })).stdout;
+      if (/0\.0\.6-alpha\.9\b/.test(compilerVersionString)) {
+        const quotaUri = vscode.Uri.file(path.join(projectParent, 'bigint quotas.srp'));
+        await fs.writeFile(quotaUri.fsPath,
+          'bind number: bigint = bigint("12345678901234567890");\nprint(number);\n');
+        const previousDigits = settings.inspect<number>('maxBigIntDigits')?.globalValue;
+        const previousBytes = settings.inspect<number>('maxBigIntBytes')?.globalValue;
+        try {
+          await settings.update('maxBigIntDigits', 64, vscode.ConfigurationTarget.Global);
+          await settings.update('maxBigIntBytes', 4096, vscode.ConfigurationTarget.Global);
+          const quotaOpened = new Promise<vscode.Terminal>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              listener.dispose();
+              reject(new Error('Alpha.9 BigInt quota Run did not open a terminal'));
+            }, 10000);
+            const listener = vscode.window.onDidOpenTerminal(terminal => {
+              if (terminal.name !== 'Scarp: bigint quotas.srp') { return; }
+              clearTimeout(timer);
+              listener.dispose();
+              resolve(terminal);
+            });
+          });
+          await vscode.commands.executeCommand('scarp.runFile', quotaUri);
+          const quotaTerminal = await quotaOpened;
+          assert.ok('shellArgs' in quotaTerminal.creationOptions);
+          const quotaArgs = quotaTerminal.creationOptions.shellArgs as string[];
+          assert.ok(['run', 'exec'].includes(quotaArgs[0]),
+            'BigInt quotas must only be forwarded to explicit Scarp execution');
+          // Other user-configured budgets may precede the BigInt flags.
+          // Verify the new pair without assuming an empty prior budget set.
+          const digitFlag = quotaArgs.indexOf('--max-bigint-digits');
+          assert.ok(digitFlag > 0, 'BigInt digit quota must be forwarded');
+          assert.deepEqual(quotaArgs.slice(digitFlag, digitFlag + 4),
+            ['--max-bigint-digits', '64', '--max-bigint-bytes', '4096']);
+          assert.equal(quotaArgs.filter(arg => arg === '--max-bigint-digits').length, 1);
+          assert.equal(quotaArgs.filter(arg => arg === '--max-bigint-bytes').length, 1);
+          assert.equal(quotaArgs[quotaArgs.length - 1], quotaUri.fsPath);
+          await vscode.commands.executeCommand('scarp.stopProgram');
+        } finally {
+          await settings.update('maxBigIntDigits', previousDigits,
+            vscode.ConfigurationTarget.Global);
+          await settings.update('maxBigIntBytes', previousBytes,
+            vscode.ConfigurationTarget.Global);
+        }
       }
 
       // Project Launch must not start a terminal for a snapshot that becomes

@@ -47,6 +47,7 @@ export async function run(): Promise<void> {
   const settings = vscode.workspace.getConfiguration('scarp');
   const previousCompiler = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
+  const previousStrict = settings.inspect<boolean>('requireNonemptyProjectTests')?.globalValue;
   const marker = path.join(root, 'compiler-invoked');
   const fakeCompiler = path.join(root, 'scarp-probe');
   await fs.writeFile(fakeCompiler, [
@@ -59,6 +60,8 @@ export async function run(): Promise<void> {
   try {
     await settings.update('compilerPath', fakeCompiler, vscode.ConfigurationTarget.Global);
     await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
+    await settings.update('requireNonemptyProjectTests', true,
+      vscode.ConfigurationTarget.Global);
     const initialTerminals = vscode.window.terminals.length;
 
     // Hover help must remain a pure editor operation in Restricted Mode.
@@ -104,16 +107,75 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static completions must never execute the configured compiler');
 
+    // Published alpha.9 BigInt editor hints are entirely static metadata,
+    // including in Restricted Mode; they must not probe the installed compiler.
+    const bigIntDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp',
+      content: 'bind number: bigint = bigint("12345678901234567890");'
+    });
+    const bigIntText = bigIntDoc.getText();
+    const bigIntAt = bigIntText.indexOf('bigint("') + 2;
+    const bigIntHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider', bigIntDoc.uri, bigIntDoc.positionAt(bigIntAt));
+    assert.ok(bigIntHovers?.length, 'Exact bigint builtin hover works without trust');
+    const bigIntMarkdown = (bigIntHovers ?? []).flatMap(item => item.contents)
+      .map(item => typeof item === 'string' ? item : item.value).join('\n');
+    assert.match(bigIntMarkdown, /v0\.0\.6-alpha\.9/);
+    assert.match(bigIntMarkdown, /bigint\(value: string\)/);
+
+    const bigIntSigDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind value = bigint_from_integer('
+    });
+    const bigIntSignature = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+      'vscode.executeSignatureHelpProvider', bigIntSigDoc.uri,
+      bigIntSigDoc.positionAt(bigIntSigDoc.getText().length), '(');
+    assert.ok(bigIntSignature?.signatures.some(item =>
+      item.label.startsWith('bigint_from_integer(')),
+    'Alpha.9 BigInt signature help needs no compiler');
+
+    const bigIntCompletionDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind value = bigint_fr'
+    });
+    const bigIntCompletion = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider', bigIntCompletionDoc.uri,
+      bigIntCompletionDoc.positionAt(bigIntCompletionDoc.getText().length));
+    assert.ok(bigIntCompletion?.items.some(item => item.label === 'bigint_from_integer'),
+      'Alpha.9 BigInt builtin completion must work in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'BigInt language help in Restricted Mode must never execute a configured compiler');
+
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
       'scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
+      'scarp.explainDiagnostic',
       'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject', 'scarp.launchProject',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
-      'scarp.testProject', 'scarp.listProjectTests'
+      'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests',
+      'scarp.listFilteredProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
     }
+
+    // The diagnostic explainer must be unusable in Restricted Mode even
+    // when another extension invokes it with a syntactically valid code.
+    await vscode.commands.executeCommand('scarp.explainDiagnostic', 'E0004');
+    const explainActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      'vscode.executeCodeActionProvider', sourceUri, new vscode.Range(0, 0, 0, 5),
+      vscode.CodeActionKind.QuickFix.value);
+    assert.ok(!(explainActions ?? []).some(action =>
+      action.command?.command === 'scarp.explainDiagnostic'),
+    'Compiler-backed explanations must be absent in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'Explaining a diagnostic in Restricted Mode must not start a compiler');
+
+    // Supplying an explicit filter cannot bypass the workspace-trust check
+    // and must not open a test terminal or invoke the configured compiler.
+    await vscode.commands.executeCommand('scarp.testProjectFiltered', sourceUri, 'addition');
+    await vscode.commands.executeCommand('scarp.listFilteredProjectTests',
+      sourceUri, 'addition');
+    assert.equal(fsSync.existsSync(marker), false,
+      'A filtered test command must never start a compiler in Restricted Mode');
 
     const edit = new vscode.WorkspaceEdit();
     edit.insert(sourceUri, new vscode.Position(0, 0), '// untrusted workspace edit\n');
@@ -135,6 +197,8 @@ export async function run(): Promise<void> {
 
     console.log('Scarp Restricted Mode Extension Host integration checks passed');
   } finally {
+    await settings.update('requireNonemptyProjectTests', previousStrict,
+      vscode.ConfigurationTarget.Global);
     await settings.update('verifyOnSave', previousVerifyOnSave,
       vscode.ConfigurationTarget.Global);
     await settings.update('compilerPath', previousCompiler,

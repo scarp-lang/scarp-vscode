@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 18);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 22);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -62,4 +62,19 @@ test('completion ranges are UTF-16 correct and bounded', () => {
   }
   assert.equal(scarpBuiltinCompletionAt('x'.repeat(16385) + 'top', 16388), undefined);
   assert.equal(scarpBuiltinCompletionAt('top', 0), undefined);
+});
+
+test('alpha.9 exact bigint builtins are explicit, versioned, and safely completed', () => {
+  assert.deepEqual(
+    scarpBuiltinCompletionAt('bind exact = bigint_', 'bind exact = bigint_'.length)
+      ?.matches.map(x => x.name).sort(),
+    ['bigint_abs', 'bigint_from_integer', 'bigint_to_integer']
+  );
+  for (const name of ['bigint', 'bigint_abs', 'bigint_from_integer', 'bigint_to_integer']) {
+    const hint = scarpBuiltinCompletionAt(name, name.length);
+    assert.ok(hint?.matches.some(x => x.name === name &&
+      x.introduced === 'v0.0.6-alpha.9'), name);
+  }
+  assert.equal(scarpBuiltinCompletionAt('module.bigint_', 14), undefined,
+    'Member access never offers builtin completion');
 });

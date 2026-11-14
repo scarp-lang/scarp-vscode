@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawn } from 'node:child_process';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+import { withHostDownloadRetry } from './downloadRetry';
 
 async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
@@ -14,7 +15,10 @@ async function main(): Promise<void> {
   try {
     await fs.mkdir(workspace);
     await fs.writeFile(path.join(workspace, 'main.srp'), 'pub bind answer = 42;\n');
-    const vscodeExecutable = await downloadAndUnzipVSCode('1.96.0');
+    const vscodeExecutable = await withHostDownloadRetry(
+      () => downloadAndUnzipVSCode('1.96.0'),
+      attempt => console.warn(`Retrying VS Code test host download (attempt ${attempt}/3).`)
+    );
 
     // @vscode/test-electron's runTests ALWAYS injects
     // --disable-workspace-trust. Use its official downloader but launch VS Code

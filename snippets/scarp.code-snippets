@@ -137,5 +137,15 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.7+: select a typed value using an if/else expression (interpreter only)."
+  },
+  "Scarp: Exact signed bigint (alpha.9)": {
+    "prefix": "sbigint",
+    "body": [
+      "bind ${1:exact}: bigint = bigint(\"${2:12345678901234567890}\");",
+      "bind ${3:incremented} = ${1} + bigint_from_integer(${4:1});",
+      "print(${3});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.9+: construct an exact signed bigint and add an explicit integer conversion (interpreter only)."
   }
 }

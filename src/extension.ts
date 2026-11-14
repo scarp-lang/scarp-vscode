@@ -4,11 +4,12 @@ import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
 import { compilerVersion, executeProcess, preferredExecutionVerb } from './cli';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
+import { diagnosticExplanationArgs, explainableDiagnosticCode } from './diagnosticExplanation';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
-import { hasProjectWorkflow, projectArgv, validProjectName } from './projectWorkflow';
+import { hasProjectWorkflow, projectArgv, projectTestListArgv, validProjectName, validProjectTestFilter } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { findProjectManifest, isProjectManifestName } from './projectManifest';
 import {
@@ -52,6 +53,9 @@ const activeProjectChecks = new Set<string>();
 // Cancellation is per explicit project root: a changed module cannot stop
 // unrelated project checks, file checks or user-run Scarp terminals.
 const activeProjectCheckAborts = new Map<string, AbortController>();
+// Read-only test discovery is one cancellable compiler inspection per
+// explicit project root. Never leave an obsolete CLI running after an edit.
+const activeTestDiscoveryAborts = new Map<string, AbortController>();
 const config = () => vscode.workspace.getConfiguration('scarp');
 
 function budgets(): string[] {
@@ -102,6 +106,44 @@ async function validateCompiler(signal?: AbortSignal): Promise<{ binary: string;
   if (!version) { throw new Error('Invalid Scarp --version response from ' + binary); }
   return { binary, version };
 }
+/**
+ * Display published compiler catalogue guidance only after an explicit user
+ * action. No Scarp source file is read, verified or executed by explain.
+ */
+async function explainDiagnostic(code: unknown, output: vscode.OutputChannel): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before invoking the Scarp compiler.');
+  }
+  let requested = code;
+  if (requested === undefined) {
+    requested = await vscode.window.showInputBox({
+      prompt: 'Enter a Scarp compiler diagnostic code',
+      placeHolder: 'E0004',
+      validateInput: value => explainableDiagnosticCode(value)
+        ? undefined : 'Use an uppercase diagnostic code such as E0004.'
+    });
+  }
+  if (requested === undefined) { return; } // User cancelled the input prompt.
+  const args = diagnosticExplanationArgs(requested);
+  const revision = compilerRevision;
+  const { binary, version } = await validateCompiler();
+  if (revision !== compilerRevision || !vscode.workspace.isTrusted) { return; }
+  const result = await executeProcess(binary, args, {
+    timeoutMs: 5000, maxOutputBytes: 32768
+  });
+  if (revision !== compilerRevision || !vscode.workspace.isTrusted) { return; }
+  if (result.exitCode !== 0) {
+    output.appendLine('Scarp ' + version + ' has no available explanation for ' + args[1] + '.');
+    if (result.stderr) { output.append(result.stderr); }
+    output.show(true);
+    throw new Error('Scarp diagnostic explanation unavailable for ' + args[1] +
+      ' (exit ' + String(result.exitCode) + ').');
+  }
+  output.appendLine('Scarp ' + version + ' — explanation for ' + args[1]);
+  if (result.stdout) { output.append(result.stdout); }
+  output.show(true);
+}
+
 /**
  * Probe a compiler capability instead of guessing from its version string.
  * Alpha.3 introduces a non-executing verify route. Older releases use check,
@@ -559,81 +601,160 @@ async function browseProjectModules(
 
 /** Read-only compiler-provided test discovery, never test execution or implicit search. */
 async function listProjectTests(explicit: vscode.Uri | undefined,
-  output: vscode.OutputChannel): Promise<void> {
+  output: vscode.OutputChannel, filter?: string): Promise<void> {
+  if (filter !== undefined && !validProjectTestFilter(filter)) {
+    throw new Error('Invalid Scarp project test filename filter.');
+  }
   const project = await projectDirectory(explicit);
   if (!project) { return; }
   const root = project.directory.fsPath;
   const revision = compilerRevision;
-  const fresh = (): boolean => vscode.workspace.isTrusted && revision === compilerRevision &&
+  if (activeTestDiscoveryAborts.has(root)) {
+    throw new Error('Scarp is already listing tests for this project.');
+  }
+  const controller = new AbortController();
+  activeTestDiscoveryAborts.set(root, controller);
+  // Edits are detected immediately, including an edit quickly followed by
+  // Save. On-disk rewrites from outside VS Code remain covered by snapshots.
+  const sourceChanges = vscode.workspace.onDidChangeTextDocument(event => {
+    const filename = event.document.uri.fsPath;
+    if (event.contentChanges.length && event.document.uri.scheme === 'file' &&
+        isWithinProject(root, filename) &&
+        (path.extname(filename).toLowerCase() === '.srp' ||
+          isProjectManifestName(path.basename(filename)))) {
+      controller.abort();
+    }
+  });
+  const fresh = (): boolean => !controller.signal.aborted &&
+    vscode.workspace.isTrusted && revision === compilerRevision &&
     !unsavedProjectInput(root);
 
-  if (!fresh()) {
-    throw new Error('Save open Scarp project files before listing tests.');
-  }
-  const before = await snapshotProjectDisk(root);
-  const { binary, version } = await validateProjectCompiler();
-  if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
-  const guide = await executeProcess(binary, ['guide', 'test'], {
-    timeoutMs: 5000, maxOutputBytes: 32768
-  });
-  if (guide.exitCode !== 0 || !/^Usage:\s*scarp test\b/m.test(guide.stdout)) {
-    throw new Error('Listing tests requires Scarp v0.0.6-alpha.8+ with guide test support.');
-  }
-  if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
-  const result = await executeProcess(binary,
-    ['test', '--json', '--list', '--', root], {
-      cwd: root, timeoutMs: config().get<number>('checkTimeoutMs', 30000),
-      maxOutputBytes: 1024 * 1024
+  try {
+    if (!fresh()) {
+      throw new Error('Save open Scarp project files before listing tests.');
+    }
+    const before = await snapshotProjectDisk(root);
+    const { binary, version } = await validateProjectCompiler(controller.signal);
+    if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
+    const guide = await executeProcess(binary, ['guide', 'test'], {
+      timeoutMs: 5000, maxOutputBytes: 32768, signal: controller.signal
     });
-  if (result.exitCode !== 0) {
-    output.appendLine('Scarp ' + version + ' — test discovery failed for ' + root);
-    if (result.stderr) { output.append(result.stderr); }
-    output.show(true);
-    throw new Error('The Scarp compiler could not list tests. See Scarp Output.');
-  }
-  const after = await snapshotProjectDisk(root);
-  if (!fresh() || !sameProjectDisk(before, after)) {
-    throw new Error('Scarp project changed during test discovery. Save files and retry.');
-  }
-  const paths = parseListedProjectTests(result.stdout);
-  if (!paths.length) {
-    void vscode.window.showInformationMessage('No Scarp tests found under tests/*.srp.');
-    return;
-  }
-  const selected = await vscode.window.showQuickPick(paths.map(filename => ({
-    label: filename, filename: path.join(root, filename)
-  })), {
-    title: 'Scarp: List Project Tests (read-only)',
-    placeHolder: 'Choose a discovered test source to open; no test code is executed'
-  });
-  if (!selected) { return; }
-  if (!fresh() || !sameProjectDisk(after, await snapshotProjectDisk(root))) {
-    throw new Error('Scarp project changed while selecting a test. Retry discovery.');
-  }
+    if (guide.exitCode !== 0 || !/^Usage:\s*scarp test\b/m.test(guide.stdout)) {
+      throw new Error('Listing tests requires Scarp v0.0.6-alpha.8+ with guide test support.');
+    }
+    if (!fresh()) { throw new Error('Project or compiler changed during test discovery. Retry.'); }
+    const result = await executeProcess(binary,
+      projectTestListArgv(root, filter), {
+        cwd: root, timeoutMs: config().get<number>('checkTimeoutMs', 30000),
+        maxOutputBytes: 1024 * 1024, signal: controller.signal
+      });
+    if (result.exitCode !== 0) {
+      output.appendLine('Scarp ' + version + ' — test discovery failed for ' + root);
+      if (result.stderr) { output.append(result.stderr); }
+      output.show(true);
+      throw new Error('The Scarp compiler could not list tests. See Scarp Output.');
+    }
+    const after = await snapshotProjectDisk(root);
+    if (!fresh() || !sameProjectDisk(before, after)) {
+      throw new Error('Scarp project changed during test discovery. Save files and retry.');
+    }
+    const paths = parseListedProjectTests(result.stdout);
+    if (!paths.length) {
+      void vscode.window.showInformationMessage(filter === undefined
+        ? 'No Scarp tests found under tests/*.srp.'
+        : 'No Scarp tests match this filename filter.');
+      return;
+    }
+    const selected = await vscode.window.showQuickPick(paths.map(filename => ({
+      label: filename, filename: path.join(root, filename)
+    })), {
+      title: filter === undefined
+        ? 'Scarp: List Project Tests (read-only)'
+        : 'Scarp: List Filtered Project Tests (read-only)',
+      placeHolder: 'Choose a discovered test source to open; no test code is executed'
+    });
+    if (!selected) { return; }
+    if (!fresh() || !sameProjectDisk(after, await snapshotProjectDisk(root))) {
+      throw new Error('Scarp project changed while selecting a test. Retry discovery.');
+    }
 
-  // The CLI path is merely a label until independently checked on disk.
-  // Reject symlinks and escapes even if a malformed/custom compiler lists them.
-  const stat = await fs.lstat(selected.filename);
-  const canonicalRoot = await fs.realpath(root);
-  const canonicalFile = await fs.realpath(selected.filename);
-  if (!stat.isFile() || !isWithinProject(canonicalRoot, canonicalFile) ||
-      path.dirname(path.relative(canonicalRoot, canonicalFile)) !== 'tests') {
-    throw new Error('Listed Scarp test is not an ordinary file inside the project tests directory.');
+    // The CLI path is merely a label until independently checked on disk.
+    // Reject symlinks and escapes even if a malformed/custom compiler lists them.
+    const stat = await fs.lstat(selected.filename);
+    const canonicalRoot = await fs.realpath(root);
+    const canonicalFile = await fs.realpath(selected.filename);
+    if (!stat.isFile() || !isWithinProject(canonicalRoot, canonicalFile) ||
+        path.dirname(path.relative(canonicalRoot, canonicalFile)) !== 'tests') {
+      throw new Error('Listed Scarp test is not an ordinary file inside the project tests directory.');
+    }
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(canonicalFile));
+    if (doc.isDirty || !Buffer.from(doc.getText(), 'utf8')
+      .equals(await fs.readFile(canonicalFile))) {
+      throw new Error('Listed Scarp test no longer matches the saved compiler snapshot.');
+    }
+    if (!fresh() || !sameProjectDisk(after, await snapshotProjectDisk(root))) {
+      throw new Error('Scarp project changed before opening the listed test. Retry discovery.');
+    }
+    await vscode.window.showTextDocument(doc, { preview: true });
+    output.appendLine('Scarp ' + version + ' — opened discovered test ' + canonicalFile);
+  } catch (error) {
+    if (!controller.signal.aborted) { throw error; }
+  } finally {
+    sourceChanges.dispose();
+    if (activeTestDiscoveryAborts.get(root) === controller) {
+      activeTestDiscoveryAborts.delete(root);
+    }
+    if (controller.signal.aborted) {
+      output.appendLine('Scarp test discovery cancelled after a source or compiler change.');
+    }
   }
-  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(canonicalFile));
-  if (doc.isDirty || !Buffer.from(doc.getText(), 'utf8')
-    .equals(await fs.readFile(canonicalFile))) {
-    throw new Error('Listed Scarp test no longer matches the saved compiler snapshot.');
+}
+
+/** A literal filename substring shared by explicit Run and read-only List. */
+async function resolveProjectTestFilter(
+  title: string, suppliedFilter?: unknown
+): Promise<string | undefined> {
+  const filter = suppliedFilter === undefined
+    ? await vscode.window.showInputBox({
+      title,
+      prompt: 'Enter a literal, case-sensitive filename substring (not a glob or regex).',
+      placeHolder: 'addition',
+      validateInput: value => validProjectTestFilter(value)
+        ? undefined : 'Use 1–128 UTF-8 bytes without leading -, path separators, colons or controls.'
+    })
+    : suppliedFilter;
+  if (filter === undefined) { return undefined; } // User cancelled.
+  if (!validProjectTestFilter(filter)) {
+    throw new Error('Invalid Scarp project test filename filter.');
   }
-  if (!fresh() || !sameProjectDisk(after, await snapshotProjectDisk(root))) {
-    throw new Error('Scarp project changed before opening the listed test. Retry discovery.');
+  return filter;
+}
+
+/** Explicit filename-substring selection: never triggers execution automatically. */
+async function runFilteredProjectTests(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel, suppliedFilter?: unknown
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before running Scarp project tests.');
   }
-  await vscode.window.showTextDocument(doc, { preview: true });
-  output.appendLine('Scarp ' + version + ' — opened discovered test ' + canonicalFile);
+  const filter = await resolveProjectTestFilter('Scarp: Run Filtered Project Tests', suppliedFilter);
+  if (filter !== undefined) { await launchProject(explicit, output, 'test', filter); }
+}
+
+/** A filtered read-only discovery still uses the official compiler's --list path. */
+async function listFilteredProjectTests(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel, suppliedFilter?: unknown
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before listing Scarp project tests.');
+  }
+  const filter = await resolveProjectTestFilter('Scarp: List Filtered Project Tests', suppliedFilter);
+  if (filter !== undefined) { await listProjectTests(explicit, output, filter); }
 }
 
 async function launchProject(explicit: vscode.Uri | undefined,
-  output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch'): Promise<void> {
+  output: vscode.OutputChannel, mode: 'launch' | 'test' = 'launch',
+  testFilter?: string): Promise<void> {
   // Stop can be pressed while the workspace folder picker is still open.
   const generation = stopGeneration;
   const revision = compilerRevision;
@@ -683,15 +804,26 @@ async function launchProject(explicit: vscode.Uri | undefined,
         'obsolete terminal startup cancelled. Save sources and retry.');
       return;
     }
+    // Read this resource setting only at launch. Modifying it while a test
+    // terminal is running does not silently restart or alter the process.
+    // The separately installed compiler is authoritative for the guard.
+    const requireNonemptyTests = mode === 'test' &&
+      vscode.workspace.getConfiguration('scarp', project.directory)
+        .get<boolean>('requireNonemptyProjectTests', false);
     const terminal = vscode.window.createTerminal({
-      name: (mode === 'test' ? 'Scarp Tests: ' : 'Scarp Project: ') + path.basename(key),
+      name: (mode === 'test'
+        ? (testFilter === undefined ? 'Scarp Tests: ' : 'Scarp Tests (filtered): ')
+        : 'Scarp Project: ') + path.basename(key),
       shellPath: binary,
-      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : []),
+      shellArgs: projectArgv(mode, key, mode === 'launch' ? budgets() : [],
+        testFilter, requireNonemptyTests),
       cwd: key
     });
     running.set(key, terminal);
     output.appendLine('Scarp ' + version + ' — ' + (mode === 'test' ? 'test' : 'launch') +
-      ' project ' + key);
+      ' project ' + key + (testFilter === undefined ? '' :
+        ' (literal filename filter: ' + testFilter + ')') +
+      (requireNonemptyTests ? ' (requires at least one selected test)' : ''));
     terminal.show();
   } catch (error) {
     // Stop, edits, and compiler switches are cancellations, not late errors.
@@ -1048,8 +1180,39 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
   );
+  // Quick Fix entries explain diagnostics; they never apply edits or invoke
+  // a compiler until the user selects the action. Restricted Mode stays inert.
+  const explainActions = vscode.languages.registerCodeActionsProvider(
+    { language: 'scarp', scheme: 'file' },
+    {
+      provideCodeActions(document, _range, context, token): vscode.CodeAction[] {
+        if (!vscode.workspace.isTrusted || token.isCancellationRequested ||
+            path.extname(document.uri.fsPath).toLowerCase() !== '.srp') { return []; }
+        const codes = new Set<string>();
+        const actions: vscode.CodeAction[] = [];
+        for (const diagnostic of context.diagnostics) {
+          if (diagnostic.source !== 'Scarp') { continue; }
+          const code = explainableDiagnosticCode(diagnostic.code);
+          if (!code || codes.has(code)) { continue; }
+          codes.add(code);
+          const action = new vscode.CodeAction('Explain Scarp ' + code,
+            vscode.CodeActionKind.QuickFix);
+          action.diagnostics = [diagnostic];
+          action.command = {
+            command: 'scarp.explainDiagnostic',
+            title: 'Explain Scarp ' + code,
+            arguments: [code]
+          };
+          actions.push(action);
+          if (actions.length >= 16) { break; }
+        }
+        return actions;
+      }
+    }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+  );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
-    builtinHover, builtinSignatures, builtinCompletions, registerFileActionCodeLens(), projectMonitors,
+    builtinHover, builtinSignatures, builtinCompletions, explainActions,
+    registerFileActionCodeLens(), projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
@@ -1103,6 +1266,9 @@ export function activate(context: vscode.ExtensionContext): void {
         for (const controller of activeProjectCheckAborts.values()) {
           controller.abort();
         }
+        for (const controller of activeTestDiscoveryAborts.values()) {
+          controller.abort();
+        }
         for (const pending of pendingStarts.values()) { pending.cancelled = true; }
         output.appendLine('Scarp compiler changed; in-flight results and pending launches invalidated.');
       }
@@ -1147,12 +1313,20 @@ export function activate(context: vscode.ExtensionContext): void {
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
     vscode.commands.registerCommand('scarp.testProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output, 'test'))),
+    vscode.commands.registerCommand('scarp.testProjectFiltered',
+      (uri?: vscode.Uri, filter?: unknown): Promise<void> =>
+        safe(async () => runFilteredProjectTests(uri, output, filter))),
     vscode.commands.registerCommand('scarp.listProjectTests',
       (uri?: vscode.Uri): Promise<void> => safe(async () => listProjectTests(uri, output))),
+    vscode.commands.registerCommand('scarp.listFilteredProjectTests',
+      (uri?: vscode.Uri, filter?: unknown): Promise<void> =>
+        safe(async () => listFilteredProjectTests(uri, output, filter))),
     vscode.commands.registerCommand('scarp.runFile', (uri?: vscode.Uri) =>
       safe(async () => run(await selectedOrExplicitFile(uri), output))),
     vscode.commands.registerCommand('scarp.checkFile', (uri?: vscode.Uri): Promise<void> =>
       safe(async () => check(await selectedOrExplicitFile(uri), output, diagnostics, owners))),
+    vscode.commands.registerCommand('scarp.explainDiagnostic', (code?: unknown): Promise<void> =>
+      safe(async () => explainDiagnostic(code, output))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
       if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before invoking the compiler.'); }
       const { binary, version } = await validateCompiler();
@@ -1168,6 +1342,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 export function deactivate(): void {
+  for (const controller of activeTestDiscoveryAborts.values()) { controller.abort(); }
   for (const terminal of running.values()) { terminal.dispose(); }
   running.clear();
 }

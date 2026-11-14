@@ -9,11 +9,11 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 14 bounded Scarp snippets with unique prefixes', () => {
+test('registers 15 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets,
     [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
-  assert.equal(Object.keys(snippets).length, 14);
+  assert.equal(Object.keys(snippets).length, 15);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -36,6 +36,9 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     if (name.includes('(alpha.7)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.7\+/);
     }
+    if (name.includes('(alpha.9)')) {
+      assert.match(snippet.description, /v0\.0\.6-alpha\.9\+/);
+    }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
     /no interactive prompt/);
@@ -54,4 +57,16 @@ test('alpha.7 conditional-value snippet uses an interpreter expression with a fi
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /verify-snippets\.cjs.*scarp" 6/);
   assert.match(ci, /verify-snippets\.cjs.*scarp" 7/);
+});
+
+test('alpha.9 BigInt starter uses explicit decimal and integer conversions', () => {
+  const snippet = snippets['Scarp: Exact signed bigint (alpha.9)'];
+  assert.equal(snippet.prefix, 'sbigint');
+  const body = snippet.body.join('\n');
+  assert.ok(body.includes(': bigint = bigint("'));
+  assert.ok(body.includes('bigint_from_integer('));
+  assert.ok(body.includes('print(${3});'));
+  assert.match(snippet.description, /interpreter only/);
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 9/);
 });

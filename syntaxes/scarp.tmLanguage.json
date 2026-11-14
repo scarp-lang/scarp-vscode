@@ -126,6 +126,10 @@
         },
         {
           "name": "support.type.scarp",
+          "match": "\\bbigint\\b(?!\\s*\\()"
+        },
+        {
+          "name": "support.type.scarp",
           "match": "\\b(?:integer|float|boolean|string|unit|vector|tile)\\b"
         }
       ]
@@ -142,7 +146,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.scarp",
-          "match": "\\b(?:print|println|write|eprint|ewrite|topk|topk_values|softmax_temp|logsoftmax_temp|sample_area|sample_slopes|sample_cumulative_area|cosine_similarity|top_p|top_p_values|pearson_correlation|read_line|integer_to_text|float_to_text|text_to_integer|text_to_float|text_trim|text_replace)\\b(?=\\s*\\()"
+          "match": "\\b(?:print|println|write|eprint|ewrite|topk|topk_values|softmax_temp|logsoftmax_temp|sample_area|sample_slopes|sample_cumulative_area|cosine_similarity|top_p|top_p_values|pearson_correlation|read_line|integer_to_text|float_to_text|text_to_integer|text_to_float|text_trim|text_replace|bigint|bigint_from_integer|bigint_to_integer|bigint_abs)\\b(?=\\s*\\()"
         }
       ]
     },

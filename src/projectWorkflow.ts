@@ -32,12 +32,40 @@ export function validProjectName(name: string): boolean {
     !/[\\/:\x00-\x1F\x7F]/.test(name);
 }
 
+/** Published alpha.8's --filter matches a literal test filename substring. */
+export function validProjectTestFilter(value: unknown): value is string {
+  return typeof value === 'string' &&
+    Buffer.byteLength(value, 'utf8') >= 1 &&
+    Buffer.byteLength(value, 'utf8') <= 128 &&
+    !value.startsWith('-') &&
+    !/[\\/:\x00-\x1F\x7F]/.test(value);
+}
+
+/** Build only alpha.8 read-only discovery argv. Never execute test programs. */
+export function projectTestListArgv(directory: string, filter?: string): string[] {
+  if (!directory) { throw new Error('Project directory is required.'); }
+  if (filter !== undefined && !validProjectTestFilter(filter)) {
+    throw new Error('Invalid Scarp project test filename filter.');
+  }
+  return ['test', '--json', '--list',
+    ...(filter === undefined ? [] : ['--filter', filter]), '--', directory];
+}
+
 export function projectArgv(
   command: 'verify' | 'launch' | 'create' | 'init' | 'test',
   directory: string,
-  budgets: readonly string[] = []
+  budgets: readonly string[] = [],
+  testFilter?: string,
+  requireNonemptyTests = false
 ): string[] {
   if (!directory) { throw new Error('Project directory is required.'); }
+  if (testFilter !== undefined && command !== 'test') {
+    throw new Error('Only project test runs accept a test filename filter.');
+  }
+  if (typeof requireNonemptyTests !== 'boolean' ||
+      (requireNonemptyTests && command !== 'test')) {
+    throw new Error('Only project test runs accept the nonempty-suite guard.');
+  }
   if (command === 'verify') {
     if (budgets.length) { throw new Error('Static project verification rejects execution budgets.'); }
     return ['verify', '--diagnostic-format=json', '--', directory];
@@ -48,7 +76,12 @@ export function projectArgv(
   }
   if (command === 'test') {
     if (budgets.length) { throw new Error('Project test runs reject execution budgets.'); }
-    return ['test', '--', directory];
+    if (testFilter !== undefined && !validProjectTestFilter(testFilter)) {
+      throw new Error('Invalid Scarp project test filename filter.');
+    }
+    return ['test', ...(requireNonemptyTests ? ['--require-tests'] : []),
+      ...(testFilter === undefined ? [] : ['--filter', testFilter]),
+      '--', directory];
   }
   return ['launch', ...budgets, '--', directory];
 }
