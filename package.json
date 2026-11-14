@@ -45,7 +45,9 @@
     "onCommand:scarp.testProjectFiltered",
     "onCommand:scarp.listProjectTests",
     "onCommand:scarp.listFilteredProjectTests",
-    "onCommand:scarp.initProject"
+    "onCommand:scarp.initProject",
+    "onCommand:scarp.runFileInteractive",
+    "onCommand:scarp.launchProjectInteractive"
   ],
   "contributes": {
     "languages": [
@@ -145,6 +147,16 @@
         "command": "scarp.initProject",
         "title": "Scarp: Initialize Modern Project",
         "category": "Scarp"
+      },
+      {
+        "command": "scarp.runFileInteractive",
+        "title": "Scarp: Run Current File Interactively",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.launchProjectInteractive",
+        "title": "Scarp: Launch Project Interactively",
+        "category": "Scarp"
       }
     ],
     "menus": {
@@ -219,6 +231,14 @@
         },
         {
           "command": "scarp.initProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.runFileInteractive",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.launchProjectInteractive",
           "when": "isWorkspaceTrusted"
         }
       ]

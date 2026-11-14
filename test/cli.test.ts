@@ -3,7 +3,8 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { executeProcess, compilerVersion, preferredExecutionVerb } from '../src/cli';
+import { executeProcess, compilerVersion, preferredExecutionVerb,
+  interactiveExecutionAdvertised, supportsInteractiveExecution } from '../src/cli';
 
 test('parses actual compiler version format', () => {
   assert.equal(compilerVersion('scarp 0.0.5-alpha.2\n'), '0.0.5-alpha.2');
@@ -152,4 +153,18 @@ test('decodes Unicode correctly across split stdout/stderr UTF-8 chunks', async 
 
 test('falls back to legacy run when Scarp-first guide is missing', async () => {
   assert.equal(await preferredExecutionVerb(process.execPath), 'run');
+});
+
+test('interactive execution requires an advertised compiler flag, not just a version', async () => {
+  assert.equal(interactiveExecutionAdvertised(
+    'Usage: scarp exec [budget options] [--] <file.srp>\n--interactive enables prompts.\n',
+    'exec'), true);
+  assert.equal(interactiveExecutionAdvertised('Usage: scarp exec FILE\n', 'exec'), false);
+  assert.equal(interactiveExecutionAdvertised('Usage: scarp check FILE\n--interactive', 'exec'), false);
+  assert.equal(interactiveExecutionAdvertised('Usage: scarp launch PROJECT\n--interactive',
+    'exec'), false);
+  assert.equal(interactiveExecutionAdvertised('Usage: scarp launch PROJECT\n--interactive',
+    'launch'), true);
+  assert.equal(await supportsInteractiveExecution(process.execPath, 'exec'), false,
+    'An unrelated executable must never receive an interactive compiler flag');
 });

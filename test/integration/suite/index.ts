@@ -38,7 +38,8 @@ export async function run(): Promise<void> {
     'scarp.stopProgram', 'scarp.showOutput', 'scarp.explainDiagnostic',
     'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
-    'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.testProject',
+    'scarp.browseProjectSymbols', 'scarp.launchProject',
+    'scarp.runFileInteractive', 'scarp.launchProjectInteractive', 'scarp.testProject',
     'scarp.testProjectFiltered', 'scarp.listProjectTests',
     'scarp.listFilteredProjectTests']) {
     assert.ok(commands.includes(name), 'Missing command: ' + name);
@@ -838,6 +839,59 @@ export async function run(): Promise<void> {
           await settings.update('maxBigIntBytes', previousBytes,
             vscode.ConfigurationTarget.Global);
         }
+      }
+
+      // Alpha.10 adds a separately selected interactive path; normal Run
+      // remains unchanged and older compilers must never see the flag.
+      if (/0\\.0\\.6-alpha\\.10\\b/.test(compilerVersionString)) {
+        const alpha10File = vscode.Uri.file(path.join(projectParent, 'alpha10 input.srp'));
+        await fs.writeFile(alpha10File.fsPath, 'print("ready");\\n');
+        const oldArrayLimit = settings.inspect<number>('maxArrayBytes')?.globalValue;
+        try {
+          await settings.update('maxArrayBytes', 4096, vscode.ConfigurationTarget.Global);
+          const opened = new Promise<vscode.Terminal>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              observer.dispose();
+              reject(new Error('Interactive Scarp file terminal did not open'));
+            }, 10000);
+            const observer = vscode.window.onDidOpenTerminal(terminal => {
+              if (terminal.name !== 'Scarp: alpha10 input.srp') { return; }
+              clearTimeout(timer);
+              observer.dispose();
+              resolve(terminal);
+            });
+          });
+          await vscode.commands.executeCommand('scarp.runFileInteractive', alpha10File);
+          const terminal = await opened;
+          assert.ok('shellArgs' in terminal.creationOptions);
+          assert.deepEqual(terminal.creationOptions.shellArgs,
+            ['exec', '--interactive', '--max-array-bytes', '4096', '--', alpha10File.fsPath]);
+          await vscode.commands.executeCommand('scarp.stopProgram');
+        } finally {
+          await settings.update('maxArrayBytes', oldArrayLimit,
+            vscode.ConfigurationTarget.Global);
+        }
+        const interactiveProject = path.join(projectParent, 'alpha10 project');
+        await promisify(execFile)(binary, ['init', '--', interactiveProject], { timeout: 10000 });
+        const openedProject = new Promise<vscode.Terminal>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            observer.dispose();
+            reject(new Error('Interactive Scarp project terminal did not open'));
+          }, 10000);
+          const observer = vscode.window.onDidOpenTerminal(terminal => {
+            if (terminal.name !== 'Scarp Project: alpha10 project') { return; }
+            clearTimeout(timer);
+            observer.dispose();
+            resolve(terminal);
+          });
+        });
+        await vscode.commands.executeCommand('scarp.launchProjectInteractive',
+          vscode.Uri.file(interactiveProject));
+        const projectTerminal = await openedProject;
+        assert.ok('shellArgs' in projectTerminal.creationOptions);
+        assert.deepEqual(projectTerminal.creationOptions.shellArgs,
+          ['launch', '--interactive', '--', interactiveProject]);
+        await vscode.commands.executeCommand('scarp.stopProgram');
       }
 
       // Project Launch must not start a terminal for a snapshot that becomes

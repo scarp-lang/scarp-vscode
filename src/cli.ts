@@ -136,3 +136,23 @@ export async function preferredExecutionVerb(
   } catch { /* Legacy compilers may not have `guide`; keep the old route. */ }
   return 'run';
 }
+
+/** Inspect the actual installed compiler rather than guessing from a pre-release number. */
+export function interactiveExecutionAdvertised(help: string, verb: 'exec' | 'run' | 'launch'): boolean {
+  return new RegExp('^Usage:\\s*scarp ' + verb + '\\b', 'm').test(help) &&
+    /--interactive\b/.test(help);
+}
+
+/** Opt-in interactive execution is not forwarded to historical compilers. */
+export async function supportsInteractiveExecution(
+  executable: string, verb: 'exec' | 'run' | 'launch', signal?: AbortSignal
+): Promise<boolean> {
+  try {
+    const help = await executeProcess(executable, ['guide', verb], {
+      timeoutMs: 5000, maxOutputBytes: 32768, signal
+    });
+    return help.exitCode === 0 && interactiveExecutionAdvertised(help.stdout, verb);
+  } catch {
+    return false;
+  }
+}
