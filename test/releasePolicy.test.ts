@@ -240,12 +240,16 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
   const ci = repoFile('.github/workflows/ci.yml');
   const publish = repoFile('.github/workflows/prerelease.yml');
   // Preserve original protected-branch check names for alpha.1 compatibility.
-  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.1/g) ?? []).length, 2);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.1(?!\d)/g) ?? []).length, 2);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.2/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.3/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.4/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.5/g) ?? []).length, 1);
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.6/g) ?? []).length, 1);
+  // Alpha.10 must not be counted as alpha.1: match complete tag components.
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.10\b/g) ?? []).length, 1);
+  assert.match(ci, /44fcd0f77ccb92648cdb1fc7632495c506c87cb3/);
+  assert.match(ci, /compiler-alpha10-interactive:/);
   assert.equal((publish.match(/ref: v0\.0\.6-alpha\.7/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12]/);
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
