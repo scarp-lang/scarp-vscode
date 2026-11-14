@@ -115,7 +115,7 @@ Unspecified limits use compiler defaults.
 ## Limitations
 
 - The Scarp language is still alpha and can change. Compatibility must be verified against the real compiler.
-- Scarp alpha.6 `read_line()` consumes explicitly redirected/piped UTF-8 input. **A connected integrated terminal does not currently support interactive Scarp input** and reports E0054 for a selected read. This extension does not emulate an input prompt; use a compatible redirected CLI invocation for input programs. Unselected reads do not fail.
+- For Scarp alpha.6–alpha.9, `read_line()` consumes redirected/piped UTF-8 input; a connected integrated terminal reports E0054 for a selected read. Published alpha.10+ adds explicit terminal input when you choose **Scarp: Run Current File Interactively** or **Scarp: Launch Project Interactively**. The installed compiler's `--interactive` option (not an extension-emulated prompt) handles `read_line`, `input(prompt)` and related calls. Ordinary Run remains noninteractive; `--input-file` is also available in alpha.10+ through a separate CLI invocation. Unselected reads do not fail.
 - With older compilers, the legacy `check` command can evaluate reachable code; the newer `verify` command does not.
 - Diagnostics use schema-v1 JSON errors with newer compilers, or human-readable errors with older compilers. Unlocated errors are shown in the Scarp Output channel.
 - Only one terminal session per file; terminal output is not duplicated into Problems.

@@ -125,3 +125,12 @@ test('large or invalid lexical inputs are refused without scanning an unbounded 
   assert.equal(scarpBuiltinAt('top_p value', 2), undefined,
     'A name without an actual call must not advertise builtin help');
 });
+
+test('read_line hover documents versioned interactive input correctly', () => {
+  const help = scarpBuiltinAt('read_line()', 3)?.help;
+  assert.ok(help);
+  assert.match(help.constraints, /alpha\.6/);
+  assert.match(help.constraints, /alpha\.10/);
+  assert.match(help.constraints, /--interactive/);
+  assert.match(help.constraints, /--input-file/);
+});

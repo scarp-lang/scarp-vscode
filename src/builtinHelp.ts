@@ -109,7 +109,7 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     signature: 'read_line() -> string',
     introduced: alpha6,
     summary: 'Reads the next UTF-8 logical line from explicitly redirected or piped program input.',
-    constraints: 'Impure; no terminal-connected interactive input or prompts. EOF, invalid UTF-8 and input limits are errors.'
+    constraints: 'Impure; alpha.6–alpha.9 require redirected input, while alpha.10+ permits terminal input with --interactive or explicit --input-file. EOF, invalid UTF-8 and input limits are errors.'
   },
   integer_to_text: {
     name: 'integer_to_text',
