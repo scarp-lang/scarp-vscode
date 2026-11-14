@@ -8,7 +8,8 @@ const builtins = [
   'cosine_similarity', 'top_p', 'top_p_values', 'pearson_correlation',
   'read_line', 'integer_to_text', 'float_to_text',
   'text_to_integer', 'text_to_float', 'text_trim', 'text_replace',
-  'bigint', 'bigint_from_integer', 'bigint_to_integer', 'bigint_abs'
+  'bigint', 'bigint_from_integer', 'bigint_to_integer', 'bigint_abs',
+  'read_line_or', 'try_read_line', 'ask', 'ask_or', 'input', 'input_integer', 'input_float', 'input_bigint', 'flush_stdout', 'flush_stderr', 'bigint_pow', 'bigint_gcd', 'bigint_lcm', 'bigint_sqrt', 'bigint_bit_length', 'bigint_to_text', 'bigint_from_radix', 'bigint_to_radix', 'bigint_and', 'bigint_or', 'bigint_xor', 'bigint_not', 'bigint_shl', 'bigint_shr', 'bigint_pow_mod', 'bigint_divmod'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
@@ -105,4 +106,15 @@ test('malformed or oversized sources fail closed with a strict nesting budget', 
   assert.equal(scarpSignatureAt('top_p((]'), undefined);
   assert.equal(scarpSignatureAt('top_p("never closed'), undefined);
   assert.equal(scarpSignatureAt('top_p(' + ' '.repeat(16384)), undefined);
+});
+
+test('alpha.10 prompt and advanced arithmetic signatures select exact arguments', () => {
+  const prompt = scarpSignatureAt('ask_or("Name: ", ');
+  assert.equal(prompt?.activeParameter, 1);
+  assert.deepEqual(prompt?.parameters, ['prompt: string', 'fallback: string']);
+  const modular = scarpSignatureAt('bigint_pow_mod(bigint("23"), 4, ');
+  assert.equal(modular?.activeParameter, 2);
+  assert.deepEqual(modular?.parameters, ['value: bigint', 'exponent: integer', 'modulus: bigint']);
+  assert.deepEqual(scarpSignatureAt('flush_stdout(')?.parameters, []);
+  assert.deepEqual(scarpSignatureAt('try_read_line(')?.parameters, []);
 });

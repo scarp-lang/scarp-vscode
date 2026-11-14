@@ -327,6 +327,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "Optional --max-bigint-bytes interpreter budget. Published Scarp v0.0.6-alpha.9+ only; earlier compilers reject this flag. Limits cumulative logical BigInt u32 limb/scratch allocations; defaults to 8,388,608 bytes if unset. 0 disallows BigInt limb allocation. Not a physical process-memory limit; no effect on static Verify."
+        },
+        "scarp.maxArrayBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional --max-array-bytes cumulative fixed-array allocation budget for explicit Scarp execution. Requires published compiler v0.0.6-alpha.10+; earlier compilers reject this flag. Defaults to 8,388,608 logical bytes when unset. Does not affect static Verify."
         }
       }
     },

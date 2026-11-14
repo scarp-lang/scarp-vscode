@@ -8,6 +8,7 @@ export const BUDGET_SETTINGS = [
   ['maxVectorBytes', '--max-vector-bytes'],
   ['maxTextBytes', '--max-text-bytes'],
   ['maxTupleBytes', '--max-tuple-bytes'],
+  ['maxArrayBytes', '--max-array-bytes'],
   ['maxBigIntDigits', '--max-bigint-digits'],
   ['maxBigIntBytes', '--max-bigint-bytes'],
   ['maxInputLineBytes', '--max-input-line-bytes'],
