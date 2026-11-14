@@ -864,8 +864,14 @@ export async function run(): Promise<void> {
           await vscode.commands.executeCommand('scarp.runFileInteractive', alpha10File);
           const terminal = await opened;
           assert.ok('shellArgs' in terminal.creationOptions);
-          assert.deepEqual(terminal.creationOptions.shellArgs,
-            ['exec', '--interactive', '--max-array-bytes', '4096', '--', alpha10File.fsPath]);
+          const interactiveArgs = terminal.creationOptions.shellArgs as string[];
+          assert.deepEqual(interactiveArgs.slice(0, 2), ['exec', '--interactive']);
+          const arrayBudgetAt = interactiveArgs.indexOf('--max-array-bytes');
+          assert.ok(arrayBudgetAt >= 2,
+            'Interactive Scarp execution must forward the explicit array allocation limit');
+          assert.equal(interactiveArgs[arrayBudgetAt + 1], '4096');
+          assert.equal(interactiveArgs.filter(x => x === '--interactive').length, 1);
+          assert.deepEqual(interactiveArgs.slice(-2), ['--', alpha10File.fsPath]);
           await vscode.commands.executeCommand('scarp.stopProgram');
         } finally {
           await settings.update('maxArrayBytes', oldArrayLimit,
@@ -889,8 +895,10 @@ export async function run(): Promise<void> {
           vscode.Uri.file(interactiveProject));
         const projectTerminal = await openedProject;
         assert.ok('shellArgs' in projectTerminal.creationOptions);
-        assert.deepEqual(projectTerminal.creationOptions.shellArgs,
-          ['launch', '--interactive', '--', interactiveProject]);
+        const projectInteractiveArgs = projectTerminal.creationOptions.shellArgs as string[];
+        assert.deepEqual(projectInteractiveArgs.slice(0, 2), ['launch', '--interactive']);
+        assert.equal(projectInteractiveArgs.filter(x => x === '--interactive').length, 1);
+        assert.deepEqual(projectInteractiveArgs.slice(-2), ['--', interactiveProject]);
         await vscode.commands.executeCommand('scarp.stopProgram');
       }
 
