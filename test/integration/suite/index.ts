@@ -843,9 +843,9 @@ export async function run(): Promise<void> {
 
       // Alpha.10 adds a separately selected interactive path; normal Run
       // remains unchanged and older compilers must never see the flag.
-      if (/0\\.0\\.6-alpha\\.10\\b/.test(compilerVersionString)) {
+      if (/0\.0\.6-alpha\.10\b/.test(compilerVersionString)) {
         const alpha10File = vscode.Uri.file(path.join(projectParent, 'alpha10 input.srp'));
-        await fs.writeFile(alpha10File.fsPath, 'print("ready");\\n');
+        await fs.writeFile(alpha10File.fsPath, 'print("ready");\n');
         const oldArrayLimit = settings.inspect<number>('maxArrayBytes')?.globalValue;
         try {
           await settings.update('maxArrayBytes', 4096, vscode.ConfigurationTarget.Global);
