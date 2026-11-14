@@ -144,12 +144,37 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'BigInt language help in Restricted Mode must never execute a configured compiler');
 
+    // Alpha.10 metadata stays compiler-free even with an older, untrusted host.
+    const alpha10Doc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind response = input_integer("Number: ");'
+    });
+    const alpha10HoverAt = alpha10Doc.getText().indexOf('input_integer') + 2;
+    const alpha10Hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider', alpha10Doc.uri,
+      alpha10Doc.positionAt(alpha10HoverAt));
+    assert.ok(alpha10Hovers?.length, 'Alpha.10 input hover must work without trust');
+    assert.match((alpha10Hovers ?? []).flatMap(item => item.contents)
+      .map(item => typeof item === 'string' ? item : item.value).join('\n'),
+    /v0\.0\.6-alpha\.10/);
+    const alpha10CompletionDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind result = bigint_pow_'
+    });
+    const alpha10Completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider', alpha10CompletionDoc.uri,
+      alpha10CompletionDoc.positionAt(alpha10CompletionDoc.getText().length));
+    assert.ok(alpha10Completions?.items.some(item => item.label === 'bigint_pow_mod'),
+      'Alpha.10 BigInt completions are read-only in Restricted Mode');
+    assert.equal(fsSync.existsSync(marker), false,
+      'Alpha.10 lexical help must not probe or run the configured compiler');
+
     // Commands must still reject direct invocation: hiding a menu item alone
     // is insufficient protection when extensions can call a command by ID.
     for (const command of [
-      'scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
+      'scarp.runFile', 'scarp.runFileInteractive',
+      'scarp.checkFile', 'scarp.showVersion',
       'scarp.explainDiagnostic',
-      'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject', 'scarp.launchProject',
+      'scarp.createProject', 'scarp.initProject', 'scarp.verifyProject',
+      'scarp.launchProject', 'scarp.launchProjectInteractive',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
       'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests',
       'scarp.listFilteredProjectTests'
