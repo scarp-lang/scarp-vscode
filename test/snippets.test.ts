@@ -9,11 +9,11 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 15 bounded Scarp snippets with unique prefixes', () => {
+test('registers 17 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets,
     [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
-  assert.equal(Object.keys(snippets).length, 15);
+  assert.equal(Object.keys(snippets).length, 17);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -38,6 +38,9 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     }
     if (name.includes('(alpha.9)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.9\+/);
+    }
+    if (name.includes('(alpha.11)')) {
+      assert.match(snippet.description, /v0\.0\.6-alpha\.11\+/);
     }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
@@ -69,4 +72,25 @@ test('alpha.9 BigInt starter uses explicit decimal and integer conversions', () 
   assert.match(snippet.description, /interpreter only/);
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /verify-snippets\.cjs.*scarp" 9/);
+});
+
+
+test('alpha.11 exact decimal snippets are typed, opt-in and compiler-gated', () => {
+  const arithmetic = snippets['Scarp: Exact decimal (alpha.11)'];
+  assert.equal(arithmetic.prefix, 'sdecimal');
+  const arithmeticBody = arithmetic.body.join('\n');
+  assert.match(arithmeticBody, /: decimal = decimal\(/);
+  assert.match(arithmeticBody, /decimal_format\(/);
+  assert.match(arithmeticBody, /half_even/);
+  assert.match(arithmetic.description, /interpreter only/);
+
+  const interactive = snippets['Scarp: Interactive decimal input (alpha.11)'];
+  assert.equal(interactive.prefix, 'sinputdecimal');
+  const interactiveBody = interactive.body.join('\n');
+  assert.match(interactiveBody, /input_decimal\(/);
+  assert.match(interactiveBody, /--interactive/);
+  assert.match(interactive.description, /explicit interactive execution/);
+
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 11/);
 });
