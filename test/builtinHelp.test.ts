@@ -50,7 +50,15 @@ const versions: Record<string, string> = {
   bigint_shl: 'v0.0.6-alpha.10',
   bigint_shr: 'v0.0.6-alpha.10',
   bigint_pow_mod: 'v0.0.6-alpha.10',
-  bigint_divmod: 'v0.0.6-alpha.10'
+  bigint_divmod: 'v0.0.6-alpha.10',
+  decimal: 'v0.0.6-alpha.11',
+  decimal_from_integer: 'v0.0.6-alpha.11',
+  decimal_to_integer: 'v0.0.6-alpha.11',
+  decimal_to_text: 'v0.0.6-alpha.11',
+  decimal_round: 'v0.0.6-alpha.11',
+  decimal_format: 'v0.0.6-alpha.11',
+  decimal_div_rounded: 'v0.0.6-alpha.11',
+  input_decimal: 'v0.0.6-alpha.11'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -133,4 +141,15 @@ test('read_line hover documents versioned interactive input correctly', () => {
   assert.match(help.constraints, /alpha\.10/);
   assert.match(help.constraints, /--interactive/);
   assert.match(help.constraints, /--input-file/);
+});
+
+
+test('alpha.11 decimal hovers describe exact conversion, rounding and interactive requirements', () => {
+  const constructor = scarpBuiltinAt('decimal("0.1")', 2)?.help;
+  assert.equal(constructor?.signature, 'decimal(value: string) -> decimal');
+  assert.match(constructor!.constraints, /28 canonical coefficient digits/);
+  const formatted = scarpBuiltinAt('decimal_format(value, 2, "half_even")', 3)?.help;
+  assert.match(formatted!.constraints, /exactly that many/);
+  const input = scarpBuiltinAt('input_decimal("Amount> ")', 3)?.help;
+  assert.match(input!.constraints, /--interactive/);
 });
