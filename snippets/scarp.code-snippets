@@ -161,7 +161,7 @@
   "Scarp: Interactive decimal input (alpha.11)": {
     "prefix": "sinputdecimal",
     "body": [
-      "// Scarp v0.0.6-alpha.11+: run using scarp exec --interactive (or explicit --input-file).",
+      "// Scarp v0.0.6-alpha.11+: run with scarp exec --interactive; --input-file can replay input.",
       "bind ${1:amount}: decimal = input_decimal(\"${2:Amount> }\");",
       "print(decimal_format(${1}, ${3:2}, \"${4:half_even}\"));",
       "$0"
