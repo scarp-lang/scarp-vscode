@@ -147,5 +147,25 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.9+: construct an exact signed bigint and add an explicit integer conversion (interpreter only)."
+  },
+  "Scarp: Exact decimal (alpha.11)": {
+    "prefix": "sdecimal",
+    "body": [
+      "bind ${1:price}: decimal = decimal(\"${2:199.99}\");",
+      "bind ${3:rate}: decimal = decimal(\"${4:0.18}\");",
+      "print(decimal_format(${1} + ${1} * ${3}, ${5:2}, \"${6:half_even}\"));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.11+: exact decimal arithmetic and explicit fixed-place formatting (interpreter only)."
+  },
+  "Scarp: Interactive decimal input (alpha.11)": {
+    "prefix": "sinputdecimal",
+    "body": [
+      "// Scarp v0.0.6-alpha.11+: run using scarp exec --interactive (or explicit --input-file).",
+      "bind ${1:amount}: decimal = input_decimal(\"${2:Amount> }\");",
+      "print(decimal_format(${1}, ${3:2}, \"${4:half_even}\"));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.11+: prompt for a typed exact decimal; explicit interactive execution required."
   }
 }
