@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **two opt-in published alpha.11 starter snippets**: exact decimal arithmetic with explicit rounding display (`sdecimal`), and typed interactive decimal input (`sinputdecimal`). Verify actual snippet expansion via the immutable alpha.11 compiler CI job and retain version-gated verification for older compilers. Update the documented snippet inventory from 14 to the actual 17. No release publication.
+
 - Add **published Scarp v0.0.6-alpha.11 exact decimal editor compatibility**: contextual type/constructor syntax, eight versioned compiler-free builtin hover/completion/signature entries, explicit accuracy/rounding constraints and regression tests for declarations, strings, comments and qualified names. Pin a separate official alpha.11 compiler CI gate with immutable-source verification, exact and interactive decimal fixtures and a real VS Code Extension Host run. No extension pre-release or stable release.
 
 - Add **opt-in published alpha.9 BigInt execution quotas** `scarp.maxBigIntDigits` and `scarp.maxBigIntBytes`, with shell-free Run/Launch argv, safe integer and 1,000,000-digit validation, default-off compatibility with older compilers, actual editor-host argument tests and exact official compiler success/failure budget smoke tests. These flags never reach static verification or read-only test discovery, and do not claim physical-memory isolation.
