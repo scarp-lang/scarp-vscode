@@ -789,6 +789,42 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha11-decimal:
+    name: Official Scarp alpha.11 exact decimal compatibility (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.11
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify published alpha.11 compiler and exact-decimal fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "79b57395957f47e1270ee542a856c844b82386de"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.11'
+          compiler/target/release/scarp verify compiler/examples/decimal_exact.srp
+          compiler/target/release/scarp exec compiler/examples/decimal_exact.srp             > "$RUNNER_TEMP/decimal-exact.actual"
+          cmp compiler/examples/decimal_exact.stdout "$RUNNER_TEMP/decimal-exact.actual"
+          compiler/target/release/scarp guide exec | grep -F -- '--interactive'
+          compiler/target/release/scarp verify compiler/examples/interactive/exact_decimal.srp
+          compiler/target/release/scarp exec --interactive             --input-file compiler/examples/interactive/exact_decimal.stdin             compiler/examples/interactive/exact_decimal.srp             > "$RUNNER_TEMP/exact-decimal-interactive.actual"
+          cmp compiler/examples/interactive/exact_decimal.stdout             "$RUNNER_TEMP/exact-decimal-interactive.actual"
+      - name: Exercise VS Code Extension Host with published Scarp alpha.11
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
