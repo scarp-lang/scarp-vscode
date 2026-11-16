@@ -297,3 +297,30 @@ test('alpha.10 fixed arrays and new calls receive contextual scopes', async () =
   assert.ok(!hasScope(binding, 'array', 'support.type.scarp'),
     'array is a contextual type marker, not a reserved binding name');
 });
+
+
+test('published alpha.11 decimal type and builtins use contextual syntax scopes', async () => {
+  const grammar = await tokenizer();
+  const typed = tokens('bind amount: decimal = decimal("199.99");', grammar);
+  assert.ok(hasScope(typed, 'decimal', 'support.type.scarp'));
+  assert.ok(hasScope(typed, 'decimal', 'support.function.builtin.scarp'));
+  const constructor = tokens('decimal("0.1");', grammar);
+  assert.ok(hasScope(constructor, 'decimal', 'support.function.builtin.scarp'));
+  assert.ok(!hasScope(constructor, 'decimal', 'support.type.scarp'));
+  for (const name of ['decimal_from_integer', 'decimal_to_integer',
+    'decimal_to_text', 'decimal_round', 'decimal_format', 'decimal_div_rounded',
+    'input_decimal']) {
+    assert.ok(hasScope(tokens(name + '(value);', grammar), name,
+      'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens(name + '_helper(value);', grammar),
+      name + '_helper', 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens('// ' + name + '(value)', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens('print("' + name + '(value)");', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(hasScope(tokens('funcra ' + name + '() {', grammar),
+      name, 'entity.name.function.definition.scarp'), name);
+  }
+  assert.ok(!hasScope(tokens('bind decimal = 1;', grammar),
+    'decimal', 'support.type.scarp'), 'A user binding is not a decimal type');
+});
