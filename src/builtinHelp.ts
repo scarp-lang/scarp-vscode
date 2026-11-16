@@ -25,6 +25,7 @@ const alpha5 = 'v0.0.6-alpha.5';
 const alpha6 = 'v0.0.6-alpha.6';
 const alpha9 = 'v0.0.6-alpha.9';
 const alpha10 = 'v0.0.6-alpha.10';
+const alpha11 = 'v0.0.6-alpha.11';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -362,6 +363,62 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha10,
     summary: "Returns exact quotient and remainder together.",
     constraints: "Division truncates toward zero; remainder follows the dividend's sign. Divisor must be nonzero."
+  },
+  decimal: {
+    name: 'decimal',
+    signature: 'decimal(value: string) -> decimal',
+    introduced: alpha11,
+    summary: 'Constructs a bounded exact base-10 decimal from ASCII text.',
+    constraints: 'Optional ASCII sign and decimal point, but no whitespace, exponent or separators. At most 28 canonical coefficient digits and 18 fractional places.'
+  },
+  decimal_from_integer: {
+    name: 'decimal_from_integer',
+    signature: 'decimal_from_integer(value: integer) -> decimal',
+    introduced: alpha11,
+    summary: 'Explicitly converts a signed 64-bit integer to an exact decimal.',
+    constraints: 'No implicit integer, float or bigint mixing. Canonical decimal coefficient limits still apply.'
+  },
+  decimal_to_integer: {
+    name: 'decimal_to_integer',
+    signature: 'decimal_to_integer(value: decimal) -> integer',
+    introduced: alpha11,
+    summary: 'Converts an exact whole decimal to a checked signed 64-bit integer.',
+    constraints: 'Fractional decimals are rejected rather than rounded; out-of-range whole values fail.'
+  },
+  decimal_to_text: {
+    name: 'decimal_to_text',
+    signature: 'decimal_to_text(value: decimal) -> string',
+    introduced: alpha11,
+    summary: 'Formats an exact decimal as canonical text without adding display zeros.',
+    constraints: 'Preserves mathematical value; use decimal_format for an exact requested number of displayed places.'
+  },
+  decimal_round: {
+    name: 'decimal_round',
+    signature: 'decimal_round(value: decimal, places: integer, mode: string) -> decimal',
+    introduced: alpha11,
+    summary: 'Rounds an exact decimal and returns a decimal value.',
+    constraints: 'Places must be 0–18; modes: half_even, half_up, toward_zero, away_from_zero. Result has at most the requested fractional places.'
+  },
+  decimal_format: {
+    name: 'decimal_format',
+    signature: 'decimal_format(value: decimal, places: integer, mode: string) -> string',
+    introduced: alpha11,
+    summary: 'Formats an exact decimal with a fixed number of displayed fractional places.',
+    constraints: 'Places must be 0–18; use half_even, half_up, toward_zero or away_from_zero. Returns text with exactly that many decimal places.'
+  },
+  decimal_div_rounded: {
+    name: 'decimal_div_rounded',
+    signature: 'decimal_div_rounded(left: decimal, right: decimal, places: integer, mode: string) -> decimal',
+    introduced: alpha11,
+    summary: 'Divides two exact decimals using an explicit target scale and rounding mode.',
+    constraints: 'Places must be 0–18; mode must be half_even, half_up, toward_zero or away_from_zero. Zero divisor and coefficient overflows are errors.'
+  },
+  input_decimal: {
+    name: 'input_decimal',
+    signature: 'input_decimal(prompt: string) -> decimal',
+    introduced: alpha11,
+    summary: 'Prompts, reads and validates an exact decimal value.',
+    constraints: 'Impure and requires --interactive and a selected input source; follows the decimal parser and program-input quotas.'
   }
 };
 

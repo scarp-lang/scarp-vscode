@@ -9,7 +9,9 @@ const builtins = [
   'read_line', 'integer_to_text', 'float_to_text',
   'text_to_integer', 'text_to_float', 'text_trim', 'text_replace',
   'bigint', 'bigint_from_integer', 'bigint_to_integer', 'bigint_abs',
-  'read_line_or', 'try_read_line', 'ask', 'ask_or', 'input', 'input_integer', 'input_float', 'input_bigint', 'flush_stdout', 'flush_stderr', 'bigint_pow', 'bigint_gcd', 'bigint_lcm', 'bigint_sqrt', 'bigint_bit_length', 'bigint_to_text', 'bigint_from_radix', 'bigint_to_radix', 'bigint_and', 'bigint_or', 'bigint_xor', 'bigint_not', 'bigint_shl', 'bigint_shr', 'bigint_pow_mod', 'bigint_divmod'
+  'read_line_or', 'try_read_line', 'ask', 'ask_or', 'input', 'input_integer', 'input_float', 'input_bigint', 'flush_stdout', 'flush_stderr', 'bigint_pow', 'bigint_gcd', 'bigint_lcm', 'bigint_sqrt', 'bigint_bit_length', 'bigint_to_text', 'bigint_from_radix', 'bigint_to_radix', 'bigint_and', 'bigint_or', 'bigint_xor', 'bigint_not', 'bigint_shl', 'bigint_shr', 'bigint_pow_mod', 'bigint_divmod',
+  'decimal', 'decimal_from_integer', 'decimal_to_integer', 'decimal_to_text',
+  'decimal_round', 'decimal_format', 'decimal_div_rounded', 'input_decimal'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
@@ -117,4 +119,18 @@ test('alpha.10 prompt and advanced arithmetic signatures select exact arguments'
   assert.deepEqual(modular?.parameters, ['value: bigint', 'exponent: integer', 'modulus: bigint']);
   assert.deepEqual(scarpSignatureAt('flush_stdout(')?.parameters, []);
   assert.deepEqual(scarpSignatureAt('try_read_line(')?.parameters, []);
+});
+
+
+test('alpha.11 decimal calls show exact argument positions without compiler execution', () => {
+  const rounded = scarpSignatureAt('decimal_round(decimal("1.225"), 2, ');
+  assert.deepEqual(rounded?.parameters,
+    ['value: decimal', 'places: integer', 'mode: string']);
+  assert.equal(rounded?.activeParameter, 2);
+  const division = scarpSignatureAt('decimal_div_rounded(decimal("1"), decimal("3"), ');
+  assert.deepEqual(division?.parameters,
+    ['left: decimal', 'right: decimal', 'places: integer', 'mode: string']);
+  assert.equal(division?.activeParameter, 2);
+  assert.equal(scarpSignatureAt('input_decimal(')?.help.introduced, 'v0.0.6-alpha.11');
+  assert.equal(scarpSignatureAt('module.decimal_round('), undefined);
 });

@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 48);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 56);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -82,10 +82,24 @@ test('alpha.9 exact bigint builtins are explicit, versioned, and safely complete
 test('alpha.10 builtins are versioned and only completed at actual identifiers', () => {
   const prompt = scarpBuiltinCompletionAt('bind response = input_', 'bind response = input_'.length);
   assert.deepEqual(prompt?.matches.map(x => x.name).sort(),
-    ['input_bigint', 'input_float', 'input_integer']);
+    ['input_bigint', 'input_decimal', 'input_float', 'input_integer']);
   for (const name of ['ask_or', 'try_read_line', 'bigint_pow_mod', 'flush_stdout']) {
     const match = scarpBuiltinCompletionAt(name, name.length)?.matches.find(x => x.name === name);
     assert.equal(match?.introduced, 'v0.0.6-alpha.10');
   }
   assert.equal(scarpBuiltinCompletionAt('module.input_', 13), undefined);
+});
+
+
+test('alpha.11 exact decimal completion is versioned and excludes false lexical positions', () => {
+  const source = 'bind result = decimal_';
+  const names = scarpBuiltinCompletionAt(source, source.length)?.matches.map(x => x.name).sort();
+  assert.deepEqual(names, ['decimal_div_rounded', 'decimal_format',
+    'decimal_from_integer', 'decimal_round', 'decimal_to_integer', 'decimal_to_text']);
+  for (const name of ['decimal', 'input_decimal', 'decimal_div_rounded']) {
+    const choice = scarpBuiltinCompletionAt(name, name.length);
+    assert.equal(choice?.matches.find(x => x.name === name)?.introduced, 'v0.0.6-alpha.11');
+    assert.equal(scarpBuiltinCompletionAt('module.' + name, ('module.' + name).length), undefined);
+    assert.equal(scarpBuiltinCompletionAt('// ' + name, ('// ' + name).length), undefined);
+  }
 });

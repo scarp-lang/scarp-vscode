@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **published Scarp v0.0.6-alpha.11 exact decimal editor compatibility**: contextual type/constructor syntax, eight versioned compiler-free builtin hover/completion/signature entries, explicit accuracy/rounding constraints and regression tests for declarations, strings, comments and qualified names. Pin a separate official alpha.11 compiler CI gate with immutable-source verification, exact and interactive decimal fixtures and a real VS Code Extension Host run. No extension pre-release or stable release.
+
 - Add **opt-in published alpha.9 BigInt execution quotas** `scarp.maxBigIntDigits` and `scarp.maxBigIntBytes`, with shell-free Run/Launch argv, safe integer and 1,000,000-digit validation, default-off compatibility with older compilers, actual editor-host argument tests and exact official compiler success/failure budget smoke tests. These flags never reach static verification or read-only test discovery, and do not claim physical-memory isolation.
 
 - Add **published compiler v0.0.6-alpha.9 BigInt editor compatibility**: recognize the `bigint` type and exact string constructor, explicit signed i64 conversions and absolute-value builtin with compiler-free lexical highlighting, hover, signature help, completion, and an `sbigint` starter snippet. Add an immutable alpha.9 GitHub Actions gate that verifies real compiler BigInt arithmetic/module/sequence examples, verifies all snippets statically, and exercises the real VS Code Extension Host. No compiler emulation, package version bump or pre-release.
