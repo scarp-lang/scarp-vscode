@@ -130,7 +130,11 @@
         },
         {
           "name": "support.type.scarp",
-          "match": "\\b(?:bigint|decimal)\\b(?!\\s*\\()"
+          "match": "\\bbigint\\b(?!\\s*\\()"
+        },
+        {
+          "name": "support.type.scarp",
+          "match": "(?:(?<=[<,:])|(?<=->))\\s*decimal\\b(?!\\s*\\()"
         },
         {
           "name": "support.type.scarp",
