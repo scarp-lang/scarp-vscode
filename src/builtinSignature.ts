@@ -29,7 +29,21 @@ function parametersOf(help: ScarpBuiltinHelp): string[] {
   const end = help.signature.indexOf(')', start + 1);
   if (start < 0 || end < 0) { return []; }
   const contents = help.signature.slice(start + 1, end).trim();
-  return contents ? contents.split(',').map(part => part.trim()) : [];
+  if (!contents) { return []; }
+  // Generic type arguments are not function arguments: map<K, V> is one type.
+  const parameters: string[] = [];
+  let angleDepth = 0;
+  let from = 0;
+  for (let i = 0; i < contents.length; i++) {
+    if (contents[i] === '<') { angleDepth++; }
+    else if (contents[i] === '>') { angleDepth = Math.max(0, angleDepth - 1); }
+    else if (contents[i] === ',' && angleDepth === 0) {
+      parameters.push(contents.slice(from, i).trim());
+      from = i + 1;
+    }
+  }
+  parameters.push(contents.slice(from).trim());
+  return parameters;
 }
 
 function callHelp(source: string, at: number): ScarpBuiltinHelp | undefined {
