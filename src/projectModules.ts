@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 type ModulePathOps = Pick<typeof path,
@@ -13,16 +14,30 @@ type ModulePathOps = Pick<typeof path,
  * The injected native-path implementation allows real Windows path rules to
  * be tested on Linux CI as well.
  */
+function nativeCanonicalPath(filename: string): string {
+  // Windows temp directories sometimes reach Node as short 8.3 paths
+  // (RUNNER~1) while Rust std::fs::canonicalize reports the long form.
+  // Resolving both through the native filesystem also prevents a symlink
+  // alias outside the trusted root from appearing to be inside it.
+  try { return fs.realpathSync.native(filename); }
+  catch { return filename; } // Unit-test paths may not exist; callers still check containment.
+}
+
 export function safeCanonicalModulePath(
   canonicalProjectRoot: string, compilerLabel: string,
-  paths: ModulePathOps = path
+  paths: ModulePathOps = path,
+  canonicalize: (filename: string) => string = nativeCanonicalPath
 ): { filename: string; relative: string } | undefined {
   if (!paths.isAbsolute(canonicalProjectRoot) ||
       !paths.isAbsolute(compilerLabel)) { return undefined; }
   const root = paths.resolve(canonicalProjectRoot);
+  // Compute containment in canonical *filesystem* namespace. Preserve
+  // the editor's root spelling when returning the resulting local path.
+  const resolvedRoot = paths.resolve(canonicalize(root));
+  const resolvedLabel = paths.resolve(canonicalize(compilerLabel));
   const relative = paths.relative(
-    paths.toNamespacedPath(root),
-    paths.toNamespacedPath(paths.resolve(compilerLabel))
+    paths.toNamespacedPath(resolvedRoot),
+    paths.toNamespacedPath(resolvedLabel)
   );
   if (relative === '..' || relative.startsWith('..' + paths.sep) ||
       paths.isAbsolute(relative)) { return undefined; }
