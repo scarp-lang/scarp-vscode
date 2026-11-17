@@ -3,9 +3,9 @@
  *
  * This is an editor-only, error-tolerant scanner, NOT a replacement for the
  * compiler's parser. Keyword spellings and file-scope declaration forms match
- * the released Scarp v0.0.5-alpha.3 grammar. No code or imports are executed.
+ * the published Scarp grammar through v0.0.6-alpha.13. No code or imports are executed.
  */
-export type ScarpSymbolKind = 'function' | 'constant' | 'variable' | 'import';
+export type ScarpSymbolKind = 'function' | 'constant' | 'variable' | 'import' | 'record' | 'variant';
 
 export interface ScarpSourceSymbol {
   kind: ScarpSymbolKind;
@@ -111,6 +111,25 @@ function declaration(source: string, tokens: readonly Token[], startIndex: numbe
   let pure = false;
   if (tokens[i]?.text === 'pure') { pure = true; i++; }
   const keyword = tokens[i]?.text;
+  if (keyword === 'record' || keyword === 'variant') {
+    // The compiler's published nominal declarations have a name and braces
+    // at file scope. Annotations such as "record Task" are not declarations.
+    const name = tokens[i + 1];
+    if (pure || name?.type !== 'identifier' || tokens[i + 2]?.text !== '{') {
+      return undefined;
+    }
+    const closeBrace = matching(tokens, i + 2, '{', '}');
+    if (closeBrace < 0) { return undefined; }
+    return {
+      symbol: {
+        kind: keyword, name: name.text,
+        detail: (exported ? 'public ' : '') + keyword + ' type',
+        start: begin.start, end: tokens[closeBrace].end,
+        selectionStart: name.start, selectionEnd: name.end
+      },
+      next: closeBrace + 1
+    };
+  }
   if (keyword === 'funcra') {
     const name = tokens[i + 1];
     if (name?.type !== 'identifier' || tokens[i + 2]?.text !== '(') { return undefined; }
@@ -189,7 +208,7 @@ function declaration(source: string, tokens: readonly Token[], startIndex: numbe
   return undefined;
 }
 
-/** Return top-level functions, bindings, mutable variables and module imports. */
+/** Return top-level nominal types, functions, bindings, variables and imports. */
 export function scanScarpSymbols(source: string): ScarpSourceSymbol[] {
   if (source.length > MAX_LENGTH) { return []; }
   const tokens = tokenize(source);
