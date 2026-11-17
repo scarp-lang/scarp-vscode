@@ -9,11 +9,11 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 17 bounded Scarp snippets with unique prefixes', () => {
+test('registers 19 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets,
     [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
-  assert.equal(Object.keys(snippets).length, 17);
+  assert.equal(Object.keys(snippets).length, 19);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -41,6 +41,9 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     }
     if (name.includes('(alpha.11)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.11\+/);
+    }
+    if (name.includes('(alpha.12)')) {
+      assert.match(snippet.description, /v0\.0\.6-alpha\.12\+/);
     }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
@@ -93,4 +96,24 @@ test('alpha.11 exact decimal snippets are typed, opt-in and compiler-gated', () 
 
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /verify-snippets\.cjs.*scarp" 11/);
+});
+
+test('alpha.12 immutable list/map snippets use snapshots and pinned compiler checks', () => {
+  const list = snippets['Scarp: Immutable typed list (alpha.12)'];
+  assert.equal(list.prefix, 'slist');
+  assert.match(list.body.join('\n'), /list<integer>/);
+  assert.match(list.body.join('\n'), /list_push\(/);
+  const map = snippets['Scarp: Immutable typed map (alpha.12)'];
+  assert.equal(map.prefix, 'smap');
+  assert.match(map.body.join('\n'), /map<string, integer>/);
+  assert.match(map.body.join('\n'), /map_set\(/);
+  assert.match(map.body.join('\n'), /map_get_or\(/);
+  for (const snippet of [list, map]) {
+    assert.match(snippet.description, /interpreter only/);
+    assert.match(snippet.description, /immutable/);
+  }
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 12/);
+  assert.match(ci, /a1f9c2fc1c6bc8f3e04878d30d658bb38fab441d/);
+  assert.match(ci, /e755fda37cdaeed29434e848cb5dd41f2f2e7eb2/);
 });
