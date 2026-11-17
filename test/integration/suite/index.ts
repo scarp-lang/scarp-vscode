@@ -122,6 +122,33 @@ export async function run(): Promise<void> {
   assert.equal(outline[2].selectionRange.start.line, 2);
   assert.equal(outline[2].range.end.line, 7);
 
+  // Alpha.12/13 nominal source symbols appear in the real VS Code Outline.
+  // This is compiler-free editor metadata, safe in untrusted mode.
+  const structuredDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp',
+    content: [
+      'pub record Task { title: string }',
+      'variant Outcome { Accepted(record Task), Rejected(string) }',
+      'pure funcra build() -> variant Outcome {',
+      '  return new Outcome::Accepted(new Task { title: "Ready" });',
+      '}',
+      'bind payload = new Task { title: "A" };'
+    ].join('\n')
+  });
+  const structures = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+    'vscode.executeDocumentSymbolProvider', structuredDoc.uri);
+  assert.ok(structures, 'Nominal Outline must be registered');
+  assert.deepEqual(structures.map(symbol => symbol.name), [
+    'Task', 'Outcome', 'build', 'payload'
+  ]);
+  assert.deepEqual(structures.map(symbol => symbol.kind), [
+    vscode.SymbolKind.Struct, vscode.SymbolKind.Enum,
+    vscode.SymbolKind.Function, vscode.SymbolKind.Constant
+  ]);
+  assert.equal(structures[0].selectionRange.start.line, 0);
+  assert.equal(structures[1].selectionRange.start.line, 1);
+  assert.equal(structures[2].range.end.line, 4);
+
   // Real VS Code hover API: pure source help, no compiler process and no
   // suggestion that the extension implements scientific operations itself.
   const hoverDoc = await vscode.workspace.openTextDocument({

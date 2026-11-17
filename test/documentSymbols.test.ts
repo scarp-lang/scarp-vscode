@@ -107,3 +107,64 @@ test('does not attempt to outline oversized or malformed code indefinitely', () 
   const result = scanScarpSymbols(source);
   assert.deepEqual(result.map(s => s.name), ['broken']);
 });
+
+test('outlines published record and variant declarations with exact names and source ranges', () => {
+  const source = [
+    '// record Pretend { fake: string }',
+    'pub record Task { title: string, done: boolean }',
+    'variant Submission {',
+    '  Accepted(record Task),',
+    '  Rejected(string),',
+    '}',
+    'pure funcra submit(title: string) -> variant Submission {',
+    '  return new Submission::Accepted(new Task { title: title, done: false });',
+    '}',
+    'bind entry: record Task = new Task { title: "Ready", done: true };',
+    'print("variant Wrong { No }");'
+  ].join('\n');
+  const symbols = scanScarpSymbols(source);
+  assert.deepEqual(symbols.map(item => [item.kind, item.name]), [
+    ['record', 'Task'], ['variant', 'Submission'],
+    ['function', 'submit'], ['constant', 'entry']
+  ]);
+  const record = symbols[0];
+  assert.equal(record.detail, 'public record type');
+  assert.equal(source.slice(record.start, record.end),
+    'pub record Task { title: string, done: boolean }');
+  assert.equal(source.slice(record.selectionStart, record.selectionEnd), 'Task');
+  const variant = symbols[1];
+  assert.equal(variant.detail, 'variant type');
+  assert.equal(source.slice(variant.start, variant.end),
+    ['variant Submission {', '  Accepted(record Task),',
+      '  Rejected(string),', '}'].join('\n'));
+  assert.equal(source.slice(variant.selectionStart, variant.selectionEnd), 'Submission');
+  assert.equal(source.slice(symbols[3].selectionStart, symbols[3].selectionEnd), 'entry');
+});
+
+test('nominal type outline ignores strings, incomplete declarations and nested declarations', () => {
+  const source = [
+    'print("record Fake { field: string }");',
+    'record Complete { text: string }',
+    'funcra wrapper() -> unit {',
+    '  record Nested { text: string }',
+    '  return;',
+    '}',
+    'variant Broken {',
+    '  Some(string)'
+  ].join('\n');
+  const result = scanScarpSymbols(source);
+  assert.deepEqual(result.map(x => x.name), ['Complete', 'wrapper']);
+  assert.deepEqual(scanScarpSymbols('record Missing;'), []);
+  assert.deepEqual(scanScarpSymbols('variant Missing {'), []);
+  assert.deepEqual(scanScarpSymbols('pub pure record NotAllowed {}'), []);
+});
+
+test('record and variant spans are UTF-16 safe across emoji and CRLF source', () => {
+  const source = 'print("👩‍💻");\r\npub variant Status { Good, Bad(string) }\r\n';
+  const [symbol] = scanScarpSymbols(source);
+  assert.equal(symbol.kind, 'variant');
+  assert.equal(symbol.name, 'Status');
+  assert.equal(symbol.start, source.indexOf('pub variant'));
+  assert.equal(symbol.selectionStart, source.indexOf('Status'));
+  assert.equal(symbol.end, source.indexOf('}\r\n') + 1);
+});

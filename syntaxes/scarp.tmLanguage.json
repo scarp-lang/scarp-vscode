@@ -13,6 +13,9 @@
       "include": "#strings"
     },
     {
+      "include": "#nominal-declarations"
+    },
+    {
       "include": "#function-declarations"
     },
     {
@@ -98,7 +101,7 @@
       "patterns": [
         {
           "name": "keyword.control.scarp",
-          "match": "\\b(?:if|elif|else|while|repeat|as|return|break|continue|assert)\\b"
+          "match": "\\b(?:if|elif|else|while|repeat|as|return|break|continue|assert|match|on|case|new|needs|ensures)\\b"
         }
       ]
     },
@@ -127,6 +130,14 @@
         {
           "name": "support.type.scarp",
           "match": "\\b(?:tuple|array|list|map)\\b(?=\\s*<)"
+        },
+        {
+          "name": "support.type.scarp",
+          "match": "\\b(?:option|result)\\b(?=\\s*<)"
+        },
+        {
+          "name": "support.type.scarp",
+          "match": "\\b(?:record|variant)\\b(?=\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)"
         },
         {
           "name": "support.type.scarp",
@@ -170,7 +181,22 @@
       "patterns": [
         {
           "name": "keyword.operator.scarp",
-          "match": ">>>=|>>=|<<=|>>>|>>|<<|->|==|!=|<=|>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|[+\\-*/%&|^~=<>(){}\\[\\]:;,.]"
+          "match": ">>>=|::|\\?|>>=|<<=|>>>|>>|<<|->|==|!=|<=|>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|[+\\-*/%&|^~=<>(){}\\[\\]:;,.]"
+        }
+      ]
+    },
+    "nominal-declarations": {
+      "patterns": [
+        {
+          "match": "\\b(record|variant)(\\s+)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\{)",
+          "captures": {
+            "1": {
+              "name": "storage.type.scarp"
+            },
+            "3": {
+              "name": "entity.name.type.scarp"
+            }
+          }
         }
       ]
     }

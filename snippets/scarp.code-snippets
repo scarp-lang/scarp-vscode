@@ -187,5 +187,69 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.12+: build a typed immutable, canonically ordered map and update a snapshot (interpreter only)."
+  },
+  "Scarp: Immutable record (alpha.12)": {
+    "prefix": "srecord",
+    "body": [
+      "record ${1:Item} {",
+      "    ${2:label}: string,",
+      "}",
+      "bind ${3:item}: record ${1} = new ${1} { ${2}: \"${4:hello}\" };",
+      "print(${3}->${2});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: define and construct a typed immutable record, then read its field (interpreter only)."
+  },
+  "Scarp: Tagged variant match (alpha.12)": {
+    "prefix": "svariant",
+    "body": [
+      "variant ${1:Outcome} {",
+      "    Success(string),",
+      "    Failure,",
+      "}",
+      "bind ${2:outcome}: variant ${1} = new ${1}::Success(\"${3:ready}\");",
+      "match on ${2} {",
+      "    case Success(${4:value}) { print(${4}); }",
+      "    case Failure { print(\"failed\"); }",
+      "}",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: construct a tagged immutable variant and exhaustively match its cases (interpreter only)."
+  },
+  "Scarp: Checked Option match (alpha.12)": {
+    "prefix": "soption",
+    "body": [
+      "bind ${1:maybe}: option<integer> = new option<integer>::Some(${2:42});",
+      "match on ${1} {",
+      "    case Some(${3:value}) { print(${3}); }",
+      "    case None { print(\"missing\"); }",
+      "}",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: explicitly construct a concrete Option and exhaustively match its cases (interpreter only)."
+  },
+  "Scarp: Checked Result match (alpha.12)": {
+    "prefix": "sresult",
+    "body": [
+      "bind ${1:outcome}: result<integer, string> = new result<integer, string>::Ok(${2:42});",
+      "match on ${1} {",
+      "    case Ok(${3:value}) { print(${3}); }",
+      "    case Err(${4:message}) { print(${4}); }",
+      "}",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: explicitly construct a concrete Result and handle Ok/Err through exhaustive matching (interpreter only)."
+  },
+  "Scarp: Option propagation (alpha.12)": {
+    "prefix": "spropagate",
+    "body": [
+      "pure funcra ${1:checked}(value: option<integer>) -> option<integer> {",
+      "    bind ${2:number}: integer = value?;",
+      "    return new option<integer>::Some(${2});",
+      "}",
+      "print(${1}(new option<integer>::Some(${3:42})));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: explicit ? propagation in an immutable binding inside a typed function (interpreter only)."
   }
 }

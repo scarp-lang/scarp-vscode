@@ -1097,7 +1097,9 @@ export function activate(context: vscode.ExtensionContext): void {
     function: vscode.SymbolKind.Function,
     constant: vscode.SymbolKind.Constant,
     variable: vscode.SymbolKind.Variable,
-    import: vscode.SymbolKind.Namespace
+    import: vscode.SymbolKind.Namespace,
+    record: vscode.SymbolKind.Struct,
+    variant: vscode.SymbolKind.Enum
   };
   const navigation = vscode.languages.registerDocumentSymbolProvider(
     { language: 'scarp' },
