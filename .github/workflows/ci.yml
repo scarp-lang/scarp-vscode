@@ -873,6 +873,14 @@ jobs:
               > "$RUNNER_TEMP/$example.actual"
             cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
           done
+          # Published alpha.12/13 structured data and safe control-flow
+          # contracts: execute real official examples and compare golden output.
+          for example in typed_submission typed_propagation variant_validation app_state boolean_match scalar_literal_match; do
+            compiler/target/release/scarp verify "compiler/examples/$example.srp"
+            compiler/target/release/scarp exec "compiler/examples/$example.srp" \
+              > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
           # Every snippet expanded and statically verified against the published compiler.
           node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 12
       - name: Test VS Code Extension Host with released collection compiler
