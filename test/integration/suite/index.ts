@@ -10,6 +10,16 @@ import { preferredExecutionVerb } from '../../../src/cli';
 import { parseBrowsableProjectModules } from '../../../src/projectModules';
 import { parseProjectSymbols } from '../../../src/navigationIndex';
 
+/** Windows VS Code file watchers may briefly retain source handles.
+ * Bounded OS-native EBUSY/EPERM/ENOTEMPTY retries only for temporary
+ * integration-test trees; persistent locks remain test failures.
+ */
+async function removeTemporaryTree(folder: string): Promise<void> {
+  await fs.rm(folder, {
+    recursive: true, force: true, maxRetries: 12, retryDelay: 100
+  });
+}
+
 async function waitFor<T>(read: () => T | undefined, message: string): Promise<T> {
   for (let i = 0; i < 60; i++) {
     const value = read();
@@ -93,7 +103,7 @@ export async function run(): Promise<void> {
   } finally {
     await lensConfig.update('showFileActionsCodeLens', priorLenses,
       vscode.ConfigurationTarget.Global);
-    await fs.rm(lensDir, { recursive: true, force: true });
+    await removeTemporaryTree(lensDir);
   }
 
   // Exercise the actual VS Code Outline and "Go to Symbol in Editor" API.
@@ -246,7 +256,7 @@ export async function run(): Promise<void> {
       assert.equal(vscode.languages.getDiagnostics(selectedUri).length, 0,
         'An unrelated active editor must not receive diagnostics from the supplied source');
     } finally {
-      await fs.rm(explicitRoot, { recursive: true, force: true });
+      await removeTemporaryTree(explicitRoot);
     }
 
     // End-to-end integration with the official alpha.4 Scarp project workflow.
@@ -1263,7 +1273,7 @@ export async function run(): Promise<void> {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
       }
     } finally {
-      await fs.rm(projectParent, { recursive: true, force: true });
+      await removeTemporaryTree(projectParent);
     }
 
     // End-to-end: the published compiler reports a syntax error in an
@@ -1342,7 +1352,7 @@ export async function run(): Promise<void> {
         'Stop command did not close a source terminal with spaces');
     } finally {
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-      await fs.rm(importParent, { recursive: true, force: true });
+      await removeTemporaryTree(importParent);
     }
 
     // Standalone checks must not publish compiler output produced from a
@@ -1443,7 +1453,7 @@ export async function run(): Promise<void> {
     } finally {
       await fs.writeFile(checkReleased, 'go');
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-      await fs.rm(externalRoot, { recursive: true, force: true });
+      await removeTemporaryTree(externalRoot);
     }
 
     const invalidUri = vscode.Uri.file(path.resolve(__dirname, '../../../../test/fixtures/invalid.srp'));
@@ -1591,7 +1601,7 @@ export async function run(): Promise<void> {
     } finally {
       pendingObserver.dispose();
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-      await fs.rm(slowRoot, { recursive: true, force: true });
+      await removeTemporaryTree(slowRoot);
     }
 
     // A pending Run Current File must never launch an old saved version after
@@ -1673,7 +1683,7 @@ export async function run(): Promise<void> {
     } finally {
       startupObserver.dispose();
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-      await fs.rm(startupRoot, { recursive: true, force: true });
+      await removeTemporaryTree(startupRoot);
     }
 
     // File Run must not open a terminal for an old saved input when an
@@ -1769,7 +1779,7 @@ export async function run(): Promise<void> {
       await fs.writeFile(diskRunRelease, 'go');
       diskRunObserver.dispose();
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-      await fs.rm(diskRunRoot, { recursive: true, force: true });
+      await removeTemporaryTree(diskRunRoot);
     }
 
     // Cancelling a stale manual file check must actually terminate only its
@@ -1829,7 +1839,7 @@ export async function run(): Promise<void> {
       }
     } finally {
       await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-      await fs.rm(cancelRoot, { recursive: true, force: true });
+      await removeTemporaryTree(cancelRoot);
     }
 
     // Verify on save is opt-in; use a temporary document rather than
@@ -2096,7 +2106,7 @@ export async function run(): Promise<void> {
         'On-save checks must never execute the legacy evaluating check route');
       await settings.update('verifyOnSave', false, vscode.ConfigurationTarget.Global);
     } finally {
-      await fs.rm(tempDir, { recursive: true, force: true });
+      await removeTemporaryTree(tempDir);
     }
 
     console.log('Scarp Extension Host integration checks passed');
