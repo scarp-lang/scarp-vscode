@@ -34,7 +34,7 @@ test('requires a supported schema, a real entry module and bounded module arrays
   const good = JSON.parse(inventory([moduleEntry(0, 'src/main.srp')]));
   for (const bad of [
     '{not json', '{}',
-    ...([0, 4, '3', 1.5].map(schema_version => JSON.stringify({ ...good, schema_version }))),
+    ...([0, 6, '3', 1.5].map(schema_version => JSON.stringify({ ...good, schema_version }))),
     inventory([], 0), inventory([moduleEntry(0, 'src/main.srp')], 3),
     inventory([moduleEntry(-1, 'src/main.srp')]),
     inventory([moduleEntry(0, 'src/main.srp'), moduleEntry(0, 'src/lib.srp')]),
@@ -80,7 +80,7 @@ test('rejects dangling import edges in all supported schemas', () => {
   ]);
   const library = moduleEntry(1, 'src/library.srp');
 
-  for (const schema of [1, 2, 3]) {
+  for (const schema of [1, 2, 3, 4, 5]) {
     assert.equal(
       parseBrowsableProjectModules(inventory([entry, library], 0, schema), root).length,
       2, `Schema v${schema} must permit forward module references`
@@ -122,3 +122,62 @@ for (const [schema, resultType] of [
       /module inspection JSON/);
   });
 }
+
+test('published schema v4 records and v5 variants preserve module browsing and visibility', () => {
+  const record = {
+    name: 'Task', public: true, kind: 'record',
+    fields: [{ name: 'title', type: 'string' }, { name: 'items', type: 'list<integer>' }]
+  };
+  const variant = {
+    name: 'Outcome', public: false, kind: 'variant',
+    cases: [{ name: 'Ok', payload: 'record Task' }, { name: 'Err', payload: null }]
+  };
+  const main = moduleEntry(0, 'src/main.srp', [{ target: 1 }]);
+  const file = 'src/models.srp';
+  const v4 = inventory([main, moduleEntry(1, file, [], [record])], 0, 4);
+  const v5 = inventory([main, moduleEntry(1, file, [], [record, variant])], 0, 5);
+  for (const [json, count] of [[v4, 1], [v5, 1]] as const) {
+    const modules = parseBrowsableProjectModules(json, root);
+    assert.deepEqual(modules.map(m => [m.displayPath, m.importCount, m.publicSymbols]), [
+      ['src/main.srp', 1, 0], ['src/models.srp', 0, count]
+    ]);
+  }
+});
+
+test('v4/v5 reject malformed or premature nominal metadata and unknown schema upgrades', () => {
+  const record = {
+    name: 'Record', public: true, kind: 'record',
+    fields: [{ name: 'x', type: 'integer' }]
+  };
+  const variant = {
+    name: 'Event', public: true, kind: 'variant',
+    cases: [{ name: 'Click', payload: 'record Record' },
+      { name: 'Idle', payload: null }]
+  };
+  const invalid = [
+    inventory([moduleEntry(0, 'src/main.srp', [], [variant])], 0, 4),
+    inventory([moduleEntry(0, 'src/main.srp', [], [{
+      ...record, fields: [{ name: 'x', type: 42 }]
+    }])], 0, 4),
+    inventory([moduleEntry(0, 'src/main.srp', [], [{
+      ...record, fields: Array.from({ length: 33 }, (_, i) =>
+        ({ name: 'field' + i, type: 'integer' }))
+    }])], 0, 5),
+    inventory([moduleEntry(0, 'src/main.srp', [], [{
+      ...variant, cases: [{ name: 'Bad', payload: false }]
+    }])], 0, 5),
+    inventory([moduleEntry(0, 'src/main.srp', [], [{
+      ...variant, cases: [{ name: 'Bad', payload: 'string'.repeat(1000) }]
+    }])], 0, 5),
+    inventory([moduleEntry(0, 'src/main.srp', [], [{
+      name: 'Unknown', public: true, kind: 'future-schema-type'
+    }])], 0, 5),
+    inventory([moduleEntry(0, 'src/main.srp', [], [record])], 0, 3),
+    inventory([moduleEntry(0, 'src/main.srp', [], [variant])], 0, 3),
+    inventory([moduleEntry(0, 'src/main.srp', [], [record])], 0, 6)
+  ];
+  for (const text of invalid) {
+    assert.throws(() => parseBrowsableProjectModules(text, root),
+      /module inspection JSON/);
+  }
+});
