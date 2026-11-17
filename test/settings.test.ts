@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { budgetArguments, BudgetSettings } from '../src/settings';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 test('passes only configured execution budgets', () => {
   assert.deepEqual(budgetArguments({ maxSteps: 200, maxPrints: 0 } as BudgetSettings),
@@ -70,8 +72,6 @@ test('alpha.10 fixed array budget is opt-in and checked', () => {
 test('published alpha.13 settings describe shared collection quotas and explicit input modes', () => {
   // This is a metadata contract. The executor forwards the same opt-in flags;
   // no compiler is installed or executed to render Settings.
-  const fs = require('node:fs') as typeof import('node:fs');
-  const path = require('node:path') as typeof import('node:path');
   const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8'));
   const properties = pkg.contributes.configuration.properties as Record<string, {
     description: string; default?: number;
