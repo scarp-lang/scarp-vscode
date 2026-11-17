@@ -17,6 +17,12 @@ This document tracks the **published** Scarp compiler contracts used by the VS C
 
 Versions above describe a minimum release for particular features; they do not imply native compilation, a GUI runtime, or semantic editor completion. Syntax highlighting, snippets, local Outline and built-in help are **compiler-free**. The installed compiler may be older than the newest built-in help entry; a version label is not a capability probe.
 
+## Module metadata and native path compatibility
+
+Compiler module inspection retains the bounded graph fields of schema versions **1–3**. Published alpha.12 adds **schema v4** for nominal records and **schema v5** when variants are present. The extension's read-only module browser accepts and validates those versions; unknown newer versions fail closed rather than being guessed.
+
+On Windows, the Rust canonical filesystem loader may emit `\\\\?\\`-namespaced drive or UNC paths while Node and VS Code operate on conventional real paths. The module browser compares paths using a common native namespace, verifies containment within the selected canonical project root, and reconstructs ordinary root-relative filenames. Different volumes, traversal and project prefix collisions remain rejected. The module browser never grants access outside the selected project or bypasses Workspace Trust.
+
 ## Resource limits and safe defaults
 
 The following settings are optional and default to **not forwarding a flag**. The compiler retains its own published default:
