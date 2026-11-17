@@ -9,11 +9,11 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 19 bounded Scarp snippets with unique prefixes', () => {
+test('registers 24 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets,
     [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
-  assert.equal(Object.keys(snippets).length, 19);
+  assert.equal(Object.keys(snippets).length, 24);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -117,3 +117,33 @@ test('alpha.12 immutable list/map snippets use snapshots and pinned compiler che
   assert.match(ci, /a1f9c2fc1c6bc8f3e04878d30d658bb38fab441d/);
   assert.match(ci, /e755fda37cdaeed29434e848cb5dd41f2f2e7eb2/);
 });
+
+
+test('alpha.12 nominal types, checked variants and explicit propagation snippets are released compiler gated', () => {
+  const expected: Record<string, string[]> = {
+    srecord: ['record ', 'new ', '->'],
+    svariant: ['variant ', 'match on ', 'case Success(', 'case Failure'],
+    soption: ['option<integer>', 'case Some(', 'case None'],
+    sresult: ['result<integer, string>', 'case Ok(', 'case Err('],
+    spropagate: ['option<integer>', 'value?;', 'return new option']
+  };
+  for (const [prefix, required] of Object.entries(expected)) {
+    const item = Object.values(snippets).find(x => x.prefix === prefix);
+    assert.ok(item, prefix);
+    const body = item.body.join('\n');
+    for (const token of required) {
+      assert.ok(body.includes(token), prefix + ' missing ' + token);
+    }
+    assert.match(item.description, /v0\.0\.6-alpha\.12\+/);
+    assert.match(item.description, /interpreter only/);
+  }
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 12/);
+  for (const example of [
+    'typed_submission', 'typed_propagation', 'variant_validation',
+    'app_state', 'boolean_match', 'scalar_literal_match'
+  ]) {
+    assert.ok(ci.includes(example), example + ' needs official compiler verification');
+  }
+});
+
