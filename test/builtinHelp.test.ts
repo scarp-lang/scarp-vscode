@@ -58,7 +58,18 @@ const versions: Record<string, string> = {
   decimal_round: 'v0.0.6-alpha.11',
   decimal_format: 'v0.0.6-alpha.11',
   decimal_div_rounded: 'v0.0.6-alpha.11',
-  input_decimal: 'v0.0.6-alpha.11'
+  input_decimal: 'v0.0.6-alpha.11',
+  list_len: 'v0.0.6-alpha.12',
+  list_push: 'v0.0.6-alpha.12',
+  list_set: 'v0.0.6-alpha.12',
+  list_remove: 'v0.0.6-alpha.12',
+  map_len: 'v0.0.6-alpha.12',
+  map_keys: 'v0.0.6-alpha.12',
+  map_values: 'v0.0.6-alpha.12',
+  map_contains: 'v0.0.6-alpha.12',
+  map_get_or: 'v0.0.6-alpha.12',
+  map_set: 'v0.0.6-alpha.12',
+  map_remove: 'v0.0.6-alpha.12'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -152,4 +163,24 @@ test('alpha.11 decimal hovers describe exact conversion, rounding and interactiv
   assert.match(formatted!.constraints, /exactly that many/);
   const input = scarpBuiltinAt('input_decimal("Amount> ")', 3)?.help;
   assert.match(input!.constraints, /--interactive/);
+});
+
+test('alpha.12 collection hover documents immutable quotas and eager fallbacks', () => {
+  const push = scarpBuiltinAt('list_push(items, 3)', 3)?.help;
+  assert.equal(push?.signature, 'list_push(items: list<T>, value: T) -> list<T>');
+  assert.match(push!.constraints, /4096/);
+  const keys = scarpBuiltinAt('map_keys(scores)', 3)?.help;
+  assert.match(keys!.constraints, /canonical|sorted/i);
+  const fallback = scarpBuiltinAt('map_get_or(scores, "x", 0)', 3)?.help;
+  assert.match(fallback!.constraints, /eagerly evaluated/);
+  for (const name of ['list_set', 'map_set', 'map_get_or']) {
+    for (const source of [
+      'funcra ' + name + '(value: integer) {',
+      'module.' + name + '(items)',
+      '// ' + name + '(items)',
+      'print("' + name + '(items)");'
+    ]) {
+      assert.equal(scarpBuiltinAt(source, source.indexOf(name) + 2), undefined, source);
+    }
+  }
 });
