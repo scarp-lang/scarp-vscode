@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 56);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 67);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -101,5 +101,18 @@ test('alpha.11 exact decimal completion is versioned and excludes false lexical 
     assert.equal(choice?.matches.find(x => x.name === name)?.introduced, 'v0.0.6-alpha.11');
     assert.equal(scarpBuiltinCompletionAt('module.' + name, ('module.' + name).length), undefined);
     assert.equal(scarpBuiltinCompletionAt('// ' + name, ('// ' + name).length), undefined);
+  }
+});
+
+test('alpha.12 collection completion is versioned and rejects lexical false positives', () => {
+  for (const prefix of ['list_', 'map_']) {
+    const found = scarpBuiltinCompletionAt(prefix, prefix.length);
+    assert.ok(found);
+    assert.equal(found.matches.length, prefix === 'list_' ? 4 : 7);
+    assert.ok(found.matches.every(x => x.introduced === 'v0.0.6-alpha.12'));
+    assert.equal(scarpBuiltinCompletionAt('module.' + prefix,
+      ('module.' + prefix).length), undefined);
+    assert.equal(scarpBuiltinCompletionAt('// ' + prefix,
+      ('// ' + prefix).length), undefined);
   }
 });
