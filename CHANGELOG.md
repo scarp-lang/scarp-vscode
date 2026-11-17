@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **published alpha.12/alpha.13 structured-type editor coverage**: record and variant top-level Outline symbols; lexical highlighting for nominal declarations, Option/Result generics, constructors, match/case, contracts and propagation; five compiler-verified opt-in snippets. Expand immutable alpha.12 and alpha.13 CI compiler gates with official structured type, exhaustive match and propagation examples/golden outputs. Maintain explicit execution, Workspace Trust and no release publication.
+
 - Add **published Scarp alpha.12/alpha.13 immutable typed collection editing**: contextual list/map type/literal highlighting, 11 versioned collection builtin hover/completion/signature entries, generic-aware argument tracking, two starter snippets, negative lexical tests and pinned release compatibility CI. Exact immutable alpha.12 and alpha.13 compiler commits verify official examples, expected outputs, all 19 snippets, and a real VS Code Extension Host. No extension release or automatic execution.
 
 - Add **two opt-in published alpha.11 starter snippets**: exact decimal arithmetic with explicit rounding display (`sdecimal`), and typed interactive decimal input (`sinputdecimal`). Verify actual snippet expansion via the immutable alpha.11 compiler CI job and retain version-gated verification for older compilers. Update the documented snippet inventory from 14 to the actual 17. No release publication.
