@@ -881,6 +881,13 @@ jobs:
               > "$RUNNER_TEMP/$example.actual"
             cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
           done
+          # Real multipackage application: imports, records, immutable lists,
+          # maps, typed transitions and three project-level test files.
+          compiler/target/release/scarp verify compiler/examples/projects/task-board
+          compiler/target/release/scarp launch compiler/examples/projects/task-board \
+            > "$RUNNER_TEMP/task-board.actual"
+          cmp compiler/examples/projects/task-board/stdout.txt "$RUNNER_TEMP/task-board.actual"
+          compiler/target/release/scarp test --require-tests compiler/examples/projects/task-board
           # Every snippet expanded and statically verified against the published compiler.
           node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 12
       - name: Test VS Code Extension Host with released collection compiler
