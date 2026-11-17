@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
-import { parseBrowsableProjectModules } from '../src/projectModules';
+import { parseBrowsableProjectModules, safeCanonicalModulePath } from '../src/projectModules';
 
 const root = path.resolve('demo project');
 const source = (relative: string) => path.join(root, relative);
@@ -181,3 +181,28 @@ test('v4/v5 reject malformed or premature nominal metadata and unknown schema up
       /module inspection JSON/);
   }
 });
+
+
+test('normalizes Windows Rust verbatim paths only after canonical root containment', () => {
+  const win = path.win32;
+  const root = 'D:\\a\\temp\\project with spaces';
+  const normal = 'D:\\a\\temp\\project with spaces\\src\\main.srp';
+  const verbatim = '\\\\?\\D:\\a\\temp\\project with spaces\\src\\main.srp';
+  const expected = { filename: normal, relative: 'src\\main.srp' };
+  assert.deepEqual(safeCanonicalModulePath(root, normal, win), expected);
+  assert.deepEqual(safeCanonicalModulePath(root, verbatim, win), expected);
+  assert.equal(safeCanonicalModulePath(root,
+    '\\\\?\\D:\\a\\temp\\project with spaces-other\\escape.srp', win), undefined);
+  assert.equal(safeCanonicalModulePath(root, 'C:\\outside\\source.srp', win), undefined);
+  assert.equal(safeCanonicalModulePath(root, 'relative.srp', win), undefined);
+
+  const uncRoot = '\\\\server\\share\\project';
+  const uncFile = '\\\\?\\UNC\\server\\share\\project\\lib\\source.srp';
+  assert.deepEqual(safeCanonicalModulePath(uncRoot, uncFile, win), {
+    filename: '\\\\server\\share\\project\\lib\\source.srp',
+    relative: 'lib\\source.srp'
+  });
+  assert.equal(safeCanonicalModulePath(uncRoot,
+    '\\\\?\\UNC\\server\\share\\project-extra\\lib\\evil.srp', win), undefined);
+});
+
