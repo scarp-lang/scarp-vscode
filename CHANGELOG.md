@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add **published Scarp alpha.12/alpha.13 immutable typed collection editing**: contextual list/map type/literal highlighting, 11 versioned collection builtin hover/completion/signature entries, generic-aware argument tracking, two starter snippets, negative lexical tests and pinned release compatibility CI. Exact immutable alpha.12 and alpha.13 compiler commits verify official examples, expected outputs, all 19 snippets, and a real VS Code Extension Host. No extension release or automatic execution.
+
 - Add **two opt-in published alpha.11 starter snippets**: exact decimal arithmetic with explicit rounding display (`sdecimal`), and typed interactive decimal input (`sinputdecimal`). Verify actual snippet expansion via the immutable alpha.11 compiler CI job and retain version-gated verification for older compilers. Update the documented snippet inventory from 14 to the actual 17. No release publication.
 
 - Add **published Scarp v0.0.6-alpha.11 exact decimal editor compatibility**: contextual type/constructor syntax, eight versioned compiler-free builtin hover/completion/signature entries, explicit accuracy/rounding constraints and regression tests for declarations, strings, comments and qualified names. Pin a separate official alpha.11 compiler CI gate with immutable-source verification, exact and interactive decimal fixtures and a real VS Code Extension Host run. No extension pre-release or stable release.

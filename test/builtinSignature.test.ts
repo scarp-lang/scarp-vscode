@@ -11,7 +11,8 @@ const builtins = [
   'bigint', 'bigint_from_integer', 'bigint_to_integer', 'bigint_abs',
   'read_line_or', 'try_read_line', 'ask', 'ask_or', 'input', 'input_integer', 'input_float', 'input_bigint', 'flush_stdout', 'flush_stderr', 'bigint_pow', 'bigint_gcd', 'bigint_lcm', 'bigint_sqrt', 'bigint_bit_length', 'bigint_to_text', 'bigint_from_radix', 'bigint_to_radix', 'bigint_and', 'bigint_or', 'bigint_xor', 'bigint_not', 'bigint_shl', 'bigint_shr', 'bigint_pow_mod', 'bigint_divmod',
   'decimal', 'decimal_from_integer', 'decimal_to_integer', 'decimal_to_text',
-  'decimal_round', 'decimal_format', 'decimal_div_rounded', 'input_decimal'
+  'decimal_round', 'decimal_format', 'decimal_div_rounded', 'input_decimal',
+  'list_len', 'list_push', 'list_set', 'list_remove', 'map_len', 'map_keys', 'map_values', 'map_contains', 'map_get_or', 'map_set', 'map_remove'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
@@ -133,4 +134,16 @@ test('alpha.11 decimal calls show exact argument positions without compiler exec
   assert.equal(division?.activeParameter, 2);
   assert.equal(scarpSignatureAt('input_decimal(')?.help.introduced, 'v0.0.6-alpha.11');
   assert.equal(scarpSignatureAt('module.decimal_round('), undefined);
+});
+
+test('alpha.12 collection signatures preserve generic map commas as one parameter', () => {
+  const set = scarpSignatureAt('map_set(values, "k", ');
+  assert.deepEqual(set?.parameters, ['items: map<K, V>', 'key: K', 'value: V']);
+  assert.equal(set?.activeParameter, 2);
+  const fallback = scarpSignatureAt('map_get_or(values, "missing", ');
+  assert.deepEqual(fallback?.parameters, ['items: map<K, V>', 'key: K', 'fallback: V']);
+  assert.equal(fallback?.activeParameter, 2);
+  assert.deepEqual(scarpSignatureAt('list_push(')?.parameters, ['items: list<T>', 'value: T']);
+  assert.equal(scarpSignatureAt('module.map_get_or('), undefined);
+  assert.equal(scarpSignatureAt('map_set([map: "a": 1, "z": 2], ')?.activeParameter, 1);
 });

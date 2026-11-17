@@ -1,5 +1,5 @@
 /**
- * Lightweight, editor-only help for published numerical, text and input Scarp built-ins.
+ * Lightweight, editor-only help for published numerical, text, input and collection Scarp built-ins.
  *
  * This table is a reference to the compiler's released contracts, not a
  * semantic analysis of user code or an installed-compiler capability probe.
@@ -26,6 +26,7 @@ const alpha6 = 'v0.0.6-alpha.6';
 const alpha9 = 'v0.0.6-alpha.9';
 const alpha10 = 'v0.0.6-alpha.10';
 const alpha11 = 'v0.0.6-alpha.11';
+const alpha12 = 'v0.0.6-alpha.12';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -419,6 +420,83 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha11,
     summary: 'Prompts, reads and validates an exact decimal value.',
     constraints: 'Impure and requires --interactive and a selected input source; follows the decimal parser and program-input quotas.'
+  },
+  list_len: {
+    name: 'list_len',
+    signature: 'list_len(items: list<T>) -> integer',
+    introduced: alpha12,
+    summary: 'Returns the current length of a typed immutable list.',
+    constraints: 'Bounded to 4096 elements. Pure, with no mutation of existing snapshots.'
+  },
+  list_push: {
+    name: 'list_push',
+    signature: 'list_push(items: list<T>, value: T) -> list<T>',
+    introduced: alpha12,
+    summary: 'Returns a new list snapshot with a value appended.',
+    constraints: 'Value must match T exactly; capacity is 4096 entries, with fresh logical allocation charged to --max-array-bytes.'
+  },
+  list_set: {
+    name: 'list_set',
+    signature: 'list_set(items: list<T>, index: integer, value: T) -> list<T>',
+    introduced: alpha12,
+    summary: 'Returns a new list snapshot with one element replaced.',
+    constraints: 'Zero-based integer index must be in range (E0079). Original list remains unchanged; allocation/work budgets apply.'
+  },
+  list_remove: {
+    name: 'list_remove',
+    signature: 'list_remove(items: list<T>, index: integer) -> list<T>',
+    introduced: alpha12,
+    summary: 'Returns a new list snapshot without the indexed element.',
+    constraints: 'Zero-based integer index must be valid (E0079). Existing aliases retain their original snapshots.'
+  },
+  map_len: {
+    name: 'map_len',
+    signature: 'map_len(items: map<K, V>) -> integer',
+    introduced: alpha12,
+    summary: 'Returns the number of distinct keys in an immutable typed map.',
+    constraints: 'At most 1024 entries. Maps retain canonical key order rather than insertion order.'
+  },
+  map_keys: {
+    name: 'map_keys',
+    signature: 'map_keys(items: map<K, V>) -> list<K>',
+    introduced: alpha12,
+    summary: 'Projects map keys into a new immutable typed list in canonical order.',
+    constraints: 'Keys are integer, boolean or string; sorted numeric, false-before-true, or UTF-8 lexical. Allocation quotas apply.'
+  },
+  map_values: {
+    name: 'map_values',
+    signature: 'map_values(items: map<K, V>) -> list<V>',
+    introduced: alpha12,
+    summary: 'Projects map values into a new immutable list aligned with canonical keys.',
+    constraints: 'Values follow the same key order as map_keys, not source insertion order. New list allocation is charged.'
+  },
+  map_contains: {
+    name: 'map_contains',
+    signature: 'map_contains(items: map<K, V>, key: K) -> boolean',
+    introduced: alpha12,
+    summary: 'Checks whether an exactly typed map key is present.',
+    constraints: 'Map keys are integer, boolean or string. This is a pure lookup; no mutation.'
+  },
+  map_get_or: {
+    name: 'map_get_or',
+    signature: 'map_get_or(items: map<K, V>, key: K, fallback: V) -> V',
+    introduced: alpha12,
+    summary: 'Gets the stored value, or the provided typed fallback for a missing key.',
+    constraints: 'All arguments are eagerly evaluated, including fallback even when the key exists. Exact K and V types required.'
+  },
+  map_set: {
+    name: 'map_set',
+    signature: 'map_set(items: map<K, V>, key: K, value: V) -> map<K, V>',
+    introduced: alpha12,
+    summary: 'Returns an immutable map snapshot with one key inserted or replaced.',
+    constraints: 'At most 1024 distinct keys (E0081); key and value types must match. New snapshot charges --max-array-bytes.'
+  },
+  map_remove: {
+    name: 'map_remove',
+    signature: 'map_remove(items: map<K, V>, key: K) -> map<K, V>',
+    introduced: alpha12,
+    summary: 'Returns an immutable map snapshot without the specified key.',
+    constraints: 'Missing keys may share the original snapshot. All existing aliases remain unchanged.'
   }
 };
 

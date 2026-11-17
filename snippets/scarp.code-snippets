@@ -167,5 +167,25 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.11+: prompt for a typed exact decimal; explicit interactive execution required."
+  },
+  "Scarp: Immutable typed list (alpha.12)": {
+    "prefix": "slist",
+    "body": [
+      "bind ${1:items}: list<integer> = [list: ${2:10}, ${3:20}];",
+      "bind ${4:extended} = list_push(${1}, ${5:30});",
+      "print(list_len(${4}), ${4}[0]);",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: build a typed immutable list and append to a new snapshot (interpreter only)."
+  },
+  "Scarp: Immutable typed map (alpha.12)": {
+    "prefix": "smap",
+    "body": [
+      "bind ${1:scores}: map<string, integer> = [map: \"${2:alpha}\": ${3:1}, \"${4:beta}\": ${5:2}];",
+      "bind ${6:updated} = map_set(${1}, \"${7:gamma}\", ${8:3});",
+      "print(map_len(${6}), map_get_or(${6}, \"${2}\", ${9:0}));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.12+: build a typed immutable, canonically ordered map and update a snapshot (interpreter only)."
   }
 }
