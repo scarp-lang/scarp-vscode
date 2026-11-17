@@ -824,6 +824,9 @@ jobs:
             > "$RUNNER_TEMP/exact-decimal-interactive.actual"
           cmp compiler/examples/interactive/exact_decimal.stdout \
             "$RUNNER_TEMP/exact-decimal-interactive.actual"
+          # Verify the real, newly published decimal starter-snippet expansions
+          # without running Scarp code or assuming an unreleased compiler.
+          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 11
       - name: Exercise VS Code Extension Host with published Scarp alpha.11
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
