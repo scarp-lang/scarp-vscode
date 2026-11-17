@@ -65,3 +65,36 @@ test('alpha.10 fixed array budget is opt-in and checked', () => {
   }
   assert.ok(!budgetArguments({} as BudgetSettings).includes('--max-array-bytes'));
 });
+
+
+test('published alpha.13 settings describe shared collection quotas and explicit input modes', () => {
+  // This is a metadata contract. The executor forwards the same opt-in flags;
+  // no compiler is installed or executed to render Settings.
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8'));
+  const properties = pkg.contributes.configuration.properties as Record<string, {
+    description: string; default?: number;
+  }>;
+  const arrayHelp = properties['scarp.maxArrayBytes'].description;
+  assert.match(arrayHelp, /fixed arrays/);
+  assert.match(arrayHelp, /lists and maps/);
+  assert.match(arrayHelp, /alpha\.12/);
+  assert.match(arrayHelp, /static Verify/);
+  const tupleHelp = properties['scarp.maxTupleBytes'].description;
+  for (const word of ['tuple', 'record', 'variant', 'alpha.12']) {
+    assert.ok(tupleHelp.includes(word), word);
+  }
+  for (const key of ['maxInputLineBytes', 'maxInputBytes', 'maxInputReads']) {
+    const description = properties['scarp.' + key].description;
+    assert.match(description, /alpha\.6/);
+    assert.match(description, /alpha\.10/);
+    assert.match(description, /--interactive/);
+    assert.match(description, /Does not enable interactive execution/);
+  }
+  // Enabling shared quota flags remains explicitly opt-in.
+  assert.deepEqual(budgetArguments({ maxTupleBytes: 0, maxArrayBytes: 0 } as BudgetSettings),
+    ['--max-tuple-bytes', '0', '--max-array-bytes', '0']);
+  assert.deepEqual(budgetArguments({} as BudgetSettings), []);
+});
+
