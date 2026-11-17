@@ -149,7 +149,19 @@ export async function run(): Promise<void> {
     const inventory = JSON.parse(modulesResult.stdout);
     assert.equal(inventory.schema_version, 5);
     const canonicalRoot = await fs.realpath(tempRoot);
-    const modules = parseBrowsableProjectModules(modulesResult.stdout, canonicalRoot);
+    let modules;
+    try {
+      modules = parseBrowsableProjectModules(modulesResult.stdout, canonicalRoot);
+    } catch (error) {
+      // Make genuine filesystem-identity regressions diagnosable in CI.
+      // Only test-temp paths and versioned compiler module labels are shown.
+      const paths = Array.isArray(inventory.modules)
+        ? inventory.modules.map((entry: { path?: string }) => entry.path)
+        : [];
+      throw new Error('Windows compiler module path mismatch: ' +
+        String(error) + '; root=' + JSON.stringify(canonicalRoot) +
+        '; compiler paths=' + JSON.stringify(paths));
+    }
     assert.equal(modules.length, 1);
     assert.equal(modules[0].isEntry, true);
     assert.equal(path.resolve(modules[0].filename),
