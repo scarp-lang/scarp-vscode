@@ -832,6 +832,54 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha12-alpha13-collections:
+    name: Official Scarp ${{ matrix.tag }} collections (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: v0.0.6-alpha.12
+            alpha: "12"
+            commit: a1f9c2fc1c6bc8f3e04878d30d658bb38fab441d
+          - tag: v0.0.6-alpha.13
+            alpha: "13"
+            commit: e755fda37cdaeed29434e848cb5dd41f2f2e7eb2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: ${{ matrix.tag }}
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify released collection semantics against immutable compiler source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "${{ matrix.commit }}"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          compiler/target/release/scarp --version | grep -F "0.0.6-alpha.${{ matrix.alpha }}"
+          # Test official list/map programs against their checked-in golden output.
+          for example in typed_dynamic_lists persistent_list_updates typed_maps persistent_maps map_projections; do
+            compiler/target/release/scarp verify "compiler/examples/$example.srp"
+            compiler/target/release/scarp exec --max-array-bytes 8388608 "compiler/examples/$example.srp" \
+              > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+          # Every snippet expanded and statically verified against the published compiler.
+          node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 12
+      - name: Test VS Code Extension Host with released collection compiler
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
