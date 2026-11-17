@@ -866,6 +866,12 @@ jobs:
           test "$(git -C compiler rev-parse HEAD)" = "${{ matrix.commit }}"
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           compiler/target/release/scarp --version | grep -F "0.0.6-alpha.${{ matrix.alpha }}"
+          # Verify the actual published records/v4 and variants/v5 module JSON
+          # with the extension's path-secure parser (including compiler labels).
+          node scripts/verify-module-inventory.cjs "$PWD/compiler/target/release/scarp" \
+            compiler/examples/app_state.srp 4
+          node scripts/verify-module-inventory.cjs "$PWD/compiler/target/release/scarp" \
+            compiler/examples/variant_validation.srp 5
           # Test official list/map programs against their checked-in golden output.
           for example in typed_dynamic_lists persistent_list_updates typed_maps persistent_maps map_projections; do
             compiler/target/release/scarp verify "compiler/examples/$example.srp"
@@ -922,6 +928,12 @@ jobs:
               throw "Windows interpreter output mismatch: $example"
             }
           }
+          # Validate real Windows compiler JSON and verbatim path handling
+          # before the VS Code Extension Host exercises its module browser.
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/app_state.srp 4
+          if ($LASTEXITCODE -ne 0) { throw 'Windows schema v4 module inspection failed' }
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/variant_validation.srp 5
+          if ($LASTEXITCODE -ne 0) { throw 'Windows schema v5 module inspection failed' }
           & $binary verify compiler/examples/projects/task-board
           if ($LASTEXITCODE -ne 0) { throw 'Task-board project verification failed' }
           & $binary test --require-tests compiler/examples/projects/task-board
