@@ -941,6 +941,7 @@ jobs:
       - name: Exercise real Windows VS Code Extension Host with published alpha.13
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}\compiler\target\release\scarp.exe
+          SCARP_TEST_SUITE: windows
         run: npm run test:integration
 
   editor-untrusted:
