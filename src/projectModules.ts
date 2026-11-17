@@ -15,7 +15,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 function invalid(): never {
-  throw new Error('Unsupported or malformed Scarp module inspection JSON (expected schema v1, v2, or v3).');
+  throw new Error('Unsupported or malformed Scarp module inspection JSON (expected schema v1 through v5).');
 }
 
 /**
@@ -30,9 +30,10 @@ export function parseBrowsableProjectModules(
   let raw: unknown;
   try { raw = JSON.parse(stdout); }
   catch { return invalid(); }
-  // Schema v2 and v3 extend signature type strings and keep the module graph fields.
+  // Schemas 4/5 add nominal record/variant symbols, retaining the same graph
+  // shape, absolute canonical paths and source-order public visibility.
   if (!object(raw) ||
-      (raw.schema_version !== 1 && raw.schema_version !== 2 && raw.schema_version !== 3) ||
+      ![1, 2, 3, 4, 5].includes(raw.schema_version as number) ||
       !Number.isSafeInteger(raw.entry) ||
       !Array.isArray(raw.modules) || raw.modules.length < 1 ||
       raw.modules.length > 128 ||
@@ -40,6 +41,7 @@ export function parseBrowsableProjectModules(
     return invalid();
   }
 
+  const schema = raw.schema_version as number;
   const entry = raw.entry as number;
   const seenIds = new Set<number>();
   const seenPaths = new Set<string>();
@@ -70,9 +72,29 @@ export function parseBrowsableProjectModules(
       (imp.target as number) >= 0)) {
       return invalid();
     }
-    if (!(candidate.symbols as unknown[]).every(symbol =>
-      object(symbol) && typeof symbol.name === 'string' &&
-      typeof symbol.public === 'boolean')) {
+    if (!(candidate.symbols as unknown[]).every(symbol => {
+      if (!object(symbol) || typeof symbol.name !== 'string' ||
+          typeof symbol.public !== 'boolean') { return false; }
+      // Preserve legacy v1-v3 metadata contracts without inventing
+      // semantics for their historical kind/parameter representations.
+      if (schema < 4) {
+        return symbol.kind !== 'record' && symbol.kind !== 'variant';
+      }
+      if (symbol.kind === 'record') {
+        return Array.isArray(symbol.fields) && symbol.fields.length <= 32 &&
+          symbol.fields.every(field =>
+            object(field) && typeof field.name === 'string' &&
+            typeof field.type === 'string' && field.type.length <= 4096);
+      }
+      if (symbol.kind === 'variant') {
+        return schema >= 5 && Array.isArray(symbol.cases) &&
+          symbol.cases.length <= 32 && symbol.cases.every(item =>
+            object(item) && typeof item.name === 'string' &&
+            (item.payload === null ||
+              typeof item.payload === 'string' && item.payload.length <= 4096));
+      }
+      return symbol.kind === 'constant' || symbol.kind === 'function';
+    })) {
       return invalid();
     }
 
