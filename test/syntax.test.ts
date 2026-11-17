@@ -353,3 +353,57 @@ test('published alpha.12 list/map types, literals and calls get contextual scope
       name, 'entity.name.function.definition.scarp'));
   }
 });
+
+
+test('published alpha.12/alpha.13 nominal declarations and Option/Result forms tokenize safely', async () => {
+  const grammar = await tokenizer();
+  const declarations = tokens('pub record Task { title: string }', grammar);
+  assert.ok(hasScope(declarations, 'record', 'storage.type.scarp'));
+  assert.ok(hasScope(declarations, 'Task', 'entity.name.type.scarp'));
+  const variant = tokens('variant Submission { Accepted(record Task), Rejected(string) }', grammar);
+  assert.ok(hasScope(variant, 'variant', 'storage.type.scarp'));
+  assert.ok(hasScope(variant, 'Submission', 'entity.name.type.scarp'));
+  assert.ok(hasScope(variant, 'record', 'support.type.scarp'));
+  const typed = tokens('bind result: result<record Task, option<string>> = value;', grammar);
+  for (const name of ['result', 'record', 'option', 'string']) {
+    assert.ok(hasScope(typed, name, 'support.type.scarp'), name);
+  }
+  const qualified = tokens('bind original: variant models.Lookup = state;', grammar);
+  assert.ok(hasScope(qualified, 'variant', 'support.type.scarp'));
+  for (const name of ['record', 'variant', 'option', 'result']) {
+    assert.ok(!hasScope(tokens('bind ' + name + ' = 1;', grammar),
+      name, 'support.type.scarp'), name + ' is contextual');
+    assert.ok(!hasScope(tokens('print("' + name + '<integer>");', grammar),
+      name, 'support.type.scarp'), name + ' in a string');
+    assert.ok(!hasScope(tokens('// ' + name + '<integer>', grammar),
+      name, 'support.type.scarp'), name + ' in a comment');
+  }
+});
+
+test('published match, constructors, contracts and propagation punctuation tokenize as code only', async () => {
+  const grammar = await tokenizer();
+  for (const keyword of ['match', 'on', 'case', 'new', 'needs', 'ensures']) {
+    assert.ok(hasScope(tokens(keyword + ' subject;', grammar), keyword,
+      'keyword.control.scarp'), keyword);
+    assert.ok(!hasScope(tokens('print("' + keyword + '");', grammar),
+      keyword, 'keyword.control.scarp'), keyword + ' inside text');
+    assert.ok(!hasScope(tokens('// ' + keyword, grammar),
+      keyword, 'keyword.control.scarp'), keyword + ' inside comment');
+    assert.ok(!hasScope(tokens(keyword + '_long', grammar),
+      keyword, 'keyword.control.scarp'), keyword + ' suffix');
+  }
+  const constructor = tokens('new result<integer, string>::Ok(5);', grammar);
+  assert.ok(hasScope(constructor, 'new', 'keyword.control.scarp'));
+  assert.ok(hasScope(constructor, 'result', 'support.type.scarp'));
+  assert.ok(constructor.some(part => part.text === '::' &&
+    part.scopes.includes('keyword.operator.scarp')));
+  const propagation = tokens('bind title: string = parse_title(value)?;', grammar);
+  assert.ok(propagation.some(part => part.text === '?' &&
+    part.scopes.includes('keyword.operator.scarp')));
+  const quote = tokens('print("new Result::Ok ? match"); // case Err(x)', grammar);
+  assert.ok(!quote.some(part => part.text.includes('::') &&
+    part.scopes.includes('keyword.operator.scarp')));
+  assert.ok(!quote.some(part => part.text.includes('case') &&
+    part.scopes.includes('keyword.control.scarp')));
+});
+
