@@ -1,5 +1,33 @@
 import * as path from 'node:path';
-import { isWithinProject } from './projectChangeTracker';
+
+type ModulePathOps = Pick<typeof path,
+  'resolve' | 'relative' | 'isAbsolute' | 'toNamespacedPath' | 'sep'>;
+
+/**
+ * Scarp's Rust filesystem loader can emit \\?\\-prefixed Windows canonical
+ * paths while Node's fs.realpath returns an ordinary drive/UNC path.
+ * Compare both paths in the same native namespace, then return a normal
+ * root-relative editor pathname. Reject a different volume, traversal or
+ * path-prefix collision rather than stripping an arbitrary namespace prefix.
+ *
+ * The injected native-path implementation allows real Windows path rules to
+ * be tested on Linux CI as well.
+ */
+export function safeCanonicalModulePath(
+  canonicalProjectRoot: string, compilerLabel: string,
+  paths: ModulePathOps = path
+): { filename: string; relative: string } | undefined {
+  if (!paths.isAbsolute(canonicalProjectRoot) ||
+      !paths.isAbsolute(compilerLabel)) { return undefined; }
+  const root = paths.resolve(canonicalProjectRoot);
+  const relative = paths.relative(
+    paths.toNamespacedPath(root),
+    paths.toNamespacedPath(paths.resolve(compilerLabel))
+  );
+  if (relative === '..' || relative.startsWith('..' + paths.sep) ||
+      paths.isAbsolute(relative)) { return undefined; }
+  return { filename: paths.resolve(root, relative), relative };
+}
 
 export interface BrowsableProjectModule {
   id: number;
@@ -62,11 +90,11 @@ export function parseBrowsableProjectModules(
       return invalid();
     }
     const id = candidate.id as number;
-    const filename = path.resolve(candidate.path);
-    if (!isWithinProject(canonicalProjectRoot, filename) ||
-        seenIds.has(id) || seenPaths.has(filename)) {
+    const resolved = safeCanonicalModulePath(canonicalProjectRoot, candidate.path);
+    if (!resolved || seenIds.has(id) || seenPaths.has(resolved.filename)) {
       return invalid();
     }
+    const filename = resolved.filename;
     if (!(candidate.imports as unknown[]).every(imp =>
       object(imp) && Number.isSafeInteger(imp.target) &&
       (imp.target as number) >= 0)) {
@@ -104,11 +132,10 @@ export function parseBrowsableProjectModules(
     }
     seenIds.add(id);
     seenPaths.add(filename);
-    const relative = path.relative(canonicalProjectRoot, filename);
     modules.push({
       id,
       filename,
-      displayPath: relative.split(path.sep).join('/').replace(/[\r\n\t]/g, ' '),
+      displayPath: resolved.relative.split(path.sep).join('/').replace(/[\r\n\t]/g, ' '),
       isEntry: id === entry,
       importCount: candidate.imports.length,
       publicSymbols: candidate.symbols.filter(symbol =>
