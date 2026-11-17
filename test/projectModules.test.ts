@@ -206,3 +206,22 @@ test('normalizes Windows Rust verbatim paths only after canonical root containme
     '\\\\?\\UNC\\server\\share\\project-extra\\lib\\evil.srp', win), undefined);
 });
 
+test('Windows 8.3 short roots and Rust long canonical labels match without escaping the root', () => {
+  const win = path.win32;
+  const shortRoot = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\scarp-test';
+  const longRoot = '\\\\?\\C:\\Users\\runneradmin\\AppData\\Local\\Temp\\scarp-test';
+  const longFile = longRoot + '\\typed source.srp';
+  const resolveAlias = (filename: string): string =>
+    filename === shortRoot ? longRoot : filename;
+  assert.deepEqual(
+    safeCanonicalModulePath(shortRoot, longFile, win, resolveAlias),
+    { filename: win.join(shortRoot, 'typed source.srp'), relative: 'typed source.srp' }
+  );
+  const sibling = '\\\\?\\C:\\Users\\runneradmin\\AppData\\Local\\Temp\\scarp-test-other\\bad.srp';
+  assert.equal(safeCanonicalModulePath(shortRoot, sibling, win, resolveAlias), undefined);
+  const symlinkEscape = (filename: string): string =>
+    filename === shortRoot ? longRoot :
+      filename === win.join(shortRoot, 'alias.srp') ? 'D:\\outside\\file.srp' : filename;
+  assert.equal(safeCanonicalModulePath(shortRoot,
+    win.join(shortRoot, 'alias.srp'), win, symlinkEscape), undefined);
+});
