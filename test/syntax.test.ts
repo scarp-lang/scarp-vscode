@@ -324,3 +324,32 @@ test('published alpha.11 decimal type and builtins use contextual syntax scopes'
   assert.ok(!hasScope(tokens('bind decimal = 1;', grammar),
     'decimal', 'support.type.scarp'), 'A user binding is not a decimal type');
 });
+
+test('published alpha.12 list/map types, literals and calls get contextual scopes', async () => {
+  const grammar = await tokenizer();
+  for (const name of ['list', 'map']) {
+    const type = tokens(`bind values: ${name}<integer, string> = [${name}: <integer, string>];`, grammar);
+    assert.ok(hasScope(type, name, 'support.type.scarp'), name);
+    assert.ok(!hasScope(tokens(`bind ${name} = 2;`, grammar),
+      name, 'support.type.scarp'), name + ' must not be a reserved binding name');
+    assert.ok(!hasScope(tokens(`print("${name}<integer>");`, grammar),
+      name, 'support.type.scarp'));
+    assert.ok(!hasScope(tokens(`// ${name}<integer>`, grammar),
+      name, 'support.type.scarp'));
+  }
+  const nested = tokens('bind m: map<string, list<integer>> = [map: <string, list<integer>>];', grammar);
+  assert.ok(hasScope(nested, 'map', 'support.type.scarp'));
+  assert.ok(hasScope(nested, 'list', 'support.type.scarp'));
+  for (const name of ["list_len","list_push","list_set","list_remove","map_len","map_keys","map_values","map_contains","map_get_or","map_set","map_remove"]) {
+    assert.ok(hasScope(tokens(`${name}(value);`, grammar), name,
+      'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens(`${name}_custom(value);`, grammar),
+      name + '_custom', 'support.function.builtin.scarp'));
+    assert.ok(!hasScope(tokens(`// ${name}(value)`, grammar),
+      name, 'support.function.builtin.scarp'));
+    assert.ok(!hasScope(tokens(`print("${name}(value)");`, grammar),
+      name, 'support.function.builtin.scarp'));
+    assert.ok(hasScope(tokens(`funcra ${name}() {`, grammar),
+      name, 'entity.name.function.definition.scarp'));
+  }
+});
