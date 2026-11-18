@@ -176,6 +176,9 @@ export async function run(): Promise<void> {
     const navigationSource = 'bind answer = 42;\nprint(answer);\n';
     await fs.writeFile(navigationUri.fsPath, navigationSource, 'utf8');
     const navigationDocument = await vscode.workspace.openTextDocument(navigationUri);
+    // Match the existing Linux provider integration: the source must stay
+    // owned by a visible editor throughout the asynchronous CLI request.
+    await vscode.window.showTextDocument(navigationDocument);
     const referencesJson = await runCompiler(binary,
       ['inspect', 'references', '--json', '--diagnostic-format=json', '--',
         navigationUri.fsPath], {
