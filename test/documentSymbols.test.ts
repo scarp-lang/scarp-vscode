@@ -168,3 +168,74 @@ test('record and variant spans are UTF-16 safe across emoji and CRLF source', ()
   assert.equal(symbol.selectionStart, source.indexOf('Status'));
   assert.equal(symbol.end, source.indexOf('}\r\n') + 1);
 });
+
+test('outlines published tuple, array, and record destructuring names at file scope', () => {
+  const source = [
+    'bind (result, state) = make_pair(21);',
+    'var [first, second, third] = [array: 3, 5, 7];',
+    'bind (_, answer) = (true, 42);',
+    'record Point { x: integer, y: integer }',
+    'bind {x: horizontal, y: vertical} = new Point { x: 3, y: 4 };',
+    'bind ([(quantity, unit_price), (_, spare_price)], currency) =',
+    '  ([array: (2, 15), (1, 7)], "INR");',
+    'bind after = answer;'
+  ].join('\n');
+  const results = scanScarpSymbols(source);
+  assert.deepEqual(results.map(result => [result.kind, result.name]), [
+    ['constant', 'result'], ['constant', 'state'],
+    ['variable', 'first'], ['variable', 'second'], ['variable', 'third'],
+    ['constant', 'answer'], ['record', 'Point'],
+    ['constant', 'horizontal'], ['constant', 'vertical'],
+    ['constant', 'quantity'], ['constant', 'unit_price'],
+    ['constant', 'spare_price'], ['constant', 'currency'],
+    ['constant', 'after']
+  ]);
+  for (const symbol of results) {
+    assert.equal(source.slice(symbol.selectionStart, symbol.selectionEnd),
+      symbol.name, 'Every Outline selection must identify only its bound name');
+  }
+  const root = results[0];
+  assert.equal(root.start, source.indexOf('bind (result'));
+  assert.equal(root.end, source.indexOf('\nvar ['));
+  assert.equal(root.end, results[1].end, 'Names in a pattern share declaration range');
+  assert.equal(results[2].detail, 'destructured mutable variable');
+  assert.equal(results[7].detail, 'destructured binding');
+});
+
+test('destructuring skips discard and field labels, retaining singleton comma syntax', () => {
+  const source = [
+    'bind (one,) = (1,);',
+    'bind {x: _, y: renamed} = point;',
+    'bind (_, [inside, _]) = pair;',
+    'funcra scope() -> unit {',
+    '  bind (hidden, also_hidden) = (1, 2);',
+    '}'
+  ].join('\n');
+  assert.deepEqual(scanScarpSymbols(source).map(s => s.name),
+    ['one', 'renamed', 'inside', 'scope']);
+});
+
+test('incomplete, duplicate and malformed destructuring never fabricates symbols', () => {
+  const malformed = [
+    'bind (x) = (1,);', // singleton tuple requires a trailing comma
+    'bind (x, x) = (1, 2);',
+    'bind (x,, y) = (1, 2);',
+    'bind (x y) = (1, 2);',
+    'bind [x, y) = [array: 1, 2];',
+    'bind {x a} = point;',
+    'bind {x: a, y: a} = point;',
+    'bind [] = [array: 1];',
+    'bind (x, y) = (1, 2)', // missing statement terminator
+    'bind (x, [y, z] = input;'
+  ];
+  for (const candidate of malformed) {
+    assert.deepEqual(scanScarpSymbols(candidate), [], candidate);
+  }
+  assert.deepEqual(scanScarpSymbols([
+    'bind (ok, value) = (1, 2);',
+    'bind (duplicate, duplicate) = (1, 2);',
+    'bind tail = value;',
+    'print("bind (fake, fake2) = (1, 2);");',
+    '// bind (commented, names) = (3, 4);'
+  ].join('\n')).map(x => x.name), ['ok', 'value', 'tail']);
+});
