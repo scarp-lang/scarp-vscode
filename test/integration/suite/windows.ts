@@ -195,7 +195,15 @@ export async function run(): Promise<void> {
     assert.ok(definitions?.some(item =>
       path.resolve(item.uri.fsPath) === path.resolve(navigationUri.fsPath) &&
       item.range.start.line === 0 && item.range.start.character === 5),
-      'Go to Definition must resolve actual compiler symbols on Windows');
+      'Go to Definition must resolve actual compiler symbols on Windows; ' +
+      JSON.stringify({
+        definitions, rawDeclaration: selected?.location,
+        documentLanguage: navigationDocument.languageId,
+        workspaceTrusted: vscode.workspace.isTrusted,
+        documentDirty: navigationDocument.isDirty,
+        configuredCompiler: settings.get<string>('compilerPath'),
+        expectedFile: navigationUri.fsPath, indexFiles: navigationIndex.files
+      }));
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider', navigationUri, cursor);
     assert.ok(references?.some(item =>
