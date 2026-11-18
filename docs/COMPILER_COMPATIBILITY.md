@@ -14,6 +14,7 @@ This document tracks the **published** Scarp compiler contracts used by the VS C
 | v0.0.6-alpha.11+ | Exact decimal values, explicit rounding and typed interactive decimal input |
 | v0.0.6-alpha.12+ | Immutable typed lists/maps, records, variants, Option/Result, checked `match` and `?` propagation in immutable function bindings |
 | v0.0.6-alpha.13+ | The same released CLI contracts, plus opt-in Rust embedding cache/editor-generation APIs **not exposed as a VS Code or CLI protocol** |
+| v0.0.6-alpha.14+ | More precise syntax diagnostics for malformed nested destructuring, additional Rust host cache controls and an experimental ELF64 kernel API; **no new editor-facing CLI command or module schema** |
 
 Versions above describe a minimum release for particular features; they do not imply native compilation, a GUI runtime, or semantic editor completion. Syntax highlighting, snippets, local Outline and built-in help are **compiler-free**. The installed compiler may be older than the newest built-in help entry; a version label is not a capability probe.
 
@@ -43,12 +44,13 @@ No resource-budget flag is sent by compiler-free editor providers. Static `verif
 - Published feature fixtures run `scarp verify` first, then explicit `scarp exec` with golden stdout comparisons where appropriate.
 - Starter snippets are expanded and checked using `scripts/verify-snippets.cjs` and the correct minimum published alpha. The snippet verifier **never executes** snippet source.
 - Published alpha.12 and alpha.13 jobs run real list/map and structured type fixtures, plus the multi-file task-board application, using its published manifest and test suite.
+- The published alpha.14 job pins approved source `43627b74af5fccccc5e233e98207413983ebafc1`, checks nested destructuring and map projection snapshots against the official stdout fixtures, rejects malformed nesting, validates the real module JSON, statically verifies editor snippets and exercises the Linux VS Code Extension Host with that compiler.
 - Windows, Linux and macOS checks run extension typechecking and unit tests. The Linux VS Code Extension Host runs its full POSIX signal/termination stress suite. The **published alpha.13 Windows** VS Code Extension Host runs a separate native, shell-free suite exercising actual record/variant Outline, map hover/completion/signatures, static Problems, compiler execution, modules schema v5 and project verification. Windows also builds exact published compiler source and runs golden-output and task-board tests. A Restricted Mode Linux host test verifies the trust boundary.
 
 To verify your installed compiler locally, use `scarp --version`, then run the extension's **Scarp: Show Compiler Version** command. For project input, choose a published example and an explicit `scarp verify PATH` command. Do not assume editor completion grants execution support in an older installed compiler.
 
 ## Compatibility scope and release rules
 
-This extension never installs or upgrades the compiler automatically. Workspace Trust, saved-source checks, cancellation, path containment and compiler capability probes continue to gate privileged operations. Alpha.13 Rust embedding APIs require a separate host integration design; the extension's current implementation uses the compiler's released CLI and its own editor-side source-generation validation.
+This extension never installs or upgrades the compiler automatically. Workspace Trust, saved-source checks, cancellation, path containment and compiler capability probes continue to gate privileged operations. Alpha.13–alpha.14 Rust embedding/cache and experimental native-kernel APIs require a separate host integration design; the extension's current implementation uses the compiler's released CLI and its own editor-side source-generation validation.
 
 The extension is still **experimental**. Do not publish a stable VS Code extension before Scarp publishes and verifies a stable compiler release. Pre-release publishing to Visual Studio Marketplace or Open VSX requires explicit owner authorization and the repository's existing release gates.
