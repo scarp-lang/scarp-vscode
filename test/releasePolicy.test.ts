@@ -379,6 +379,8 @@ test('published alpha.14 compatibility gate pins real compiler source and stays 
     assert.ok(gate.includes(example), 'Published example missing: ' + example);
   }
   assert.match(gate, /scarp-nested-XXXXXX\.srp/);
+  assert.match(gate, /--diagnostic-format=json/);
+  assert.match(gate, /parseDiagnostics/);
   assert.match(gate, /verify-module-inventory\.cjs/);
   assert.match(gate, /verify-snippets\.cjs.*14/);
   assert.match(gate, /xvfb-run -a npm run test:integration/);
