@@ -388,3 +388,31 @@ test('published alpha.14 compatibility gate pins real compiler source and stays 
   assert.match(doc, /v0\.0\.6-alpha\.14\+/);
   assert.match(doc, /no new editor-facing CLI command/);
 });
+
+test('native Windows compiler matrix pins alpha.13 and alpha.14 without release actions', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const begin = ci.indexOf('  compiler-alpha13-alpha14-windows:');
+  const end = ci.indexOf('  compiler-alpha14-compatibility:', begin);
+  assert.ok(begin > 0 && end > begin, 'Windows compatibility matrix must precede Linux alpha.14');
+  const gate = ci.slice(begin, end);
+  assert.match(gate, /- alpha: "13"/);
+  assert.match(gate, /- alpha: "14"/);
+  assert.match(gate, /e755fda37cdaeed29434e848cb5dd41f2f2e7eb2/);
+  assert.match(gate, /43627b74af5fccccc5e233e98207413983ebafc1/);
+  assert.ok(gate.includes('ref: ${{ matrix.tag }}'));
+  assert.ok(gate.includes("'${{ matrix.commit }}'"));
+  assert.ok(gate.includes("'${{ matrix.alpha }}' -eq '14'"));
+  for (const example of [
+    'typed_submission', 'typed_propagation', 'variant_validation',
+    'typed_maps', 'typed_dynamic_lists', 'structured_pattern_coverage',
+    'map_projection_snapshots', 'map_string_projection_snapshots',
+    'native_scalar_repeat'
+  ]) {
+    assert.ok(gate.includes(example), 'Windows source fixture missing: ' + example);
+  }
+  assert.match(gate, /scripts\/verify-module-inventory\.cjs/);
+  assert.match(gate, /npm run check/);
+  assert.match(gate, /SCARP_TEST_SUITE: windows/);
+  assert.match(gate, /npm run test:integration/);
+  assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
+});
