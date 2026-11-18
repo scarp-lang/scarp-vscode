@@ -123,3 +123,34 @@ test('symbols view rejects incompatible metadata and unsafe files', () => {
       /Invalid or unsupported Scarp symbols schema/);
   }
 });
+
+test('Windows navigation accepts Rust verbatim canonical file labels within the project', () => {
+  if (process.platform !== 'win32') { return; }
+  // The parser preserves VS Code-compatible ordinary filenames, even if the
+  // compiler reports both files using Rust's \\?\ canonical namespace.
+  const data = payload();
+  data.files = [
+    { id: 0, path: path.toNamespacedPath(source) },
+    { id: 1, path: path.toNamespacedPath(library) }
+  ];
+  const index = parseNavigationIndex(JSON.stringify(data), root);
+  assert.deepEqual(index.files, [source, library]);
+  assert.equal(symbolAt(index, source, 13)?.name, 'count');
+  assert.equal(symbolAt(index, library, 7)?.name, 'count');
+
+  data.kind = 'scarp.symbols';
+  delete data.references;
+  const symbols = parseProjectSymbols(JSON.stringify(data), root);
+  assert.deepEqual(symbols.files, [source, library]);
+});
+
+test('navigation rejects verbatim paths outside the canonical project on Windows', () => {
+  if (process.platform !== 'win32') { return; }
+  const bad = payload();
+  const other = path.resolve(root, '..', 'navigation-other', 'main.srp');
+  bad.files = [{ id: 0, path: path.toNamespacedPath(other) }];
+  bad.symbols = [];
+  bad.references = [];
+  assert.throws(() => parseNavigationIndex(JSON.stringify(bad), root),
+    /Invalid or unsupported Scarp references schema/);
+});
