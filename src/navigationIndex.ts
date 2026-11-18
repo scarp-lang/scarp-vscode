@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { isWithinProject } from './projectChangeTracker';
+import { safeCanonicalModulePath } from './projectModules';
 
 export interface SourcePosition { line: number; column: number }
 export interface SourceSpan {
@@ -84,10 +84,15 @@ function parseIndex(
         path.extname(item.path).toLowerCase() !== '.srp') {
       return fail(kind);
     }
-    const name = path.resolve(item.path);
-    if (!isWithinProject(canonicalRoot, name) || seen.has(name)) { return fail(kind); }
-    seen.add(name);
-    files.push(name);
+    // Rust std::fs::canonicalize on Windows can return a \\?\-namespaced
+    // path while Node/VS Code refer to the same file by its ordinary drive
+    // path. Canonicalize both sides before containment checking, then return
+    // the editor-friendly path inside the selected root. A symlink escaping
+    // the root or another volume must still fail closed.
+    const safe = safeCanonicalModulePath(canonicalRoot, item.path);
+    if (!safe || seen.has(safe.filename)) { return fail(kind); }
+    seen.add(safe.filename);
+    files.push(safe.filename);
   }
   const symbols: IndexedSymbol[] = [];
   for (const [i, item] of raw.symbols.entries()) {
