@@ -944,6 +944,62 @@ jobs:
           SCARP_TEST_SUITE: windows
         run: npm run test:integration
 
+  compiler-alpha14-compatibility:
+    name: Official Scarp alpha.14 CLI and editor (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.14
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify pinned published compiler and editor-facing alpha.14 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Do not substitute the moving compiler main branch for the approved release.
+          test "$(git -C compiler rev-parse HEAD)" = "43627b74af5fccccc5e233e98207413983ebafc1"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.6-alpha.14'
+          # Test actual nested destructuring and persistent map snapshots against
+          # published, byte-exact interpreter outputs (not invented editor syntax).
+          for example in structured_pattern_coverage map_projection_snapshots \
+              map_string_projection_snapshots native_scalar_repeat; do
+            "$binary" verify "compiler/examples/$example.srp"
+            "$binary" exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+          # Ensure a malformed nested group is rejected by static verification;
+          # the extension must not attempt to repair source or execute it.
+          malformed="$(mktemp "$RUNNER_TEMP/scarp-nested-XXXXXX.srp")"
+          trap 'rm -f "$malformed"' EXIT
+          printf 'bind (left, (middle, right) = (1, (2, 3));\n' > "$malformed"
+          if "$binary" verify -- "$malformed" > "$RUNNER_TEMP/nested.stdout" \
+              2> "$RUNNER_TEMP/nested.stderr"; then
+            echo 'Malformed nested destructuring unexpectedly verified.' >&2
+            exit 1
+          fi
+          # Schema v4/v5 and workspace containment must still agree with the
+          # latest compiler's real JSON, not only synthetic unit fixtures.
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/app_state.srp 4
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/variant_validation.srp 5
+          node scripts/verify-snippets.cjs "$binary" 14
+          "$binary" verify compiler/examples/projects/task-board
+          "$binary" test --require-tests compiler/examples/projects/task-board
+      - name: Exercise actual VS Code Extension Host with published alpha.14
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
