@@ -866,6 +866,12 @@ jobs:
           test "$(git -C compiler rev-parse HEAD)" = "${{ matrix.commit }}"
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           compiler/target/release/scarp --version | grep -F "0.0.6-alpha.${{ matrix.alpha }}"
+          # Verify the actual published records/v4 and variants/v5 module JSON
+          # with the extension's path-secure parser (including compiler labels).
+          node scripts/verify-module-inventory.cjs "$PWD/compiler/target/release/scarp" \
+            compiler/examples/app_state.srp 4
+          node scripts/verify-module-inventory.cjs "$PWD/compiler/target/release/scarp" \
+            compiler/examples/variant_validation.srp 5
           # Test official list/map programs against their checked-in golden output.
           for example in typed_dynamic_lists persistent_list_updates typed_maps persistent_maps map_projections; do
             compiler/target/release/scarp verify "compiler/examples/$example.srp"
@@ -891,6 +897,137 @@ jobs:
           # Every snippet expanded and statically verified against the published compiler.
           node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 12
       - name: Test VS Code Extension Host with released collection compiler
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
+  compiler-alpha13-windows:
+    name: Published Scarp alpha.13 Windows CLI and VS Code Host
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.13
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Build exact published alpha.13 compiler for Windows and test source contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedSha = 'e755fda37cdaeed29434e848cb5dd41f2f2e7eb2'
+          $actualSha = (git -C compiler rev-parse HEAD).Trim()
+          if ($actualSha -ne $expectedSha) { throw "Published compiler source mismatch" }
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Scarp compiler build failed' }
+          $binary = Join-Path $PWD 'compiler/target/release/scarp.exe'
+          $version = & $binary --version
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch '0.0.6-alpha.13') {
+            throw "Incorrect Windows Scarp compiler version: $version"
+          }
+          foreach ($example in @('typed_submission', 'typed_propagation',
+                                  'variant_validation', 'typed_maps', 'typed_dynamic_lists')) {
+            & $binary verify "compiler/examples/$example.srp"
+            if ($LASTEXITCODE -ne 0) { throw "Static verification failed: $example" }
+            $actual = (& $binary exec "compiler/examples/$example.srp" | Out-String).TrimEnd()
+            if ($LASTEXITCODE -ne 0) { throw "Interpreter execution failed: $example" }
+            $expected = (Get-Content -Raw "compiler/examples/$example.stdout").TrimEnd()
+            if ($actual.Replace("`r`n", "`n") -ne $expected.Replace("`r`n", "`n")) {
+              throw "Windows interpreter output mismatch: $example"
+            }
+          }
+          # Validate real Windows compiler JSON and verbatim path handling
+          # before the VS Code Extension Host exercises its module browser.
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/app_state.srp 4
+          if ($LASTEXITCODE -ne 0) { throw 'Windows schema v4 module inspection failed' }
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/variant_validation.srp 5
+          if ($LASTEXITCODE -ne 0) { throw 'Windows schema v5 module inspection failed' }
+          & $binary verify compiler/examples/projects/task-board
+          if ($LASTEXITCODE -ne 0) { throw 'Task-board project verification failed' }
+          & $binary test --require-tests compiler/examples/projects/task-board
+          if ($LASTEXITCODE -ne 0) { throw 'Task-board project tests failed' }
+      - name: Exercise real Windows VS Code Extension Host with published alpha.13
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}\compiler\target\release\scarp.exe
+          SCARP_TEST_SUITE: windows
+        run: npm run test:integration
+
+  compiler-alpha14-compatibility:
+    name: Official Scarp alpha.14 CLI and editor (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.14
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify pinned published compiler and editor-facing alpha.14 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Do not substitute the moving compiler main branch for the approved release.
+          test "$(git -C compiler rev-parse HEAD)" = "43627b74af5fccccc5e233e98207413983ebafc1"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.6-alpha.14'
+          # Test actual nested destructuring and persistent map snapshots against
+          # published, byte-exact interpreter outputs (not invented editor syntax).
+          for example in structured_pattern_coverage map_projection_snapshots \
+              map_string_projection_snapshots native_scalar_repeat; do
+            "$binary" verify "compiler/examples/$example.srp"
+            "$binary" exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+          # Ensure a malformed nested group is rejected by static verification;
+          # the extension must not attempt to repair source or execute it.
+          malformed="$(mktemp "$RUNNER_TEMP/scarp-nested-XXXXXX.srp")"
+          trap 'rm -f "$malformed"' EXIT
+          printf 'bind (left, (middle, right) = (1, (2, 3));\n' > "$malformed"
+          if "$binary" verify --diagnostic-format=json -- "$malformed" \
+              > "$RUNNER_TEMP/nested.stdout" 2> "$RUNNER_TEMP/nested.stderr"; then
+            echo 'Malformed nested destructuring unexpectedly verified.' >&2
+            exit 1
+          fi
+          # Assert the genuine compiler's structured source location survives
+          # translation to the VS Code extension's diagnostic parser.
+          test ! -s "$RUNNER_TEMP/nested.stdout"
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const { parseDiagnostics } = require("./dist/src/diagnostics.js");
+            const output = fs.readFileSync(process.argv[1], "utf8");
+            const source = path.resolve(process.argv[2]);
+            const errors = parseDiagnostics(output);
+            if (!errors.some(error => error.severity === "error" &&
+                path.resolve(error.filename) === source && error.line === 1 &&
+                Number.isSafeInteger(error.column) && error.column >= 1)) {
+              throw Error("Alpha.14 nested diagnostic is not a source-located schema-v1 error: " +
+                output);
+            }
+          ' "$RUNNER_TEMP/nested.stderr" "$malformed"
+          # Schema v4/v5 and workspace containment must still agree with the
+          # latest compiler's real JSON, not only synthetic unit fixtures.
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/app_state.srp 4
+          node scripts/verify-module-inventory.cjs "$binary" compiler/examples/variant_validation.srp 5
+          node scripts/verify-snippets.cjs "$binary" 14
+          "$binary" verify compiler/examples/projects/task-board
+          "$binary" test --require-tests compiler/examples/projects/task-board
+      - name: Exercise actual VS Code Extension Host with published alpha.14
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration

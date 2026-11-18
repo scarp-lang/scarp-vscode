@@ -4,7 +4,15 @@ import { withHostDownloadRetry } from './downloadRetry';
 
 async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
-  const extensionTestsPath = path.resolve(__dirname, './suite/index');
+  // Linux stress tests use POSIX executable signal-control fixtures.
+  // Windows exercises the real native compiler and Extension Host in its
+  // own shell-free suite (not an emulator or an omitted check).
+  const windows = process.env.SCARP_TEST_SUITE === 'windows';
+  if (windows && process.platform !== 'win32') {
+    throw new Error('The Windows integration suite requires Windows.');
+  }
+  const extensionTestsPath = path.resolve(__dirname,
+    windows ? './suite/windows' : './suite/index');
   const compiler = process.env.SCARP_TEST_BINARY;
   if (!compiler || !path.isAbsolute(compiler)) {
     throw new Error('SCARP_TEST_BINARY must name an absolute official compiler path');

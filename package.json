@@ -308,22 +308,22 @@
         "scarp.maxTupleBytes": {
           "type": "integer",
           "minimum": 0,
-          "description": "Optional --max-tuple-bytes execution limit (Cumulative tuple payload quota). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+          "description": "Optional --max-tuple-bytes cumulative logical interpreter allocation quota shared by tuple, record and variant payloads. Tuples require published Scarp v0.0.6-alpha.6+; records and variants require alpha.12+. No effect on static Verify; not a physical memory ceiling."
         },
         "scarp.maxInputLineBytes": {
           "type": "integer",
           "minimum": 0,
-          "description": "Optional --max-input-line-bytes execution limit (Per-line raw UTF-8 input quota, including CR/LF). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+          "description": "Optional --max-input-line-bytes raw UTF-8 per-line input quota, including CR/LF. Published Scarp v0.0.6-alpha.6+ supports redirected input; alpha.10+ also supports explicit --interactive readers. Does not enable interactive execution."
         },
         "scarp.maxInputBytes": {
           "type": "integer",
           "minimum": 0,
-          "description": "Optional --max-input-bytes execution limit (Cumulative raw UTF-8 input quota). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+          "description": "Optional --max-input-bytes cumulative raw UTF-8 program-input quota. Published Scarp v0.0.6-alpha.6+ supports redirected input; alpha.10+ also supports explicit --interactive readers. Does not enable interactive execution."
         },
         "scarp.maxInputReads": {
           "type": "integer",
           "minimum": 0,
-          "description": "Optional --max-input-reads execution limit (Number of selected read_line calls, including EOF attempts). Supported by Scarp v0.0.6-alpha.6+; earlier compilers do not accept this flag. Input requires redirected/piped stdin, not a connected terminal."
+          "description": "Optional --max-input-reads quota for selected program input read attempts, including EOF. Published Scarp v0.0.6-alpha.6+ supports redirected input; alpha.10+ also supports explicit --interactive readers. Does not enable interactive execution."
         },
         "scarp.showFileActionsCodeLens": {
           "type": "boolean",
@@ -351,7 +351,7 @@
         "scarp.maxArrayBytes": {
           "type": "integer",
           "minimum": 0,
-          "description": "Optional --max-array-bytes cumulative fixed-array allocation budget for explicit Scarp execution. Requires published compiler v0.0.6-alpha.10+; earlier compilers reject this flag. Defaults to 8,388,608 logical bytes when unset. Does not affect static Verify."
+          "description": "Optional --max-array-bytes cumulative logical interpreter allocation quota shared by fixed arrays, immutable typed lists and maps. The flag requires published Scarp v0.0.6-alpha.10+; lists and maps require alpha.12+. Defaults to 8,388,608 logical bytes. No effect on static Verify or physical RSS."
         }
       }
     },

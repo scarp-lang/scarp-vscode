@@ -1,5 +1,48 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { isWithinProject } from './projectChangeTracker';
+
+type ModulePathOps = Pick<typeof path,
+  'resolve' | 'relative' | 'isAbsolute' | 'toNamespacedPath' | 'sep'>;
+
+/**
+ * Scarp's Rust filesystem loader can emit \\?\\-prefixed Windows canonical
+ * paths while Node's fs.realpath returns an ordinary drive/UNC path.
+ * Compare both paths in the same native namespace, then return a normal
+ * root-relative editor pathname. Reject a different volume, traversal or
+ * path-prefix collision rather than stripping an arbitrary namespace prefix.
+ *
+ * The injected native-path implementation allows real Windows path rules to
+ * be tested on Linux CI as well.
+ */
+function nativeCanonicalPath(filename: string): string {
+  // Windows temp directories sometimes reach Node as short 8.3 paths
+  // (RUNNER~1) while Rust std::fs::canonicalize reports the long form.
+  // Resolving both through the native filesystem also prevents a symlink
+  // alias outside the trusted root from appearing to be inside it.
+  try { return fs.realpathSync.native(filename); }
+  catch { return filename; } // Unit-test paths may not exist; callers still check containment.
+}
+
+export function safeCanonicalModulePath(
+  canonicalProjectRoot: string, compilerLabel: string,
+  paths: ModulePathOps = path,
+  canonicalize: (filename: string) => string = nativeCanonicalPath
+): { filename: string; relative: string } | undefined {
+  if (!paths.isAbsolute(canonicalProjectRoot) ||
+      !paths.isAbsolute(compilerLabel)) { return undefined; }
+  const root = paths.resolve(canonicalProjectRoot);
+  // Compute containment in canonical *filesystem* namespace. Preserve
+  // the editor's root spelling when returning the resulting local path.
+  const resolvedRoot = paths.resolve(canonicalize(root));
+  const resolvedLabel = paths.resolve(canonicalize(compilerLabel));
+  const relative = paths.relative(
+    paths.toNamespacedPath(resolvedRoot),
+    paths.toNamespacedPath(resolvedLabel)
+  );
+  if (relative === '..' || relative.startsWith('..' + paths.sep) ||
+      paths.isAbsolute(relative)) { return undefined; }
+  return { filename: paths.resolve(root, relative), relative };
+}
 
 export interface BrowsableProjectModule {
   id: number;
@@ -15,7 +58,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 function invalid(): never {
-  throw new Error('Unsupported or malformed Scarp module inspection JSON (expected schema v1, v2, or v3).');
+  throw new Error('Unsupported or malformed Scarp module inspection JSON (expected schema v1 through v5).');
 }
 
 /**
@@ -30,9 +73,10 @@ export function parseBrowsableProjectModules(
   let raw: unknown;
   try { raw = JSON.parse(stdout); }
   catch { return invalid(); }
-  // Schema v2 and v3 extend signature type strings and keep the module graph fields.
+  // Schemas 4/5 add nominal record/variant symbols, retaining the same graph
+  // shape, absolute canonical paths and source-order public visibility.
   if (!object(raw) ||
-      (raw.schema_version !== 1 && raw.schema_version !== 2 && raw.schema_version !== 3) ||
+      ![1, 2, 3, 4, 5].includes(raw.schema_version as number) ||
       !Number.isSafeInteger(raw.entry) ||
       !Array.isArray(raw.modules) || raw.modules.length < 1 ||
       raw.modules.length > 128 ||
@@ -40,6 +84,7 @@ export function parseBrowsableProjectModules(
     return invalid();
   }
 
+  const schema = raw.schema_version as number;
   const entry = raw.entry as number;
   const seenIds = new Set<number>();
   const seenPaths = new Set<string>();
@@ -60,19 +105,39 @@ export function parseBrowsableProjectModules(
       return invalid();
     }
     const id = candidate.id as number;
-    const filename = path.resolve(candidate.path);
-    if (!isWithinProject(canonicalProjectRoot, filename) ||
-        seenIds.has(id) || seenPaths.has(filename)) {
+    const resolved = safeCanonicalModulePath(canonicalProjectRoot, candidate.path);
+    if (!resolved || seenIds.has(id) || seenPaths.has(resolved.filename)) {
       return invalid();
     }
+    const filename = resolved.filename;
     if (!(candidate.imports as unknown[]).every(imp =>
       object(imp) && Number.isSafeInteger(imp.target) &&
       (imp.target as number) >= 0)) {
       return invalid();
     }
-    if (!(candidate.symbols as unknown[]).every(symbol =>
-      object(symbol) && typeof symbol.name === 'string' &&
-      typeof symbol.public === 'boolean')) {
+    if (!(candidate.symbols as unknown[]).every(symbol => {
+      if (!object(symbol) || typeof symbol.name !== 'string' ||
+          typeof symbol.public !== 'boolean') { return false; }
+      // Preserve legacy v1-v3 metadata contracts without inventing
+      // semantics for their historical kind/parameter representations.
+      if (schema < 4) {
+        return symbol.kind !== 'record' && symbol.kind !== 'variant';
+      }
+      if (symbol.kind === 'record') {
+        return Array.isArray(symbol.fields) && symbol.fields.length <= 32 &&
+          symbol.fields.every(field =>
+            object(field) && typeof field.name === 'string' &&
+            typeof field.type === 'string' && field.type.length <= 4096);
+      }
+      if (symbol.kind === 'variant') {
+        return schema >= 5 && Array.isArray(symbol.cases) &&
+          symbol.cases.length <= 32 && symbol.cases.every(item =>
+            object(item) && typeof item.name === 'string' &&
+            (item.payload === null ||
+              typeof item.payload === 'string' && item.payload.length <= 4096));
+      }
+      return symbol.kind === 'constant' || symbol.kind === 'function';
+    })) {
       return invalid();
     }
 
@@ -82,11 +147,10 @@ export function parseBrowsableProjectModules(
     }
     seenIds.add(id);
     seenPaths.add(filename);
-    const relative = path.relative(canonicalProjectRoot, filename);
     modules.push({
       id,
       filename,
-      displayPath: relative.split(path.sep).join('/').replace(/[\r\n\t]/g, ' '),
+      displayPath: resolved.relative.split(path.sep).join('/').replace(/[\r\n\t]/g, ' '),
       isEntry: id === entry,
       importCount: candidate.imports.length,
       publicSymbols: candidate.symbols.filter(symbol =>

@@ -357,3 +357,34 @@ test('published compiler alpha.7 is pinned and checked without weakening alpha.6
   assert.match(release, /cmp compiler\/examples\/conditional_unicode\.stdout/);
   assert.match(release, /verify-snippets\.cjs.*scarp" 7/);
 });
+
+
+test('published alpha.14 compatibility gate pins real compiler source and stays non-publishing', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const doc = repoFile('docs/COMPILER_COMPATIBILITY.md');
+  const start = ci.indexOf('  compiler-alpha14-compatibility:');
+  const end = ci.indexOf('  editor-untrusted:', start);
+  assert.ok(start > 0 && end > start,
+    'Alpha.14 must have its own compiler/editor CI job before restricted mode');
+  const gate = ci.slice(start, end);
+  assert.match(gate, /ref: v0\.0\.6-alpha\.14/);
+  assert.match(gate, /43627b74af5fccccc5e233e98207413983ebafc1/);
+  assert.match(gate, /git -C compiler rev-parse HEAD/);
+  assert.match(gate, /cargo build --locked --release/);
+  assert.match(gate, /npm run check/);
+  for (const example of [
+    'structured_pattern_coverage', 'map_projection_snapshots',
+    'map_string_projection_snapshots', 'native_scalar_repeat'
+  ]) {
+    assert.ok(gate.includes(example), 'Published example missing: ' + example);
+  }
+  assert.match(gate, /scarp-nested-XXXXXX\.srp/);
+  assert.match(gate, /--diagnostic-format=json/);
+  assert.match(gate, /parseDiagnostics/);
+  assert.match(gate, /verify-module-inventory\.cjs/);
+  assert.match(gate, /verify-snippets\.cjs.*14/);
+  assert.match(gate, /xvfb-run -a npm run test:integration/);
+  assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
+  assert.match(doc, /v0\.0\.6-alpha\.14\+/);
+  assert.match(doc, /no new editor-facing CLI command/);
+});
