@@ -1040,6 +1040,23 @@ jobs:
           node scripts/verify-module-inventory.cjs "$binary" compiler/examples/app_state.srp 4
           node scripts/verify-module-inventory.cjs "$binary" compiler/examples/variant_validation.srp 5
           node scripts/verify-snippets.cjs "$binary" 14
+          # Index source from the published compiler, rather than an invented
+          # editor fixture. This only reads source and never executes a snippet.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const { scanScarpSymbols } = require('./dist/src/documentSymbols.js');
+          const source = fs.readFileSync('compiler/examples/data_destructure.srp', 'utf8');
+          const names = scanScarpSymbols(source).map(item => item.name);
+          for (const name of [
+            'make_pair', 'result', 'state', 'first', 'second', 'third',
+            'answer', 'quantity', 'unit_price', 'spare_price', 'currency'
+          ]) {
+            assert.ok(names.includes(name), 'Missing published pattern binding: ' + name);
+          }
+          assert.ok(!names.includes('_'), 'Discard must never appear in Outline');
+          assert.ok(!names.includes('note'), 'Function-local bindings are not file symbols');
+          NODE
           "$binary" verify compiler/examples/projects/task-board
           "$binary" test --require-tests compiler/examples/projects/task-board
       - name: Exercise actual VS Code Extension Host with published alpha.14
