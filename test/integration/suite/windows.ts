@@ -121,7 +121,7 @@ export async function run(): Promise<void> {
       'Generic map<K, V> commas must not separate function parameters');
     assert.equal(hint.activeParameter, 2);
 
-    // The real alpha.13 compiler, not an extension evaluator, verifies and
+    // The exact pinned published compiler, not an extension evaluator, verifies and
     // executes the same on-disk source as the editor.
     const staticCheck = await runCompiler(binary, ['verify', '--', sourceUri.fsPath], {
       cwd: tempRoot, timeout: 15_000, maxBuffer: 1024 * 1024
