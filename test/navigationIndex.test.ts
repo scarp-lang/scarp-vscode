@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import { parseNavigationIndex, parseProjectSymbols, referencesFor, symbolAt } from '../src/navigationIndex';
 
 const root = path.resolve('fixtures', 'navigation');
@@ -153,4 +155,27 @@ test('navigation rejects verbatim paths outside the canonical project on Windows
   bad.references = [];
   assert.throws(() => parseNavigationIndex(JSON.stringify(bad), root),
     /Invalid or unsupported Scarp references schema/);
+});
+
+test('navigation rejects an in-project filename that is a symlink to an outside source', () => {
+  // Symlinks on Windows may need separate privileges; the native Windows
+  // Extension Host exercises the real compiler instead.
+  if (process.platform === 'win32') { return; }
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'scarp-navigation-containment-'));
+  try {
+    const workspace = path.join(directory, 'workspace');
+    const outside = path.join(directory, 'outside.srp');
+    fs.mkdirSync(workspace);
+    fs.writeFileSync(outside, 'bind secret = 1;\n');
+    const alias = path.join(workspace, 'alias.srp');
+    fs.symlinkSync(outside, alias, 'file');
+    const data = payload();
+    data.files = [{ id: 0, path: alias }];
+    data.symbols = [];
+    data.references = [];
+    assert.throws(() => parseNavigationIndex(JSON.stringify(data), workspace),
+      /Invalid or unsupported Scarp references schema/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
