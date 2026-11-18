@@ -16,7 +16,7 @@ This document tracks the **published** Scarp compiler contracts used by the VS C
 | v0.0.6-alpha.13+ | The same released CLI contracts, plus opt-in Rust embedding cache/editor-generation APIs **not exposed as a VS Code or CLI protocol** |
 | v0.0.6-alpha.14+ | More precise syntax diagnostics for malformed nested destructuring, additional Rust host cache controls and an experimental ELF64 kernel API; **no new editor-facing CLI command or module schema** |
 
-Versions above describe a minimum release for particular features; they do not imply native compilation, a GUI runtime, or semantic editor completion. Syntax highlighting, snippets, local Outline and built-in help are **compiler-free**. The installed compiler may be older than the newest built-in help entry; a version label is not a capability probe.
+Versions above describe a minimum release for particular features; they do not imply native compilation, a GUI runtime, or semantic editor completion. Syntax highlighting, snippets, local Outline and built-in help are **compiler-free**. From the published alpha.12 pattern syntax, local Outline also lists each named binding in top-level tuple, fixed-array and record destructuring, including nested patterns; discard `_` and record field labels never appear as declarations. This is error-tolerant lexical indexing, not type checking, and malformed patterns are omitted. The installed compiler may be older than the newest built-in help entry; a version label is not a capability probe.
 
 ## Module metadata and native path compatibility
 
