@@ -3,7 +3,7 @@
  *
  * This is an editor-only, error-tolerant scanner, NOT a replacement for the
  * compiler's parser. Keyword spellings and file-scope declaration forms match
- * the published Scarp grammar through v0.0.6-alpha.13. No code or imports are executed.
+ * the published Scarp grammar through v0.0.6-alpha.14. No code or imports are executed.
  */
 export type ScarpSymbolKind = 'function' | 'constant' | 'variable' | 'import' | 'record' | 'variant';
 
@@ -96,6 +96,108 @@ function statementEnd(tokens: readonly Token[], index: number): number {
     if (parens < 0 || brackets < 0 || braces < 0) { break; }
   }
   return -1;
+}
+
+/**
+ * Outline the names introduced by a published alpha.12+ tuple, array or
+ * record binding pattern. Record field labels and the discard "_" are not
+ * declarations. This bounded, syntax-only reader does not evaluate or type
+ * check the initializer; malformed or incomplete patterns emit no symbols.
+ */
+function destructuredDeclaration(
+  tokens: readonly Token[], index: number
+): { symbols: ScarpSourceSymbol[]; next: number } | undefined {
+  const keyword = tokens[index]?.text;
+  if (keyword !== 'bind' && keyword !== 'var') { return undefined; }
+  const opener = tokens[index + 1]?.text;
+  const closes: Readonly<Record<string, string>> = {
+    '(': ')', '[': ']', '{': '}'
+  };
+  if (!opener || !closes[opener]) { return undefined; }
+
+  interface Group {
+    open: string;
+    close: string;
+    count: number;
+    afterMember: boolean;
+    trailingComma: boolean;
+  }
+  const stack: Group[] = [{
+    open: opener, close: closes[opener], count: 0,
+    afterMember: false, trailingComma: false
+  }];
+  const names: Token[] = [];
+  const seen = new Set<string>();
+  let cursor = index + 2;
+  while (stack.length && cursor < tokens.length) {
+    const group = stack[stack.length - 1];
+    const token = tokens[cursor];
+    if (token.text === group.close) {
+      // Scarp requires nonempty groups and a trailing comma on singleton tuples.
+      if (!group.count ||
+          (group.open === '(' && group.count === 1 && !group.trailingComma)) {
+        return undefined;
+      }
+      stack.pop();
+      cursor++;
+      continue;
+    }
+    if (group.afterMember) {
+      if (token.text !== ',') { return undefined; }
+      group.afterMember = false;
+      group.trailingComma = true;
+      cursor++;
+      continue;
+    }
+    if (token.text === ',' || token.text === '=' || token.text === ';') {
+      return undefined;
+    }
+    if (group.open === '{') {
+      // {x: valueName} introduces valueName, not the record field x.
+      if (token.type !== 'identifier' || tokens[cursor + 1]?.text !== ':') {
+        return undefined;
+      }
+      cursor += 2;
+    }
+    const member = tokens[cursor];
+    if (!member) { return undefined; }
+    group.count++;
+    group.afterMember = true;
+    group.trailingComma = false;
+    if (closes[member.text]) {
+      if (stack.length >= 32) { return undefined; }
+      stack.push({
+        open: member.text, close: closes[member.text], count: 0,
+        afterMember: false, trailingComma: false
+      });
+      cursor++;
+    } else if (member.type === 'identifier') {
+      if (member.text !== '_') {
+        if (names.length >= 128 || seen.has(member.text)) { return undefined; }
+        names.push(member);
+        seen.add(member.text);
+      }
+      cursor++;
+    } else {
+      return undefined;
+    }
+  }
+
+  if (stack.length || tokens[cursor]?.text !== '=') { return undefined; }
+  const last = statementEnd(tokens, cursor);
+  if (last < 0) { return undefined; }
+  const begin = tokens[index].start;
+  const end = tokens[last].end;
+  const detail = keyword === 'bind' ? 'destructured binding' :
+    'destructured mutable variable';
+  return {
+    symbols: names.map(name => ({
+      kind: keyword === 'bind' ? 'constant' : 'variable',
+      name: name.text, detail, start: begin, end,
+      selectionStart: name.start, selectionEnd: name.end
+    })),
+    next: last + 1
+  };
 }
 
 interface Found {
@@ -220,6 +322,13 @@ export function scanScarpSymbols(source: string): ScarpSourceSymbol[] {
   for (let i = 0; i < tokens.length;) {
     const token = tokens[i];
     if (statementStart && braceDepth === 0 && parenDepth === 0 && bracketDepth === 0) {
+      const destructured = destructuredDeclaration(tokens, i);
+      if (destructured) {
+        symbols.push(...destructured.symbols);
+        i = destructured.next;
+        statementStart = true;
+        continue;
+      }
       const found = declaration(source, tokens, i);
       if (found) {
         symbols.push(found.symbol);
