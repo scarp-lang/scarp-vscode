@@ -901,16 +901,26 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
-  compiler-alpha13-windows:
-    name: Published Scarp alpha.13 Windows CLI and VS Code Host
+  compiler-alpha13-alpha14-windows:
+    name: Published Scarp alpha.${{ matrix.alpha }} Windows CLI and VS Code Host
     runs-on: windows-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - alpha: "13"
+            tag: v0.0.6-alpha.13
+            commit: e755fda37cdaeed29434e848cb5dd41f2f2e7eb2
+          - alpha: "14"
+            tag: v0.0.6-alpha.14
+            commit: 43627b74af5fccccc5e233e98207413983ebafc1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.6-alpha.13
+          ref: ${{ matrix.tag }}
           path: compiler
       - uses: actions/setup-node@v4
         with:
@@ -918,22 +928,27 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm install --no-audit --no-fund
       - run: npm run check
-      - name: Build exact published alpha.13 compiler for Windows and test source contracts
+      - name: Build exact published compiler for Windows and test source contracts
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $expectedSha = 'e755fda37cdaeed29434e848cb5dd41f2f2e7eb2'
+          $expectedSha = '${{ matrix.commit }}'
           $actualSha = (git -C compiler rev-parse HEAD).Trim()
           if ($actualSha -ne $expectedSha) { throw "Published compiler source mismatch" }
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           if ($LASTEXITCODE -ne 0) { throw 'Scarp compiler build failed' }
           $binary = Join-Path $PWD 'compiler/target/release/scarp.exe'
           $version = & $binary --version
-          if ($LASTEXITCODE -ne 0 -or $version -notmatch '0.0.6-alpha.13') {
+          if ($LASTEXITCODE -ne 0 -or $version -notlike '*0.0.6-alpha.${{ matrix.alpha }}*') {
             throw "Incorrect Windows Scarp compiler version: $version"
           }
-          foreach ($example in @('typed_submission', 'typed_propagation',
-                                  'variant_validation', 'typed_maps', 'typed_dynamic_lists')) {
+          $examples = @('typed_submission', 'typed_propagation',
+                        'variant_validation', 'typed_maps', 'typed_dynamic_lists')
+          if ('${{ matrix.alpha }}' -eq '14') {
+            $examples += @('structured_pattern_coverage', 'map_projection_snapshots',
+                           'map_string_projection_snapshots', 'native_scalar_repeat')
+          }
+          foreach ($example in $examples) {
             & $binary verify "compiler/examples/$example.srp"
             if ($LASTEXITCODE -ne 0) { throw "Static verification failed: $example" }
             $actual = (& $binary exec "compiler/examples/$example.srp" | Out-String).TrimEnd()
@@ -953,7 +968,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Task-board project verification failed' }
           & $binary test --require-tests compiler/examples/projects/task-board
           if ($LASTEXITCODE -ne 0) { throw 'Task-board project tests failed' }
-      - name: Exercise real Windows VS Code Extension Host with published alpha.13
+      - name: Exercise real Windows VS Code Extension Host with published alpha.${{ matrix.alpha }}
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}\compiler\target\release\scarp.exe
           SCARP_TEST_SUITE: windows
