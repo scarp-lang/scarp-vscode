@@ -983,11 +983,28 @@ jobs:
           malformed="$(mktemp "$RUNNER_TEMP/scarp-nested-XXXXXX.srp")"
           trap 'rm -f "$malformed"' EXIT
           printf 'bind (left, (middle, right) = (1, (2, 3));\n' > "$malformed"
-          if "$binary" verify -- "$malformed" > "$RUNNER_TEMP/nested.stdout" \
-              2> "$RUNNER_TEMP/nested.stderr"; then
+          if "$binary" verify --diagnostic-format=json -- "$malformed" \
+              > "$RUNNER_TEMP/nested.stdout" 2> "$RUNNER_TEMP/nested.stderr"; then
             echo 'Malformed nested destructuring unexpectedly verified.' >&2
             exit 1
           fi
+          # Assert the genuine compiler's structured source location survives
+          # translation to the VS Code extension's diagnostic parser.
+          test ! -s "$RUNNER_TEMP/nested.stdout"
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const { parseDiagnostics } = require("./dist/src/diagnostics.js");
+            const output = fs.readFileSync(process.argv[1], "utf8");
+            const source = path.resolve(process.argv[2]);
+            const errors = parseDiagnostics(output);
+            if (!errors.some(error => error.severity === "error" &&
+                path.resolve(error.filename) === source && error.line === 1 &&
+                Number.isSafeInteger(error.column) && error.column >= 1)) {
+              throw Error("Alpha.14 nested diagnostic is not a source-located schema-v1 error: " +
+                output);
+            }
+          ' "$RUNNER_TEMP/nested.stderr" "$malformed"
           # Schema v4/v5 and workspace containment must still agree with the
           # latest compiler's real JSON, not only synthetic unit fixtures.
           node scripts/verify-module-inventory.cjs "$binary" compiler/examples/app_state.srp 4
