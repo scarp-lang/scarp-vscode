@@ -195,24 +195,24 @@ export async function run(): Promise<void> {
     assert.equal(selected?.name, 'answer');
     const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeDefinitionProvider', navigationUri, cursor);
-    assert.ok(definitions?.some(item =>
-      path.resolve(item.uri.fsPath) === path.resolve(navigationUri.fsPath) &&
+    // RUNNER~1 and runneradmin are distinct strings but the same Windows
+    // filesystem object. Compare real canonical identities, not spellings.
+    const definitionFiles = await Promise.all((definitions || []).map(
+      item => fs.realpath(item.uri.fsPath)));
+    assert.ok(definitions?.some((item, index) =>
+      path.relative(canonicalNavigationFile, definitionFiles[index]) === '' &&
       item.range.start.line === 0 && item.range.start.character === 5),
-      'Go to Definition must resolve actual compiler symbols on Windows; ' +
-      JSON.stringify({
-        definitions, rawDeclaration: selected?.location,
-        documentLanguage: navigationDocument.languageId,
-        workspaceTrusted: vscode.workspace.isTrusted,
-        documentDirty: navigationDocument.isDirty,
-        configuredCompiler: settings.get<string>('compilerPath'),
-        expectedFile: navigationUri.fsPath, indexFiles: navigationIndex.files
-      }));
+      'Go to Definition must resolve the real Windows source location: ' +
+      JSON.stringify({ definitions, definitionFiles, canonicalNavigationFile }));
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider', navigationUri, cursor);
-    assert.ok(references?.some(item =>
-      path.resolve(item.uri.fsPath) === path.resolve(navigationUri.fsPath) &&
+    const referenceFiles = await Promise.all((references || []).map(
+      item => fs.realpath(item.uri.fsPath)));
+    assert.ok(references?.some((item, index) =>
+      path.relative(canonicalNavigationFile, referenceFiles[index]) === '' &&
       item.range.start.line === 1 && item.range.start.character === 6),
-      'Find References must locate the saved source use on Windows');
+      'Find References must locate the same canonical Windows source use: ' +
+      JSON.stringify({ references, referenceFiles, canonicalNavigationFile }));
 
     // One real Windows project initialization and static editor command,
     // with a directory containing spaces (no POSIX test wrappers).
