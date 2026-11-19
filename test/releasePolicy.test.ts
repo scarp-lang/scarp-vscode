@@ -416,3 +416,17 @@ test('native Windows compiler matrix pins alpha.13 and alpha.14 without release 
   assert.match(gate, /npm run test:integration/);
   assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
 });
+
+test('native Windows editor host gates compiler navigation paths and source locations', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const host = repoFile('test/integration/suite/windows.ts');
+  const index = repoFile('src/navigationIndex.ts');
+  assert.match(ci, /compiler-alpha13-alpha14-windows:/);
+  assert.match(ci, /SCARP_TEST_SUITE: windows/);
+  assert.match(host, /parseNavigationIndex\(/);
+  assert.match(host, /vscode\.executeDefinitionProvider/);
+  assert.match(host, /vscode\.executeReferenceProvider/);
+  assert.match(host, /navigation with spaces\.srp/);
+  assert.match(index, /safeCanonicalModulePath\(canonicalRoot, item\.path\)/);
+  assert.doesNotMatch(index, /isWithinProject\(canonicalRoot, name\)/);
+});

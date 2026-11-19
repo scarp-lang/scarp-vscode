@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { preferredExecutionVerb } from '../../../src/cli';
 import { parseBrowsableProjectModules } from '../../../src/projectModules';
+import { parseNavigationIndex, symbolAt } from '../../../src/navigationIndex';
 
 const runCompiler = promisify(execFile);
 
@@ -167,6 +168,51 @@ export async function run(): Promise<void> {
     assert.equal(path.resolve(modules[0].filename),
       path.resolve(await fs.realpath(sourceUri.fsPath)));
     assert.ok(modules[0].publicSymbols === 0);
+
+    // Windows Rust compiler canonical paths may use the \\?\ namespace.
+    // Ensure both the raw inspect parser and actual VS Code navigation
+    // resolve to the ordinary saved source path without weakening containment.
+    const navigationUri = vscode.Uri.file(path.join(tempRoot, 'navigation with spaces.srp'));
+    const navigationSource = 'bind answer = 42;\nprint(answer);\n';
+    await fs.writeFile(navigationUri.fsPath, navigationSource, 'utf8');
+    const navigationDocument = await vscode.workspace.openTextDocument(navigationUri);
+    // Match the existing Linux provider integration: the source must stay
+    // owned by a visible editor throughout the asynchronous CLI request.
+    await vscode.window.showTextDocument(navigationDocument);
+    const referencesJson = await runCompiler(binary,
+      ['inspect', 'references', '--json', '--diagnostic-format=json', '--',
+        navigationUri.fsPath], {
+        cwd: tempRoot, timeout: 15_000, maxBuffer: 4 * 1024 * 1024
+      });
+    const navigationIndex = parseNavigationIndex(referencesJson.stdout, canonicalRoot);
+    const canonicalNavigationFile = await fs.realpath(navigationUri.fsPath);
+    assert.ok(navigationIndex.files.includes(canonicalNavigationFile),
+      'Native Windows compiler navigation paths must map to VS Code filenames');
+    const useOffset = navigationSource.indexOf('answer', navigationSource.indexOf('print('));
+    const cursor = navigationDocument.positionAt(useOffset + 2);
+    const selected = symbolAt(navigationIndex, canonicalNavigationFile,
+      Buffer.byteLength(navigationSource.slice(0, useOffset + 2), 'utf8'));
+    assert.equal(selected?.name, 'answer');
+    const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
+      'vscode.executeDefinitionProvider', navigationUri, cursor);
+    // RUNNER~1 and runneradmin are distinct strings but the same Windows
+    // filesystem object. Compare real canonical identities, not spellings.
+    const definitionFiles = await Promise.all((definitions || []).map(
+      item => fs.realpath(item.uri.fsPath)));
+    assert.ok(definitions?.some((item, index) =>
+      path.relative(canonicalNavigationFile, definitionFiles[index]) === '' &&
+      item.range.start.line === 0 && item.range.start.character === 5),
+      'Go to Definition must resolve the real Windows source location: ' +
+      JSON.stringify({ definitions, definitionFiles, canonicalNavigationFile }));
+    const references = await vscode.commands.executeCommand<vscode.Location[]>(
+      'vscode.executeReferenceProvider', navigationUri, cursor);
+    const referenceFiles = await Promise.all((references || []).map(
+      item => fs.realpath(item.uri.fsPath)));
+    assert.ok(references?.some((item, index) =>
+      path.relative(canonicalNavigationFile, referenceFiles[index]) === '' &&
+      item.range.start.line === 1 && item.range.start.character === 6),
+      'Find References must locate the same canonical Windows source use: ' +
+      JSON.stringify({ references, referenceFiles, canonicalNavigationFile }));
 
     // One real Windows project initialization and static editor command,
     // with a directory containing spaces (no POSIX test wrappers).
