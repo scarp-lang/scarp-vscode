@@ -1120,7 +1120,7 @@ jobs:
             test -s "$RUNNER_TEMP/$inspection.stderr"
           done
           # Keep schema-v1 navigation and module v4/v5 decoding compatible.
-          "$binary" inspect references --json -- compiler/examples/symbol_navigation.srp \
+          "$binary" inspect references --json -- "$PWD/compiler/examples/symbol_navigation.srp" \
             > "$RUNNER_TEMP/alpha15-references.json"
           node - "$RUNNER_TEMP/alpha15-references.json" <<'NODE'
           const assert = require('node:assert/strict');
