@@ -451,7 +451,7 @@ test('published alpha.15 frontend and editor contract is pinned without publishi
   assert.match(gate, /parseNavigationIndex/);
   assert.match(gate, /verify-module-inventory\.cjs/);
   assert.match(gate, /verify-snippets\.cjs "\$binary" 15/);
-  assert.match(gate, /scarp\/examples\/projects\/task-board/);
+  assert.match(gate, /compiler\/examples\/projects\/task-board/);
   assert.match(gate, /xvfb-run -a npm run test:integration/);
   assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
   assert.match(doc, /v0\.0\.6-alpha\.15\+/);
