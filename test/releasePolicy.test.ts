@@ -430,3 +430,31 @@ test('native Windows editor host gates compiler navigation paths and source loca
   assert.match(index, /safeCanonicalModulePath\(canonicalRoot, item\.path\)/);
   assert.doesNotMatch(index, /isWithinProject\(canonicalRoot, name\)/);
 });
+
+test('published alpha.15 frontend and editor contract is pinned without publishing', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const doc = repoFile('docs/COMPILER_COMPATIBILITY.md');
+  const begin = ci.indexOf('  compiler-alpha15-compatibility:');
+  const end = ci.indexOf('  editor-untrusted:', begin);
+  assert.ok(begin > ci.indexOf('  compiler-alpha14-compatibility:') && end > begin,
+    'The published alpha.15 job must follow alpha.14 without replacing it');
+  const gate = ci.slice(begin, end);
+  assert.equal((ci.match(/ref: v0\.0\.6-alpha\.15\b/g) ?? []).length, 1);
+  assert.match(gate, /a21b7b6d942bd1ca9abbbbb522f92f9c8e21e281/);
+  assert.match(gate, /git -C compiler rev-parse HEAD/);
+  assert.match(gate, /cargo build --locked --release/);
+  assert.match(gate, /npm run check/);
+  assert.match(gate, /1024 \* 1024/);
+  assert.match(gate, /limit \+ 1 - len\(prefix\)/);
+  assert.match(gate, /inspect "\$inspection"/);
+  assert.match(gate, /test ! -s "\$RUNNER_TEMP\/\$inspection.stdout"/);
+  assert.match(gate, /parseNavigationIndex/);
+  assert.match(gate, /verify-module-inventory\.cjs/);
+  assert.match(gate, /verify-snippets\.cjs "\$binary" 15/);
+  assert.match(gate, /scarp\/examples\/projects\/task-board/);
+  assert.match(gate, /xvfb-run -a npm run test:integration/);
+  assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
+  assert.match(doc, /v0\.0\.6-alpha\.15\+/);
+  assert.match(doc, /1 MiB \+ 1 byte/);
+  assert.match(doc, /non-publishing compatibility gate/);
+});
