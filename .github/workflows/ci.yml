@@ -1143,6 +1143,49 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+
+  compiler-alpha16-compatibility:
+    name: Official Scarp alpha.16 compiler and editor (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.16
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify immutable published alpha.16 CLI contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Approved source from the published alpha.16 verification record.
+          test "$(git -C compiler rev-parse HEAD)" = "244f713b4fa48f02a98b8e3e3c11025363f35260"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.6-alpha.16'
+          # Check statistics, Unicode, checked 64-bit math and module composition
+          # with official golden fixtures, not invented extension semantics.
+          for example in order_statistics core_collections; do
+            "$binary" verify "compiler/examples/$example.srp"
+            "$binary" exec "compiler/examples/$example.srp" > "$RUNNER_TEMP/$example.actual"
+            cmp "compiler/examples/$example.stdout" "$RUNNER_TEMP/$example.actual"
+          done
+          # Preserve the entire alpha.15-and-earlier snippet contract.
+          node scripts/verify-snippets.cjs "$binary" 15
+          "$binary" verify compiler/examples/projects/task-board
+          "$binary" test --require-tests compiler/examples/projects/task-board
+      - name: Exercise real VS Code Extension Host with published alpha.16
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
