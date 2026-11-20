@@ -407,3 +407,23 @@ test('published match, constructors, contracts and propagation punctuation token
     part.scopes.includes('keyword.control.scarp')));
 });
 
+
+
+test('published alpha.16 statistics, Unicode and integer calls receive builtin scopes', async () => {
+  const grammar = await tokenizer();
+  const alpha16 = [
+    'median', 'quantile', 'text_lower', 'text_upper', 'text_reverse', 'text_from_codepoint', 'text_rfind', 'text_count', 'bits_count_ones', 'bits_leading_zeros', 'bits_trailing_zeros', 'bits_reverse', 'bits_swap_bytes', 'bits_rotate_left', 'bits_rotate_right', 'integer_abs', 'integer_sign', 'integer_gcd', 'integer_lcm'
+  ];
+  for (const name of alpha16) {
+    assert.ok(hasScope(tokens('bind value = ' + name + '(x);', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens('bind value = ' + name + '_custom(x);', grammar),
+      name + '_custom', 'support.function.builtin.scarp'), name + ' prefix');
+    assert.ok(!hasScope(tokens('// ' + name + '(x)', grammar),
+      name, 'support.function.builtin.scarp'), name + ' comment');
+    assert.ok(!hasScope(tokens('print("' + name + '(x)");', grammar),
+      name, 'support.function.builtin.scarp'), name + ' string');
+    assert.ok(hasScope(tokens('pure funcra ' + name + '(x: integer) {', grammar),
+      name, 'entity.name.function.definition.scarp'), name + ' declaration');
+  }
+});
