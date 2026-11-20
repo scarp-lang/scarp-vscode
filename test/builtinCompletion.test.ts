@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 67);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 86);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -114,5 +114,27 @@ test('alpha.12 collection completion is versioned and rejects lexical false posi
       ('module.' + prefix).length), undefined);
     assert.equal(scarpBuiltinCompletionAt('// ' + prefix,
       ('// ' + prefix).length), undefined);
+  }
+});
+
+
+test('alpha.16 completions expose the precise published groups without false positions', () => {
+  const bits = scarpBuiltinCompletionAt('bits_', 5);
+  assert.deepEqual(bits?.matches.map(x => x.name).sort(), [
+    'bits_count_ones', 'bits_leading_zeros', 'bits_reverse',
+    'bits_rotate_left', 'bits_rotate_right', 'bits_swap_bytes', 'bits_trailing_zeros'
+  ]);
+  const statistics = scarpBuiltinCompletionAt('quant', 5);
+  assert.equal(statistics?.matches.find(x => x.name === 'quantile')?.introduced,
+    'v0.0.6-alpha.16');
+  for (const name of ['median', 'text_lower', 'text_from_codepoint',
+    'integer_abs', 'integer_lcm']) {
+    const result = scarpBuiltinCompletionAt(name, name.length);
+    assert.equal(result?.matches.find(x => x.name === name)?.introduced,
+      'v0.0.6-alpha.16', name);
+    assert.equal(scarpBuiltinCompletionAt('module.' + name,
+      ('module.' + name).length), undefined);
+    assert.equal(scarpBuiltinCompletionAt('// ' + name,
+      ('// ' + name).length), undefined);
   }
 });
