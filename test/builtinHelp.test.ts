@@ -69,7 +69,26 @@ const versions: Record<string, string> = {
   map_contains: 'v0.0.6-alpha.12',
   map_get_or: 'v0.0.6-alpha.12',
   map_set: 'v0.0.6-alpha.12',
-  map_remove: 'v0.0.6-alpha.12'
+  map_remove: 'v0.0.6-alpha.12',
+  median: 'v0.0.6-alpha.16',
+  quantile: 'v0.0.6-alpha.16',
+  text_lower: 'v0.0.6-alpha.16',
+  text_upper: 'v0.0.6-alpha.16',
+  text_reverse: 'v0.0.6-alpha.16',
+  text_from_codepoint: 'v0.0.6-alpha.16',
+  text_rfind: 'v0.0.6-alpha.16',
+  text_count: 'v0.0.6-alpha.16',
+  bits_count_ones: 'v0.0.6-alpha.16',
+  bits_leading_zeros: 'v0.0.6-alpha.16',
+  bits_trailing_zeros: 'v0.0.6-alpha.16',
+  bits_reverse: 'v0.0.6-alpha.16',
+  bits_swap_bytes: 'v0.0.6-alpha.16',
+  bits_rotate_left: 'v0.0.6-alpha.16',
+  bits_rotate_right: 'v0.0.6-alpha.16',
+  integer_abs: 'v0.0.6-alpha.16',
+  integer_sign: 'v0.0.6-alpha.16',
+  integer_gcd: 'v0.0.6-alpha.16',
+  integer_lcm: 'v0.0.6-alpha.16'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -182,5 +201,24 @@ test('alpha.12 collection hover documents immutable quotas and eager fallbacks',
     ]) {
       assert.equal(scarpBuiltinAt(source, source.indexOf(name) + 2), undefined, source);
     }
+  }
+});
+
+
+test('alpha.16 hover uses released statistics, Unicode and i64 contracts', () => {
+  const quantile = scarpBuiltinAt('quantile(values, 0.25)', 3)?.help;
+  assert.equal(quantile?.signature, 'quantile(values: vector, fraction: float) -> float');
+  assert.match(quantile!.constraints, /0\.0–1\.0/);
+  assert.match(scarpBuiltinAt('median(values)', 3)!.help.constraints, /65,536/);
+  assert.match(scarpBuiltinAt('text_reverse("a")', 5)!.help.constraints, /grapheme/);
+  assert.match(scarpBuiltinAt('text_rfind("abc", "b")', 6)!.help.constraints, /-1/);
+  assert.match(scarpBuiltinAt('text_count("aaa", "a")', 6)!.help.constraints, /non-regex/);
+  assert.match(scarpBuiltinAt('bits_rotate_left(1, 63)', 5)!.help.constraints, /0 through 63/);
+  assert.match(scarpBuiltinAt('integer_abs(-10)', 7)!.help.constraints, /overflow/);
+  assert.match(scarpBuiltinAt('integer_gcd(30, 18)', 9)!.help.constraints, /gcd\(0, 0\)/);
+  for (const name of ['median', 'text_upper', 'integer_lcm']) {
+    assert.equal(scarpBuiltinAt('module.' + name + '(value)', 7)?.help.name, undefined);
+    assert.equal(scarpBuiltinAt('// ' + name + '(value)', 4)?.help.name, undefined);
+    assert.equal(scarpBuiltinAt('funcra ' + name + '() {}', 8)?.help.name, undefined);
   }
 });
