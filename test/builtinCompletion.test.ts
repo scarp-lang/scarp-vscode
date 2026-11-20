@@ -49,14 +49,14 @@ test('prefix matching is case-sensitive and does not advertise arbitrary functio
   }
   assert.equal(scarpBuiltinCompletionAt('t', 1), undefined,
     'At least two characters avoid noisy single-letter suggestions');
-  assert.equal(scarpBuiltinCompletionAt('te', 2)?.matches.length, 4);
+  assert.equal(scarpBuiltinCompletionAt('te', 2)?.matches.length, 10);
 });
 
 test('completion ranges are UTF-16 correct and bounded', () => {
   const line = 'print("🙂"); bind label = text_re';
   const result = scarpBuiltinCompletionAt(line, line.length);
   assert.equal(result?.start, line.indexOf('text_re'));
-  assert.deepEqual(result?.matches.map(x => x.name), ['text_replace']);
+  assert.deepEqual(result?.matches.map(x => x.name), ['text_replace', 'text_reverse']);
   for (const index of [-1, line.length + 1, 1.5, NaN, Infinity]) {
     assert.equal(scarpBuiltinCompletionAt(line, index), undefined);
   }
