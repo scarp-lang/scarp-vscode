@@ -27,6 +27,7 @@ const alpha9 = 'v0.0.6-alpha.9';
 const alpha10 = 'v0.0.6-alpha.10';
 const alpha11 = 'v0.0.6-alpha.11';
 const alpha12 = 'v0.0.6-alpha.12';
+const alpha16 = 'v0.0.6-alpha.16';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -497,6 +498,139 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha12,
     summary: 'Returns an immutable map snapshot without the specified key.',
     constraints: 'Missing keys may share the original snapshot. All existing aliases remain unchanged.'
+  },
+  median: {
+    name: 'median',
+    signature: 'median(values: vector) -> float',
+    introduced: alpha16,
+    summary: 'Returns the middle sorted numerical value, averaging the middle pair for even lengths.',
+    constraints: 'Nonempty finite vector of at most 65,536 elements; a sorted copy charges --max-vector-bytes and bounded work. The input is not changed.'
+  },
+  quantile: {
+    name: 'quantile',
+    signature: 'quantile(values: vector, fraction: float) -> float',
+    introduced: alpha16,
+    summary: 'Computes the type-7 linearly interpolated numerical quantile.',
+    constraints: 'Nonempty finite vector of at most 65,536 elements; fraction must be finite within 0.0–1.0. Sorted copy, work and vector-byte quotas apply.'
+  },
+  text_lower: {
+    name: 'text_lower',
+    signature: 'text_lower(value: string) -> string',
+    introduced: alpha16,
+    summary: 'Maps Unicode scalars to lowercase using locale-independent Unicode tables.',
+    constraints: 'Case mapping may expand into several scalars; no Unicode normalization or contextual locale processing. Text length and work quotas apply.'
+  },
+  text_upper: {
+    name: 'text_upper',
+    signature: 'text_upper(value: string) -> string',
+    introduced: alpha16,
+    summary: 'Maps Unicode scalars to uppercase using locale-independent Unicode tables.',
+    constraints: 'Case mapping may expand into several scalars, for example ß to SS; no locale-sensitive casing. Text length and work quotas apply.'
+  },
+  text_reverse: {
+    name: 'text_reverse',
+    signature: 'text_reverse(value: string) -> string',
+    introduced: alpha16,
+    summary: 'Reverses the sequence of Unicode scalar values.',
+    constraints: 'Does not reverse grapheme clusters; a combining mark may separate from its base. UTF-8 text length and work quotas apply.'
+  },
+  text_from_codepoint: {
+    name: 'text_from_codepoint',
+    signature: 'text_from_codepoint(value: integer) -> string',
+    introduced: alpha16,
+    summary: 'Constructs a UTF-8 string containing one Unicode scalar.',
+    constraints: 'Code point must be 0 through 0x10FFFF but not a surrogate from 0xD800 to 0xDFFF; invalid values are errors.'
+  },
+  text_rfind: {
+    name: 'text_rfind',
+    signature: 'text_rfind(value: string, needle: string) -> integer',
+    introduced: alpha16,
+    summary: 'Finds the last exact UTF-8 substring and returns its Unicode scalar index.',
+    constraints: 'Returns -1 when absent; an empty needle returns the scalar length of value. Exact, case-sensitive search without normalization.'
+  },
+  text_count: {
+    name: 'text_count',
+    signature: 'text_count(value: string, needle: string) -> integer',
+    introduced: alpha16,
+    summary: 'Counts nonoverlapping exact UTF-8 substring occurrences from left to right.',
+    constraints: 'An empty needle counts all Unicode scalar boundaries, including the start and end. Case-sensitive, non-regex matching.'
+  },
+  bits_count_ones: {
+    name: 'bits_count_ones',
+    signature: 'bits_count_ones(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Counts set bits in the signed integer\'s 64-bit two\'s-complement pattern.',
+    constraints: 'Includes the sign bit; negative inputs are inspected as all 64 bits, not as arbitrary-precision bigints.'
+  },
+  bits_leading_zeros: {
+    name: 'bits_leading_zeros',
+    signature: 'bits_leading_zeros(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Counts leading zero bits in a signed 64-bit integer pattern.',
+    constraints: 'Operates on all 64 bits, including the sign bit; zero has 64 leading zeros.'
+  },
+  bits_trailing_zeros: {
+    name: 'bits_trailing_zeros',
+    signature: 'bits_trailing_zeros(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Counts trailing zero bits in a signed 64-bit integer pattern.',
+    constraints: 'Operates on all 64 bits, including the sign bit; zero has 64 trailing zeros.'
+  },
+  bits_reverse: {
+    name: 'bits_reverse',
+    signature: 'bits_reverse(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Reverses all 64 bits of an integer\'s bit pattern.',
+    constraints: 'Returns the signed two\'s-complement interpretation of the reversed bits, which may be negative.'
+  },
+  bits_swap_bytes: {
+    name: 'bits_swap_bytes',
+    signature: 'bits_swap_bytes(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Reverses the order of the eight bytes of a signed 64-bit integer.',
+    constraints: 'Returns the signed two\'s-complement interpretation of the swapped 64-bit pattern.'
+  },
+  bits_rotate_left: {
+    name: 'bits_rotate_left',
+    signature: 'bits_rotate_left(value: integer, positions: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Rotates the full 64-bit integer pattern left.',
+    constraints: 'Rotation count must be 0 through 63; invalid counts produce E0046. Signed two\'s-complement result.'
+  },
+  bits_rotate_right: {
+    name: 'bits_rotate_right',
+    signature: 'bits_rotate_right(value: integer, positions: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Rotates the full 64-bit integer pattern right.',
+    constraints: 'Rotation count must be 0 through 63; invalid counts produce E0046. Signed two\'s-complement result.'
+  },
+  integer_abs: {
+    name: 'integer_abs',
+    signature: 'integer_abs(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Returns the checked nonnegative magnitude of a signed 64-bit integer.',
+    constraints: 'The minimum signed 64-bit integer has no representable positive magnitude and produces arithmetic overflow.'
+  },
+  integer_sign: {
+    name: 'integer_sign',
+    signature: 'integer_sign(value: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Returns -1, 0 or 1 according to the input\'s sign.',
+    constraints: 'Requires a signed 64-bit integer; does not silently convert from float, decimal or bigint.'
+  },
+  integer_gcd: {
+    name: 'integer_gcd',
+    signature: 'integer_gcd(left: integer, right: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Returns the greatest common divisor of two signed 64-bit integers.',
+    constraints: 'Uses nonnegative magnitudes; gcd(0, 0) = 0. A nonrepresentable positive result causes overflow.'
+  },
+  integer_lcm: {
+    name: 'integer_lcm',
+    signature: 'integer_lcm(left: integer, right: integer) -> integer',
+    introduced: alpha16,
+    summary: 'Returns the nonnegative least common multiple of two integers.',
+    constraints: 'Returns 0 when either argument is 0; nonrepresentable positive results cause arithmetic overflow.'
   }
 };
 
