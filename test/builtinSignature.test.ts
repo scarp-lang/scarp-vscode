@@ -12,7 +12,8 @@ const builtins = [
   'read_line_or', 'try_read_line', 'ask', 'ask_or', 'input', 'input_integer', 'input_float', 'input_bigint', 'flush_stdout', 'flush_stderr', 'bigint_pow', 'bigint_gcd', 'bigint_lcm', 'bigint_sqrt', 'bigint_bit_length', 'bigint_to_text', 'bigint_from_radix', 'bigint_to_radix', 'bigint_and', 'bigint_or', 'bigint_xor', 'bigint_not', 'bigint_shl', 'bigint_shr', 'bigint_pow_mod', 'bigint_divmod',
   'decimal', 'decimal_from_integer', 'decimal_to_integer', 'decimal_to_text',
   'decimal_round', 'decimal_format', 'decimal_div_rounded', 'input_decimal',
-  'list_len', 'list_push', 'list_set', 'list_remove', 'map_len', 'map_keys', 'map_values', 'map_contains', 'map_get_or', 'map_set', 'map_remove'
+  'list_len', 'list_push', 'list_set', 'list_remove', 'map_len', 'map_keys', 'map_values', 'map_contains', 'map_get_or', 'map_set', 'map_remove',
+  'median', 'quantile', 'text_lower', 'text_upper', 'text_reverse', 'text_from_codepoint', 'text_rfind', 'text_count', 'bits_count_ones', 'bits_leading_zeros', 'bits_trailing_zeros', 'bits_reverse', 'bits_swap_bytes', 'bits_rotate_left', 'bits_rotate_right', 'integer_abs', 'integer_sign', 'integer_gcd', 'integer_lcm'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
@@ -146,4 +147,20 @@ test('alpha.12 collection signatures preserve generic map commas as one paramete
   assert.deepEqual(scarpSignatureAt('list_push(')?.parameters, ['items: list<T>', 'value: T']);
   assert.equal(scarpSignatureAt('module.map_get_or('), undefined);
   assert.equal(scarpSignatureAt('map_set([map: "a": 1, "z": 2], ')?.activeParameter, 1);
+});
+
+
+test('alpha.16 signature help tracks arity and nested arguments', () => {
+  assert.deepEqual(scarpSignatureAt('median(')?.parameters, ['values: vector']);
+  const quantile = scarpSignatureAt('quantile([4.0, 1.0], ');
+  assert.equal(quantile?.help.introduced, 'v0.0.6-alpha.16');
+  assert.deepEqual(quantile?.parameters, ['values: vector', 'fraction: float']);
+  assert.equal(quantile?.activeParameter, 1);
+  assert.deepEqual(scarpSignatureAt('text_rfind("banana", ')?.parameters,
+    ['value: string', 'needle: string']);
+  assert.equal(scarpSignatureAt('bits_rotate_right(15, ')?.activeParameter, 1);
+  assert.deepEqual(scarpSignatureAt('integer_lcm(')?.parameters,
+    ['left: integer', 'right: integer']);
+  assert.equal(scarpSignatureAt('my_module.quantile('), undefined);
+  assert.equal(scarpSignatureAt('print("quantile(1, 2)"), '), undefined);
 });
