@@ -36,6 +36,7 @@
     "onLanguage:scarp",
     "onCommand:scarp.explainDiagnostic",
     "onCommand:scarp.setupCompiler",
+    "onCommand:scarp.manageCompiler",
     "onCommand:scarp.createProject",
     "onCommand:scarp.verifyProject",
     "onCommand:scarp.launchProject",
@@ -82,6 +83,11 @@
       {
         "command": "scarp.setupCompiler",
         "title": "Scarp: Set Up Compiler",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.manageCompiler",
+        "title": "Scarp: Manage Compiler",
         "category": "Scarp"
       },
       {
@@ -197,6 +203,10 @@
         },
         {
           "command": "scarp.setupCompiler",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.manageCompiler",
           "when": "isWorkspaceTrusted"
         },
         {
