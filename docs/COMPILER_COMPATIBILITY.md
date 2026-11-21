@@ -21,6 +21,12 @@ This document tracks the **published** Scarp compiler contracts used by the VS C
 
 Versions above describe a minimum release for particular features; they do not imply native compilation, a GUI runtime, or semantic editor completion. Syntax highlighting, snippets, local Outline and built-in help are **compiler-free**. From the published alpha.12 pattern syntax, local Outline also lists each named binding in top-level tuple, fixed-array and record destructuring, including nested patterns; discard `_` and record field labels never appear as declarations. This is error-tolerant lexical indexing, not type checking, and malformed patterns are omitted. The installed compiler may be older than the newest built-in help entry; a version label is not a capability probe.
 
+## Compiler installation and discovery
+
+The extension does **not** install or download a compiler. With the default `scarp.compilerPath = "scarp"`, a trusted compiler action first probes the executable in PATH using `--version`. Only if the command cannot be found does optional `scarp.autoDiscoverCompiler` search a bounded list of existing, direct candidate paths (absolute PATH entries, Rust/Cargo directories, and conventional user/system installation folders). No recursive directory walking, workspace search or Downloads search is performed. Candidates must be executable files and advertise a valid `scarp --version` response. Exact compiler support still depends on the executable's actual capabilities.
+
+An explicitly configured executable path is **never** replaced by an automatically discovered one. Discovery is cancellable and runs in the VS Code extension host (including remote SSH, containers or WSL when applicable). It does not run on extension activation, editor hover, completion or highlighting. Disabling `scarp.autoDiscoverCompiler` restores PATH-or-explicit-path-only behavior.
+
 ## Module metadata and native path compatibility
 
 Compiler module inspection retains the bounded graph fields of schema versions **1–3**. Published alpha.12 adds **schema v4** for nominal records and **schema v5** when variants are present. The extension's read-only module browser accepts and validates those versions; unknown newer versions fail closed rather than being guessed.

@@ -2,7 +2,8 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
-import { compilerVersion, executeProcess, preferredExecutionVerb, supportsInteractiveExecution } from './cli';
+import { executeProcess, preferredExecutionVerb, supportsInteractiveExecution } from './cli';
+import { resolveConfiguredCompiler } from './compilerDiscovery';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { diagnosticExplanationArgs, explainableDiagnosticCode } from './diagnosticExplanation';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
@@ -93,18 +94,11 @@ async function ensureSaved(doc: vscode.TextDocument): Promise<void> {
 }
 async function validateCompiler(signal?: AbortSignal): Promise<{ binary: string; version: string }> {
   const binary = config().get<string>('compilerPath', 'scarp').trim();
-  if (!binary) { throw new Error('Set scarp.compilerPath to an executable.'); }
-  let result;
-  try {
-    result = await executeProcess(binary, ['--version'], {
-      timeoutMs: 5000, maxOutputBytes: 65536, signal
-    });
-  } catch (error) {
-    throw new Error('Scarp compiler not found at ' + binary + ': ' + String(error));
-  }
-  const version = result.exitCode === 0 ? compilerVersion(result.stdout) : undefined;
-  if (!version) { throw new Error('Invalid Scarp --version response from ' + binary); }
-  return { binary, version };
+  // An explicit compiler path always wins. The default command may fall back
+  // to bounded installed-compiler discovery, but only for trusted actions.
+  return resolveConfiguredCompiler(
+    binary, config().get<boolean>('autoDiscoverCompiler', true), signal
+  );
 }
 /**
  * Display published compiler catalogue guidance only after an explicit user
@@ -1269,7 +1263,8 @@ export function activate(context: vscode.ExtensionContext): void {
       verifiedVersions.delete(doc.uri.fsPath);
     }),
     vscode.workspace.onDidChangeConfiguration(event => {
-      if (event.affectsConfiguration('scarp.compilerPath')) {
+      if (event.affectsConfiguration('scarp.compilerPath') ||
+          event.affectsConfiguration('scarp.autoDiscoverCompiler')) {
         // A delayed probe/check from the previous executable must never
         // publish new Problems or open a terminal after this setting changes.
         compilerRevision++;
@@ -1305,6 +1300,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
       if (event.affectsConfiguration('scarp.compilerPath') ||
+          event.affectsConfiguration('scarp.autoDiscoverCompiler') ||
           event.affectsConfiguration('scarp.verifyOnSave')) {
         verifiedVersions.clear();
       }

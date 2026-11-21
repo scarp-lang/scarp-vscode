@@ -6,6 +6,8 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 ## Implemented
 
+- **Bounded compiler auto-discovery (development only):** when the default `scarp` command is missing from `PATH`, a trusted compiler action can locate a previously installed `scarp` executable in selected absolute `PATH` entries and common user/system locations on Windows, Linux and macOS. Only existing executable files with a valid `scarp --version` response are accepted. No drives, workspaces or Downloads are crawled; no compiler is downloaded or installed; and an explicit `scarp.compilerPath` is never replaced. Disable via `scarp.autoDiscoverCompiler` if needed. Remote workspaces search the remote extension-host machine.
+
 - **Published Scarp alpha.17 editor compatibility (development only):** editor-only highlight, hover, completion, and typed signature help for `array_len`, `array_get_or` and `input_boolean`. Two new opt-in snippets demonstrate bounded fixed-array traversal and explicit interactive Boolean input. The fallback of `array_get_or` is evaluated even when the index is valid; typed input accepts only lowercase `true` or `false`. A pinned alpha.17 CI job exercises the official compiler and a real Extension Host. These hints do not execute source, silently install a compiler, or guarantee features in older compiler binaries.
 
 - **Published compiler alpha.16 editor compatibility (development only):** editor-only highlighting, hover, completion and signature help for 19 new pure built-ins: `median`, `quantile`, six Unicode scalar/text utilities, seven signed-64-bit bit-pattern utilities, and four checked integer utilities. The help describes exact quantile bounds, UTF-8 scalar behavior, i64 overflow and execution quotas, but never evaluates source or promises availability on older installed compilers. A pinned alpha.16 GitHub Actions job builds the exact published compiler, verifies official statistics/Unicode/bitwise golden outputs and exercises a real VS Code Extension Host. This does not change the extension version, install compilers automatically or publish a release.
@@ -83,7 +85,7 @@ The latest **published** experimental pre-release is [v0.1.5](https://github.com
 
 1. Install Scarp from [official compiler releases](https://github.com/scarp-lang/scarp/releases).
 2. Run **scarp --version** in the workspace environment, or set **scarp.compilerPath** to the executable file (Windows example: C:\tools\scarp\scarp.exe).
-3. Install a verified pre-release VSIX when available, or open the repository in a VS Code Extension Development Host.
+3. Install a verified pre-release VSIX when available, or open the repository in a VS Code Extension Development Host. If the default compiler command is absent from PATH, Run or Verify can automatically locate an existing Scarp installation in common folders.
 4. Open a .srp file in a trusted workspace, then use Run or Verify in the Command Palette.
 
 ~~~scarp
@@ -96,7 +98,8 @@ The extension uses the workspace extension host. On Remote SSH, WSL or container
 
 | Setting | Purpose |
 | --- | --- |
-| scarp.compilerPath | Full path to executable, or scarp on PATH |
+| scarp.compilerPath | Full path to executable, or scarp on PATH; explicit paths always win |
+| scarp.autoDiscoverCompiler | Default on: bounded local search if `scarp` is absent from PATH during trusted compiler actions; no downloads or recursive scans |
 | scarp.checkTimeoutMs | Timeout for checking (default: 30000 milliseconds) |
 | scarp.verifyOnSave | Opt in to non-executing verification after saving a `.srp` file; **off by default** |
 | scarp.showFileActionsCodeLens | Opt in to file-scoped Run/Verify inline actions in trusted `.srp` editors; **off by default** |
