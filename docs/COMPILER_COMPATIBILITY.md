@@ -61,6 +61,12 @@ The following settings are optional and default to **not forwarding a flag**. Th
 
 No resource-budget flag is sent by compiler-free editor providers. Static `verify` does not execute the source program, and project read-only discovery does not run test code. Explicit `Run`, `Launch`, `Run Interactively`, and project test commands execute the interpreter and should be used with trusted code and a trusted workspace.
 
+## Real published native packages (CI gate)
+
+The non-publishing `Published alpha.17 native package + VS Code Host` CI matrix covers **Windows x64, Linux x64 and macOS Apple Silicon**, with runner host architecture matched to the official target. Unlike source-build smoke checks, it requests the actual public `v0.0.6-alpha.17` release metadata and package archive through the extension's own HTTPS downloader. Each archive **and** checksum-sidecar digest is compared against a separately pinned SHA-256 value, as well as the GitHub release metadata. The same installer that the explicit user-driven setup wizard calls must accept the archive, extract only `scarp`/`scarp.exe` to a fresh versioned directory, validate its exact version, and leave no staging directories. Reusing a verified installation must cause no additional download.
+
+The downloaded executable then runs `verify` without evaluating source and `exec` with expected output. A real VS Code Extension Host receives exactly that installed executable, uses it for file verification and Run, surfaces actual diagnostics for invalid Scarp, and checks that normal actions never start another compiler installation. These tests do **not** automatically install or upgrade compilers on end-user machines and never publish extension packages. The historical pinned-source compiler suite remains independent and is still mandatory.
+
 ## How compatibility is verified
 
 `.github/workflows/ci.yml` pins immutable published Scarp commits rather than building arbitrary compiler `main`:
