@@ -161,6 +161,6 @@ test('alpha.17 array traversal and interactive Boolean snippets use real publish
   assert.match(booleanInput.body.join('\n'), /input_boolean\(/);
   assert.match(booleanInput.body.join('\n'), /--interactive/);
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
-  assert.match(ci, /verify-snippets\.cjs.*scarp" 17/);
+  assert.match(ci, /verify-snippets\.cjs "\$binary" 17/);
   assert.match(ci, /7831a37939965f557ce746e1d86bf82d3d629f74/);
 });
