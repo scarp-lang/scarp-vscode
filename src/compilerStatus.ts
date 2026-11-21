@@ -64,7 +64,7 @@ export function compareCompilerVersions(
   for (let i = 0; i < Math.min(a.prerelease.length, b.prerelease.length); i++) {
     if (a.prerelease[i] === b.prerelease[i]) { continue; }
     const diff = compareIdentifier(a.prerelease[i], b.prerelease[i]);
-    if (diff !== 0) { return diff; }
+    if (diff !== 0) { return diff < 0 ? -1 : 1; }
   }
   if (a.prerelease.length === b.prerelease.length) { return 0; }
   return a.prerelease.length < b.prerelease.length ? -1 : 1;
