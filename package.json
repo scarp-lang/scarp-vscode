@@ -250,7 +250,13 @@
           "type": "string",
           "default": "scarp",
           "scope": "machine",
-          "description": "Absolute path to the official Scarp executable, or scarp when it is on PATH."
+          "description": "Absolute path to the official Scarp executable, or scarp when it is on PATH. An explicit path always takes precedence over automatic discovery."
+        },
+        "scarp.autoDiscoverCompiler": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "description": "When the default scarp command is absent from PATH, search only common local compiler installation paths during a trusted compiler action. Never downloads, scans entire drives, or overrides an explicitly configured compilerPath."
         },
         "scarp.checkTimeoutMs": {
           "type": "integer",
