@@ -27,6 +27,14 @@ The extension does **not** install or download a compiler. With the default `sca
 
 An explicitly configured executable path is **never** replaced by an automatically discovered one. Discovery is cancellable and runs in the VS Code extension host (including remote SSH, containers or WSL when applicable). It does not run on extension activation, editor hover, completion or highlighting. Disabling `scarp.autoDiscoverCompiler` restores PATH-or-explicit-path-only behavior.
 
+## Explicit official compiler setup (development-only)
+
+Run **Scarp: Set Up Compiler** from the Command Palette in a trusted workspace. This command offers four explicit choices: detect an existing compiler, select a compiler file, open the official GitHub releases, or install a published native Scarp package. Merely opening a Scarp source, using IntelliSense, saving, verifying or running **never** downloads a compiler. The installer is deliberately separate from Run/Verify and has a modal confirmation before fetching any executable.
+
+For an installation, the wizard queries the GitHub release API, checks that the release is publicly published rather than draft, selects the exact native package for `win32/x64`, `linux/x64`, or `darwin/arm64`, and refuses unsupported platform/architecture pairs. Asset URLs must match the exact `scarp-lang/scarp` release and version; HTTPS redirects are restricted to known GitHub asset hosts. Response size and time are capped, and cancellation aborts the transfer. Both the GitHub release API's SHA-256 digest and the published `.sha256` sidecar digest/contents must match before unpacking. A bounded archive reader extracts **only** the versioned `scarp`/`scarp.exe` member, never arbitrary archive paths. It rejects duplicate, unsafe or corrupted executable members. A temporary staging path under VS Code extension storage is cleaned after errors or cancellations; an existing invalid version directory is not overwritten. The executable must report the exact published version before its absolute path is saved as the machine-level `scarp.compilerPath` setting.
+
+This workflow executes a newly downloaded executable with `--version` as part of the **explicit** install. Only install releases you trust; checksum verification proves agreement with the published release, not that executable programs are inherently safe. No background updates, release publication, dependency installation, or changes to Scarp source files occur. Remote SSH, WSL and containers download onto their **remote extension host**, not the local VS Code client. A manual compiler-path selection is also validated before configuration.
+
 ## Module metadata and native path compatibility
 
 Compiler module inspection retains the bounded graph fields of schema versions **1–3**. Published alpha.12 adds **schema v4** for nominal records and **schema v5** when variants are present. The extension's read-only module browser accepts and validates those versions; unknown newer versions fail closed rather than being guessed.
@@ -62,6 +70,6 @@ To verify your installed compiler locally, use `scarp --version`, then run the e
 
 ## Compatibility scope and release rules
 
-This extension never installs or upgrades the compiler automatically. Workspace Trust, saved-source checks, cancellation, path containment and compiler capability probes continue to gate privileged operations. Alpha.13–alpha.15 Rust embedding/cache and experimental native-kernel APIs require a separate host integration design; the extension's current implementation uses the compiler's released CLI and its own editor-side source-generation validation.
+This extension never installs or upgrades the compiler automatically; compiler installation requires the explicit, confirmed setup wizard. Workspace Trust, saved-source checks, cancellation, path containment and compiler capability probes continue to gate privileged operations. Alpha.13–alpha.15 Rust embedding/cache and experimental native-kernel APIs require a separate host integration design; the extension's current implementation uses the compiler's released CLI and its own editor-side source-generation validation.
 
 The extension is still **experimental**. Do not publish a stable VS Code extension before Scarp publishes and verifies a stable compiler release. Pre-release publishing to Visual Studio Marketplace or Open VSX requires explicit owner authorization and the repository's existing release gates.

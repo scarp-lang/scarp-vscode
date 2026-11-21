@@ -6,6 +6,8 @@ Official Visual Studio Code extension for the [Scarp language](https://github.co
 
 ## Implemented
 
+- **Explicit compiler setup wizard (v0.1.6 development):** Run **Scarp: Set Up Compiler** in a trusted workspace to detect an existing installation, select and validate an executable, open the official Scarp releases, or explicitly download the newest published native compiler package. The install action requires a modal confirmation, supports cancellation, validates GitHub asset SHA-256 digests and the official checksum sidecar, extracts only the expected compiler executable to versioned VS Code extension storage, checks its `--version`, and updates `scarp.compilerPath` on success. No downloads occur automatically while editing, saving, running or opening a workspace. Native install packages are currently Windows x64, Linux x64, and macOS Apple Silicon; other targets need a source build. Installed compilers are never silently overwritten.
+
 - **Bounded compiler auto-discovery (development only):** when the default `scarp` command is missing from `PATH`, a trusted compiler action can locate a previously installed `scarp` executable in selected absolute `PATH` entries and common user/system locations on Windows, Linux and macOS. Only existing executable files with a valid `scarp --version` response are accepted. No drives, workspaces or Downloads are crawled; no compiler is downloaded or installed; and an explicit `scarp.compilerPath` is never replaced. Disable via `scarp.autoDiscoverCompiler` if needed. Remote workspaces search the remote extension-host machine.
 
 - **Published Scarp alpha.17 editor compatibility (development only):** editor-only highlight, hover, completion, and typed signature help for `array_len`, `array_get_or` and `input_boolean`. Two new opt-in snippets demonstrate bounded fixed-array traversal and explicit interactive Boolean input. The fallback of `array_get_or` is evaluated even when the index is valid; typed input accepts only lowercase `true` or `false`. A pinned alpha.17 CI job exercises the official compiler and a real Extension Host. These hints do not execute source, silently install a compiler, or guarantee features in older compiler binaries.
@@ -83,8 +85,8 @@ The latest **published** experimental pre-release is [v0.1.5](https://github.com
 
 ## Install and run
 
-1. Install Scarp from [official compiler releases](https://github.com/scarp-lang/scarp/releases).
-2. Run **scarp --version** in the workspace environment, or set **scarp.compilerPath** to the executable file (Windows example: C:\tools\scarp\scarp.exe).
+1. From a trusted VS Code workspace, run **Scarp: Set Up Compiler** in the Command Palette, then choose **Install Official Scarp Release**, **Detect Existing Compiler**, or **Choose Installed Compiler File**. You can also install manually from [official compiler releases](https://github.com/scarp-lang/scarp/releases).
+2. The wizard validates `scarp --version` (or the selected binary). To configure manually, set **scarp.compilerPath** to the executable file (Windows example: `C:\tools\scarp\scarp.exe`). The optional installer checks both published SHA-256 digests and the archive's official checksum sidecar before accepting a binary.
 3. Install a verified pre-release VSIX when available, or open the repository in a VS Code Extension Development Host. If the default compiler command is absent from PATH, Run or Verify can automatically locate an existing Scarp installation in common folders.
 4. Open a .srp file in a trusted workspace, then use Run or Verify in the Command Palette.
 
@@ -92,7 +94,7 @@ The latest **published** experimental pre-release is [v0.1.5](https://github.com
 print("Hello from Scarp!");
 ~~~
 
-The extension uses the workspace extension host. On Remote SSH, WSL or containers, install the compiler in that environment.
+The extension uses the workspace extension host. On Remote SSH, WSL or containers, setup and compiler installation target that environment, not the local client machine. Downloads require your explicit confirmation and are limited to published GitHub Scarp release assets. The installed binary is kept in VS Code extension storage, not your source project, and no automatic compiler updates occur.
 
 ## Settings
 

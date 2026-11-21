@@ -4,6 +4,9 @@ import { watch as nativeWatch, type FSWatcher } from 'node:fs';
 import * as vscode from 'vscode';
 import { executeProcess, preferredExecutionVerb, supportsInteractiveExecution } from './cli';
 import { resolveConfiguredCompiler } from './compilerDiscovery';
+import {
+  fetchCurrentCompilerPackage, installOfficialCompiler, OFFICIAL_RELEASES_URL
+} from './compilerInstall';
 import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
 import { diagnosticExplanationArgs, explainableDiagnosticCode } from './diagnosticExplanation';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
@@ -991,6 +994,108 @@ function stop(): void {
     : 'No Scarp program is running.');
 }
 
+/**
+ * User-directed setup only. Scarp files, hovering, automatic verification and
+ * Run never trigger a network request or a compiler installation themselves.
+ */
+async function setupCompiler(
+  context: vscode.ExtensionContext, output: vscode.OutputChannel
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before setting up an executable compiler.');
+  }
+  const action = await vscode.window.showQuickPick([
+    { label: 'Detect Existing Compiler', description: 'Check configured and known local paths', action: 'detect' },
+    { label: 'Install Official Scarp Release', description: 'Download, verify SHA-256 and select the compiler', action: 'install' },
+    { label: 'Choose Installed Compiler File', description: 'Validate a compiler you already installed', action: 'choose' },
+    { label: 'View Official Scarp Releases', description: 'Open the GitHub compiler release page', action: 'releases' }
+  ], { title: 'Scarp Compiler Setup', placeHolder: 'Select an explicit setup action' });
+  if (!action) { return; }
+  if (action.action === 'releases') {
+    await vscode.env.openExternal(vscode.Uri.parse(OFFICIAL_RELEASES_URL));
+    return;
+  }
+  if (action.action === 'detect') {
+    const found = await validateCompiler();
+    if (!vscode.workspace.isTrusted) { return; }
+    if (found.binary !== config().get<string>('compilerPath', 'scarp')) {
+      const choice = await vscode.window.showInformationMessage(
+        'Found Scarp ' + found.version + ' at ' + found.binary + '.', 'Use This Compiler'
+      );
+      if (choice !== 'Use This Compiler') { return; }
+      await config().update('compilerPath', found.binary, vscode.ConfigurationTarget.Global);
+    }
+    void vscode.window.showInformationMessage(
+      'Scarp compiler ready: ' + found.version + ' (' + found.binary + ')'
+    );
+    return;
+  }
+  if (action.action === 'choose') {
+    const selected = await vscode.window.showOpenDialog({
+      canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+      title: 'Select the official Scarp compiler executable',
+      openLabel: 'Validate Scarp Compiler'
+    });
+    if (!selected?.length || selected[0].scheme !== 'file') { return; }
+    const compilerPath = selected[0].fsPath;
+    const found = await resolveConfiguredCompiler(compilerPath, false);
+    if (!vscode.workspace.isTrusted) { return; }
+    const accept = await vscode.window.showInformationMessage(
+      'Use Scarp ' + found.version + ' from ' + found.binary + '?',
+      { modal: true }, 'Set Compiler Path'
+    );
+    if (accept !== 'Set Compiler Path') { return; }
+    await config().update('compilerPath', found.binary, vscode.ConfigurationTarget.Global);
+    void vscode.window.showInformationMessage(
+      'Scarp ' + found.version + ' selected. Run and Verify now use this executable.'
+    );
+    return;
+  }
+  if (context.globalStorageUri.scheme !== 'file') {
+    throw new Error('Scarp installation needs a local filesystem extension host.');
+  }
+  const bundle = await fetchCurrentCompilerPackage();
+  if (!vscode.workspace.isTrusted) { return; }
+  const current = config().get<string>('compilerPath', 'scarp');
+  const target = bundle.packageRoot;
+  const accepted = await vscode.window.showWarningMessage(
+    'Install official Scarp ' + bundle.version + ' (' + bundle.target + ')?',
+    {
+      modal: true,
+      detail: 'This downloads the published GitHub compiler archive and its SHA-256 ' +
+        'checksum, verifies both, extracts only the compiler executable into ' +
+        'VS Code extension storage, checks its version, and sets scarp.compilerPath. ' +
+        'Current compiler setting: ' + current + '. No source files are executed.'
+    }, 'Install and Select Compiler'
+  );
+  if (accepted !== 'Install and Select Compiler') { return; }
+
+  await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: 'Installing ' + target, cancellable: true
+  }, async (progress, token) => {
+    const controller = new AbortController();
+    const cancellation = token.onCancellationRequested(() => controller.abort());
+    try {
+      const installed = await installOfficialCompiler(
+        context.globalStorageUri.fsPath, bundle, controller.signal,
+        message => progress.report({ message })
+      );
+      if (controller.signal.aborted || !vscode.workspace.isTrusted) {
+        throw new Error('Scarp compiler installation cancelled before configuration.');
+      }
+      await config().update('compilerPath', installed.binary, vscode.ConfigurationTarget.Global);
+      output.appendLine('Scarp ' + installed.version + (installed.reused
+        ? ' reused at ' : ' installed at ') + installed.binary);
+      void vscode.window.showInformationMessage(
+        'Scarp ' + installed.version + ' is ready. Run and Verify use ' + installed.binary
+      );
+    } finally {
+      cancellation.dispose();
+    }
+  });
+}
+
 async function safe(action: () => Promise<void>): Promise<void> {
   try {
     await action();
@@ -1347,6 +1452,8 @@ export function activate(context: vscode.ExtensionContext): void {
       safe(async () => check(await selectedOrExplicitFile(uri), output, diagnostics, owners))),
     vscode.commands.registerCommand('scarp.explainDiagnostic', (code?: unknown): Promise<void> =>
       safe(async () => explainDiagnostic(code, output))),
+    vscode.commands.registerCommand('scarp.setupCompiler',
+      (): Promise<void> => safe(async () => setupCompiler(context, output))),
     vscode.commands.registerCommand('scarp.showVersion', () => safe(async () => {
       if (!vscode.workspace.isTrusted) { throw new Error('Trust the workspace before invoking the compiler.'); }
       const { binary, version } = await validateCompiler();
