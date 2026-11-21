@@ -164,3 +164,16 @@ test('alpha.16 signature help tracks arity and nested arguments', () => {
   assert.equal(scarpSignatureAt('my_module.quantile('), undefined);
   assert.equal(scarpSignatureAt('print("quantile(1, 2)"), '), undefined);
 });
+
+test('published alpha.17 signatures track array generics and Boolean prompt arity', () => {
+  const len = scarpSignatureAt('array_len(');
+  assert.deepEqual(len?.parameters, ['values: array<T, N>']);
+  assert.equal(len?.help.introduced, 'v0.0.6-alpha.17');
+  const lookup = scarpSignatureAt('array_get_or([array: 2, 4], -1, ');
+  assert.deepEqual(lookup?.parameters,
+    ['values: array<T, N>', 'index: integer', 'fallback: T']);
+  assert.equal(lookup?.activeParameter, 2);
+  assert.deepEqual(scarpSignatureAt('input_boolean(')?.parameters, ['prompt: string']);
+  assert.equal(scarpSignatureAt('module.array_get_or('), undefined);
+  assert.equal(scarpSignatureAt('// input_boolean('), undefined);
+});

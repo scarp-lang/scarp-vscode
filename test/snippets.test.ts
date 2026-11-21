@@ -9,11 +9,11 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 24 bounded Scarp snippets with unique prefixes', () => {
+test('registers 26 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets,
     [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
-  assert.equal(Object.keys(snippets).length, 24);
+  assert.equal(Object.keys(snippets).length, 26);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -44,6 +44,9 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     }
     if (name.includes('(alpha.12)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.12\+/);
+    }
+    if (name.includes('(alpha.17)')) {
+      assert.match(snippet.description, /v0\.0\.6-alpha\.17\+/);
     }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
@@ -147,3 +150,17 @@ test('alpha.12 nominal types, checked variants and explicit propagation snippets
   }
 });
 
+
+test('alpha.17 array traversal and interactive Boolean snippets use real published calls', () => {
+  const array = snippets['Scarp: Fixed array traversal (alpha.17)'];
+  assert.equal(array.prefix, 'sarraywalk');
+  assert.match(array.body.join('\n'), /repeat array_len\(/);
+  assert.match(array.body.join('\n'), /array_get_or\(/);
+  const booleanInput = snippets['Scarp: Interactive Boolean input (alpha.17)'];
+  assert.equal(booleanInput.prefix, 'sinputbool');
+  assert.match(booleanInput.body.join('\n'), /input_boolean\(/);
+  assert.match(booleanInput.body.join('\n'), /--interactive/);
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /verify-snippets\.cjs.*scarp" 17/);
+  assert.match(ci, /7831a37939965f557ce746e1d86bf82d3d629f74/);
+});

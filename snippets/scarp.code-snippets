@@ -251,5 +251,31 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.12+: explicit ? propagation in an immutable binding inside a typed function (interpreter only)."
+  },
+  "Scarp: Fixed array traversal (alpha.17)": {
+    "prefix": "sarraywalk",
+    "body": [
+      "bind ${1:readings} = [array: ${2:10}, ${3:20}, ${4:30}];",
+      "repeat array_len(${1}) as ${5:index} {",
+      "    print(${1}[${5}]);",
+      "}",
+      "print(array_get_or(${1}, ${6:9}, ${7:0}));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.17+: traverse a fixed array and look up an element with an eagerly evaluated typed fallback (interpreter only)."
+  },
+  "Scarp: Interactive Boolean input (alpha.17)": {
+    "prefix": "sinputbool",
+    "body": [
+      "// Scarp v0.0.6-alpha.17+: run with scarp exec --interactive; --input-file can replay input.",
+      "bind ${1:confirmed}: boolean = input_boolean(\"${2:Continue (true/false)? }\");",
+      "if ${1} {",
+      "    print(\"Continuing\");",
+      "} else {",
+      "    print(\"Stopped\");",
+      "}",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.17+: read exact lowercase true/false with an explicit interactive prompt (interpreter only)."
   }
 }

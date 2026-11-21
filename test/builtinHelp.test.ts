@@ -88,7 +88,10 @@ const versions: Record<string, string> = {
   integer_abs: 'v0.0.6-alpha.16',
   integer_sign: 'v0.0.6-alpha.16',
   integer_gcd: 'v0.0.6-alpha.16',
-  integer_lcm: 'v0.0.6-alpha.16'
+  integer_lcm: 'v0.0.6-alpha.16',
+  array_len: 'v0.0.6-alpha.17',
+  array_get_or: 'v0.0.6-alpha.17',
+  input_boolean: 'v0.0.6-alpha.17'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -220,5 +223,31 @@ test('alpha.16 hover uses released statistics, Unicode and i64 contracts', () =>
     assert.equal(scarpBuiltinAt('module.' + name + '(value)', 7)?.help.name, undefined);
     assert.equal(scarpBuiltinAt('// ' + name + '(value)', 4)?.help.name, undefined);
     assert.equal(scarpBuiltinAt('funcra ' + name + '() {}', 8)?.help.name, undefined);
+  }
+});
+
+test('published alpha.17 array and Boolean input hovers retain exact interpreter semantics', () => {
+  const length = scarpBuiltinAt('array_len([array: 1, 2])', 3)?.help;
+  assert.equal(length?.signature, 'array_len(values: array<T, N>) -> integer');
+  assert.equal(length?.introduced, 'v0.0.6-alpha.17');
+  assert.match(length!.constraints, /4,096/);
+
+  const fallback = scarpBuiltinAt('array_get_or(values, -1, 0)', 5)?.help;
+  assert.equal(fallback?.signature,
+    'array_get_or(values: array<T, N>, index: integer, fallback: T) -> T');
+  assert.match(fallback!.constraints, /eagerly evaluated/);
+  assert.match(fallback!.constraints, /negative or out-of-bounds/);
+
+  const prompt = scarpBuiltinAt('input_boolean("Continue? ")', 5)?.help;
+  assert.equal(prompt?.signature, 'input_boolean(prompt: string) -> boolean');
+  assert.match(prompt!.constraints, /--interactive/);
+  assert.match(prompt!.constraints, /lowercase true or false/);
+  assert.match(prompt!.constraints, /E0084/);
+  assert.match(prompt!.constraints, /E0055/);
+  for (const name of ['array_len', 'array_get_or', 'input_boolean']) {
+    for (const source of ['module.' + name + '(x)', '// ' + name + '(x)',
+      'print("' + name + '(x)");', 'funcra ' + name + '(x: integer) {']) {
+      assert.equal(scarpBuiltinAt(source, source.indexOf(name) + 2), undefined, source);
+    }
   }
 });
