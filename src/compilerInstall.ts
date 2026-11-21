@@ -40,6 +40,10 @@ export interface CompilerInstallation {
   reused: boolean;
 }
 export type InstallerProgress = (step: string) => void;
+/** Optional read seam for deterministic offline installer tests. */
+export type OfficialResourceReader = (
+  url: string, maxBytes: number, signal?: AbortSignal
+) => Promise<Buffer>;
 
 function fail(message: string): never {
   throw new Error('Scarp installer: ' + message);
@@ -360,8 +364,10 @@ async function validInstalledBinary(binary: string, version: string): Promise<bo
  */
 export async function installOfficialCompiler(
   destinationRoot: string, bundle: CompilerPackage,
-  signal?: AbortSignal, report?: InstallerProgress
+  signal?: AbortSignal, report?: InstallerProgress,
+  readBytes: OfficialResourceReader = readOfficialBytes
 ): Promise<CompilerInstallation> {
+  active(signal);
   if (!path.isAbsolute(destinationRoot)) { return fail('installation directory must be absolute'); }
   const root = path.join(destinationRoot, 'compilers');
   await fs.mkdir(root, { recursive: true });
@@ -380,11 +386,11 @@ export async function installOfficialCompiler(
   const stage = await fs.mkdtemp(path.join(root, '.staging-'));
   try {
     report?.('Downloading official compiler archive');
-    const archive = await readOfficialBytes(bundle.archive.browser_download_url,
+    const archive = await readBytes(bundle.archive.browser_download_url,
       MAX_DOWNLOAD_BYTES, signal);
     active(signal);
     report?.('Downloading official SHA-256 checksum');
-    const checksum = await readOfficialBytes(bundle.checksum.browser_download_url, 512, signal);
+    const checksum = await readBytes(bundle.checksum.browser_download_url, 512, signal);
     active(signal);
     report?.('Verifying published SHA-256 hashes');
     verifyOfficialPackage(bundle, archive, checksum);

@@ -1,9 +1,13 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { gzipSync, deflateRawSync } from 'node:zlib';
 import {
   supportedCompilerTarget, choosePublishedCompiler, verifyOfficialPackage,
-  extractCompilerBinary, sha256, type CompilerPackage, type OfficialReleaseAsset
+  extractCompilerBinary, installOfficialCompiler, sha256,
+  type CompilerPackage, type OfficialReleaseAsset
 } from '../src/compilerInstall';
 
 const VERSION = '0.0.6-alpha.17';
@@ -189,4 +193,65 @@ test('extracts only the exact compiler binary from a Linux tar.gz', () => {
     /unsafe compiler tar member/);
   assert.throws(() => extractCompilerBinary(Buffer.from('not gzip'), bundle),
     /invalid or oversized/);
+});
+
+
+test('offline end-to-end installer validates, stages, reuses and never overwrites packages', {
+  skip: process.platform === 'win32'
+}, async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-offline-install-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const base = metadata('linux');
+  const script = Buffer.from([
+    '#!/usr/bin/env node',
+    'if (process.argv[2] === "--version") {',
+    '  process.stdout.write("scarp 0.0.6-alpha.17\\n");',
+    '} else { process.exitCode = 2; }'
+  ].join('\n') + '\n');
+  const archive = tarMember(base.packageRoot + '/scarp', script);
+  const checksum = Buffer.from(sha256(archive) + '  ' + base.archive.name + '\n');
+  const bundle = {
+    ...base,
+    archive: {
+      ...base.archive, digest: 'sha256:' + sha256(archive), size: archive.length
+    },
+    checksum: {
+      ...base.checksum, digest: 'sha256:' + sha256(checksum), size: checksum.length
+    }
+  };
+  const requests: string[] = [];
+  const reader = async (url: string, maxBytes: number): Promise<Buffer> => {
+    requests.push(url);
+    const bytes = url === bundle.archive.browser_download_url ? archive : checksum;
+    assert.ok(bytes.length <= maxBytes);
+    return bytes;
+  };
+  const installed = await installOfficialCompiler(root, bundle, undefined, undefined, reader);
+  assert.equal(installed.version, VERSION);
+  assert.equal(installed.reused, false);
+  assert.equal(installed.binary,
+    path.join(root, 'compilers', bundle.packageRoot, 'scarp'));
+  assert.deepEqual(requests, [
+    bundle.archive.browser_download_url, bundle.checksum.browser_download_url
+  ]);
+  assert.deepEqual(await fs.readFile(installed.binary), script);
+
+  const reused = await installOfficialCompiler(root, bundle, undefined, undefined,
+    async () => assert.fail('A valid installed compiler must not be re-downloaded'));
+  assert.equal(reused.reused, true);
+  assert.equal(reused.binary, installed.binary);
+
+  const badRoot = path.join(root, 'corrupt-test');
+  await assert.rejects(installOfficialCompiler(badRoot, bundle, undefined, undefined,
+    async (url: string) => url === bundle.archive.browser_download_url
+      ? Buffer.from('corrupted') : checksum), /size or SHA-256/);
+  assert.deepEqual(await fs.readdir(path.join(badRoot, 'compilers')), [],
+    'failed verification must remove all staging directories');
+  assert.equal(await fs.readFile(installed.binary, 'utf8'), script.toString());
+
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(installOfficialCompiler(path.join(root, 'cancelled'),
+    bundle, controller.signal, undefined,
+    async () => assert.fail('A pre-cancelled install must not download')), /cancelled/);
 });
