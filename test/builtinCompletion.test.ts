@@ -82,7 +82,7 @@ test('alpha.9 exact bigint builtins are explicit, versioned, and safely complete
 test('alpha.10 builtins are versioned and only completed at actual identifiers', () => {
   const prompt = scarpBuiltinCompletionAt('bind response = input_', 'bind response = input_'.length);
   assert.deepEqual(prompt?.matches.map(x => x.name).sort(),
-    ['input_bigint', 'input_decimal', 'input_float', 'input_integer']);
+    ['input_bigint', 'input_boolean', 'input_decimal', 'input_float', 'input_integer']);
   for (const name of ['ask_or', 'try_read_line', 'bigint_pow_mod', 'flush_stdout']) {
     const match = scarpBuiltinCompletionAt(name, name.length)?.matches.find(x => x.name === name);
     assert.equal(match?.introduced, 'v0.0.6-alpha.10');
