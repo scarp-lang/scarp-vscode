@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 86);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 89);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -136,5 +136,19 @@ test('alpha.16 completions expose the precise published groups without false pos
       ('module.' + name).length), undefined);
     assert.equal(scarpBuiltinCompletionAt('// ' + name,
       ('// ' + name).length), undefined);
+  }
+});
+
+test('published alpha.17 array access and Boolean prompt complete only in source expressions', () => {
+  const arrays = scarpBuiltinCompletionAt('bind count = array_', 'bind count = array_'.length);
+  assert.deepEqual(arrays?.matches.map(item => item.name), ['array_len', 'array_get_or']);
+  assert.ok(arrays?.matches.every(item => item.introduced === 'v0.0.6-alpha.17'));
+  const prompt = scarpBuiltinCompletionAt('bind ok = input_bo', 'bind ok = input_bo'.length);
+  assert.deepEqual(prompt?.matches.map(item => item.name), ['input_boolean']);
+  for (const line of [
+    'funcra array_len', 'module.array_get_or', '// input_boolean',
+    'print("input_boolean', 'bind array_len', 'pub pure funcra input_boolean'
+  ]) {
+    assert.equal(scarpBuiltinCompletionAt(line, line.length), undefined, line);
   }
 });

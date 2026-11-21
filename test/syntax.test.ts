@@ -427,3 +427,19 @@ test('published alpha.16 statistics, Unicode and integer calls receive builtin s
       name, 'entity.name.function.definition.scarp'), name + ' declaration');
   }
 });
+
+test('published alpha.17 array and typed Boolean input calls have safe lexical scopes', async () => {
+  const grammar = await tokenizer();
+  for (const name of ['array_len', 'array_get_or', 'input_boolean']) {
+    assert.ok(hasScope(tokens('bind answer = ' + name + '(value);', grammar),
+      name, 'support.function.builtin.scarp'), name);
+    assert.ok(!hasScope(tokens('bind x = ' + name + '_helper(value);', grammar),
+      name + '_helper', 'support.function.builtin.scarp'));
+    assert.ok(!hasScope(tokens('// ' + name + '(value)', grammar),
+      name, 'support.function.builtin.scarp'));
+    assert.ok(!hasScope(tokens('print("' + name + '(value)");', grammar),
+      name, 'support.function.builtin.scarp'));
+    assert.ok(hasScope(tokens('funcra ' + name + '(value: integer) {', grammar),
+      name, 'entity.name.function.definition.scarp'));
+  }
+});

@@ -28,6 +28,7 @@ const alpha10 = 'v0.0.6-alpha.10';
 const alpha11 = 'v0.0.6-alpha.11';
 const alpha12 = 'v0.0.6-alpha.12';
 const alpha16 = 'v0.0.6-alpha.16';
+const alpha17 = 'v0.0.6-alpha.17';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -631,6 +632,27 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha16,
     summary: 'Returns the nonnegative least common multiple of two integers.',
     constraints: 'Returns 0 when either argument is 0; nonrepresentable positive results cause arithmetic overflow.'
+  },
+  array_len: {
+    name: 'array_len',
+    signature: 'array_len(values: array<T, N>) -> integer',
+    introduced: alpha17,
+    summary: 'Returns the fixed length of an immutable array, including zero for a typed empty array.',
+    constraints: 'Pure, constant-time length query. Arrays have at most 4,096 elements; use as the count in repeat array_len(values) as index.'
+  },
+  array_get_or: {
+    name: 'array_get_or',
+    signature: 'array_get_or(values: array<T, N>, index: integer, fallback: T) -> T',
+    introduced: alpha17,
+    summary: 'Returns the array element at an index, or a typed fallback for an invalid index.',
+    constraints: 'A negative or out-of-bounds index returns the fallback. All three arguments, including the fallback, are eagerly evaluated exactly once in source order; the fallback must match the element type.'
+  },
+  input_boolean: {
+    name: 'input_boolean',
+    signature: 'input_boolean(prompt: string) -> boolean',
+    introduced: alpha17,
+    summary: 'Prompts for a typed Boolean value from the explicitly selected interactive input stream.',
+    constraints: 'Impure; requires --interactive. Accepts only lowercase true or false with no surrounding whitespace. Invalid input reports E0084; immediate EOF reports E0055. Supports --input-file replay.'
   }
 };
 

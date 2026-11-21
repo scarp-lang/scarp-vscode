@@ -1186,6 +1186,47 @@ jobs:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
         run: xvfb-run -a npm run test:integration
 
+  compiler-alpha17-compatibility:
+    name: Official Scarp alpha.17 compiler and editor (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.17
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify exact published alpha.17 fixed arrays and Boolean input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "7831a37939965f557ce746e1d86bf82d3d629f74"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.6-alpha.17'
+          "$binary" verify compiler/examples/array_traversal.srp
+          "$binary" exec compiler/examples/array_traversal.srp > "$RUNNER_TEMP/array_traversal.actual"
+          cmp compiler/examples/array_traversal.stdout "$RUNNER_TEMP/array_traversal.actual"
+          "$binary" verify compiler/examples/interactive/boolean_prompt.srp
+          "$binary" exec --interactive --input-file \
+            compiler/examples/interactive/boolean_prompt.stdin \
+            compiler/examples/interactive/boolean_prompt.srp > "$RUNNER_TEMP/boolean_prompt.actual"
+          cmp compiler/examples/interactive/boolean_prompt.stdout "$RUNNER_TEMP/boolean_prompt.actual"
+          node scripts/verify-snippets.cjs "$binary" 17
+          "$binary" verify compiler/examples/projects/task-board
+          "$binary" test --require-tests compiler/examples/projects/task-board
+      - name: Exercise real VS Code Extension Host with published alpha.17
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   editor-untrusted:
     name: VS Code Restricted Mode (Linux)
     runs-on: ubuntu-latest
