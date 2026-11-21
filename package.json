@@ -35,6 +35,7 @@
   "activationEvents": [
     "onLanguage:scarp",
     "onCommand:scarp.explainDiagnostic",
+    "onCommand:scarp.setupCompiler",
     "onCommand:scarp.createProject",
     "onCommand:scarp.verifyProject",
     "onCommand:scarp.launchProject",
@@ -76,6 +77,11 @@
       {
         "command": "scarp.showVersion",
         "title": "Scarp: Show Compiler Version",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.setupCompiler",
+        "title": "Scarp: Set Up Compiler",
         "category": "Scarp"
       },
       {
@@ -187,6 +193,10 @@
         },
         {
           "command": "scarp.showVersion",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.setupCompiler",
           "when": "isWorkspaceTrusted"
         },
         {

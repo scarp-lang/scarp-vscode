@@ -177,6 +177,7 @@ export async function run(): Promise<void> {
       'scarp.launchProject', 'scarp.launchProjectInteractive',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
       'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests',
+      'scarp.setupCompiler',
       'scarp.listFilteredProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
