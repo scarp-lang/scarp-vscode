@@ -255,3 +255,97 @@ test('offline end-to-end installer validates, stages, reuses and never overwrite
     bundle, controller.signal, undefined,
     async () => assert.fail('A pre-cancelled install must not download')), /cancelled/);
 });
+
+
+test('cancellation while downloading or verifying leaves no staged or selected executable', {
+  skip: process.platform === 'win32'
+}, async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-install-cancel-flight-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const base = metadata('linux');
+  const script = Buffer.from('#!/usr/bin/env node\nprocess.stdout.write("scarp ' +
+    VERSION + '\\n");\n');
+  const archive = tarMember(base.packageRoot + '/scarp', script);
+  const checksum = Buffer.from(sha256(archive) + '  ' + base.archive.name + '\n');
+  const bundle = {
+    ...base,
+    archive: { ...base.archive, size: archive.length, digest: 'sha256:' + sha256(archive) },
+    checksum: { ...base.checksum, size: checksum.length, digest: 'sha256:' + sha256(checksum) }
+  };
+  for (const checkpoint of ['archive', 'checksum', 'before-version']) {
+    const location = path.join(root, checkpoint);
+    const controller = new AbortController();
+    const requested: string[] = [];
+    const reader = async (url: string): Promise<Buffer> => {
+      requested.push(url);
+      if (checkpoint === 'archive' && url === bundle.archive.browser_download_url) {
+        controller.abort();
+      }
+      if (checkpoint === 'checksum' && url === bundle.checksum.browser_download_url) {
+        controller.abort();
+      }
+      return url === bundle.archive.browser_download_url ? archive : checksum;
+    };
+    await assert.rejects(installOfficialCompiler(location, bundle, controller.signal,
+      progress => {
+        if (checkpoint === 'before-version' &&
+            progress === 'Checking the compiler version before installation') {
+          controller.abort();
+        }
+      }, reader), /cancelled/, checkpoint);
+    const files = await fs.readdir(path.join(location, 'compilers'));
+    assert.deepEqual(files, [], 'Cancelled ' + checkpoint + ' may not leave staging');
+    assert.equal(requested.length, checkpoint === 'archive' ? 1 : 2);
+  }
+});
+
+test('cancellation interrupts staged --version and cleans the temporary executable', {
+  skip: process.platform === 'win32'
+}, async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-cancel-version-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const base = metadata('linux');
+  const script = Buffer.from([
+    '#!/usr/bin/env node',
+    'setTimeout(() => process.stdout.write("scarp 0.0.6-alpha.17\\n"), 8000);'
+  ].join('\n') + '\n');
+  const archive = tarMember(base.packageRoot + '/scarp', script);
+  const checksum = Buffer.from(sha256(archive) + '  ' + base.archive.name + '\n');
+  const bundle = {
+    ...base,
+    archive: { ...base.archive, digest: 'sha256:' + sha256(archive), size: archive.length },
+    checksum: { ...base.checksum, digest: 'sha256:' + sha256(checksum), size: checksum.length }
+  };
+  const controller = new AbortController();
+  await assert.rejects(installOfficialCompiler(root, bundle, controller.signal,
+    message => {
+      if (message === 'Checking the compiler version before installation') {
+        setTimeout(() => controller.abort(), 120);
+      }
+    }, async url => url === bundle.archive.browser_download_url ? archive : checksum),
+  /cancelled/, 'Cancelling during executable validation must not be reported as corrupted');
+  assert.deepEqual(await fs.readdir(path.join(root, 'compilers')), [],
+    'No staging or installed binary is left behind after cancel');
+});
+
+test('cancelled validation of an existing binary must preserve it without reporting corruption', {
+  skip: process.platform === 'win32'
+}, async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-cancel-reuse-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const base = metadata('linux');
+  const destination = path.join(root, 'compilers', base.packageRoot);
+  await fs.mkdir(destination, { recursive: true });
+  const executable = path.join(destination, 'scarp');
+  await fs.writeFile(executable, '#!/usr/bin/env node\n' +
+    'setTimeout(() => process.stdout.write("scarp 0.0.6-alpha.17\\n"), 8000);\n',
+  { mode: 0o755 });
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 100);
+  await assert.rejects(installOfficialCompiler(root, base, controller.signal, undefined,
+    async () => assert.fail('Reuse check should never download before validation')),
+  /cancelled/);
+  assert.ok((await fs.stat(executable)).isFile());
+  assert.deepEqual(await fs.readdir(path.join(root, 'compilers')), [base.packageRoot],
+    'Existing version directories must not be removed on cancellation');
+});

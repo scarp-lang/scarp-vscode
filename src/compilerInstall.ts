@@ -328,6 +328,9 @@ export async function readOfficialBytes(
     return fail('too many GitHub asset redirects');
   } catch (error) {
     if (signal?.aborted) { return fail('cancelled'); }
+    if (controller.signal.aborted) {
+      return fail('GitHub download timed out after 45 seconds');
+    }
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -349,13 +352,20 @@ export async function fetchCurrentCompilerPackage(
   return choosePublishedCompiler(releases, platform, architecture);
 }
 
-async function validInstalledBinary(binary: string, version: string): Promise<boolean> {
+async function validInstalledBinary(
+  binary: string, version: string, signal?: AbortSignal
+): Promise<boolean> {
+  active(signal);
   try {
     const check = await executeProcess(binary, ['--version'], {
-      timeoutMs: 5000, maxOutputBytes: 8192
+      timeoutMs: 5000, maxOutputBytes: 8192, signal
     });
+    active(signal);
     return check.exitCode === 0 && check.stdout.trim() === 'scarp ' + version;
-  } catch { return false; }
+  } catch {
+    active(signal); // Cancellation must never look like a corrupt installation.
+    return false;
+  }
 }
 
 /**
@@ -373,7 +383,8 @@ export async function installOfficialCompiler(
   await fs.mkdir(root, { recursive: true });
   const finalDir = path.join(root, bundle.packageRoot);
   const finalBinary = path.join(finalDir, bundle.binaryName);
-  if (await validInstalledBinary(finalBinary, bundle.version)) {
+  if (await validInstalledBinary(finalBinary, bundle.version, signal)) {
+    active(signal);
     return { binary: finalBinary, version: bundle.version, reused: true };
   }
   // Never overwrite a corrupted or manually modified prior installation.
@@ -405,7 +416,7 @@ export async function installOfficialCompiler(
     }
     active(signal);
     report?.('Checking the compiler version before installation');
-    if (!await validInstalledBinary(staged, bundle.version)) {
+    if (!await validInstalledBinary(staged, bundle.version, signal)) {
       return fail('downloaded executable failed official version validation');
     }
     active(signal);
