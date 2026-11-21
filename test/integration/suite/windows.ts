@@ -33,7 +33,7 @@ export async function run(): Promise<void> {
 
   const available = await vscode.commands.getCommands(true);
   for (const command of [
-    'scarp.checkFile', 'scarp.runFile', 'scarp.showVersion', 'scarp.setupCompiler',
+    'scarp.checkFile', 'scarp.runFile', 'scarp.showVersion', 'scarp.setupCompiler', 'scarp.manageCompiler',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.runFileInteractive', 'scarp.launchProjectInteractive',
     'scarp.listProjectTests', 'scarp.explainDiagnostic'
