@@ -53,6 +53,10 @@ jobs:
           # An explicit project root also runs without forwarding its path.
           "$bin" init "$sandbox/modern"
           (cd "$sandbox/modern" && "$bin" exec)
+          # Also check alpha.18 persistent-array calls against published goldens.
+          "$bin" verify compiler/examples/array_updates.srp
+          "$bin" exec compiler/examples/array_updates.srp > "$RUNNER_TEMP/array_updates.actual"
+          diff -u compiler/examples/array_updates.stdout "$RUNNER_TEMP/array_updates.actual"
       - name: Exercise real VS Code default-entry command with published alpha.18
         env:
           SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
