@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { gzipSync, deflateRawSync } from 'node:zlib';
 import {
   supportedCompilerTarget, choosePublishedCompiler, verifyOfficialPackage,
-  extractCompilerBinary, installOfficialCompiler, sha256,
+  extractCompilerBinary, installOfficialCompiler, sha256, officialDownloadHeaders,
   type CompilerPackage, type OfficialReleaseAsset
 } from '../src/compilerInstall';
 
@@ -348,4 +348,22 @@ test('cancelled validation of an existing binary must preserve it without report
   assert.ok((await fs.stat(executable)).isFile());
   assert.deepEqual(await fs.readdir(path.join(root, 'compilers')), [base.packageRoot],
     'Existing version directories must not be removed on cancellation');
+});
+
+test('CI-only GitHub API authentication never reaches asset or redirect hosts', () => {
+  const token = 'ghs_fixture-token_not-real';
+  const api = officialDownloadHeaders('api.github.com', token);
+  assert.equal(api.Authorization, 'Bearer ' + token);
+  assert.equal(api.Accept, 'application/vnd.github+json');
+  for (const hostname of [
+    'github.com', 'release-assets.githubusercontent.com',
+    'objects.githubusercontent.com', 'github-releases.githubusercontent.com',
+    'evil-api.github.com'
+  ]) {
+    const headers = officialDownloadHeaders(hostname, token);
+    assert.equal(headers.Authorization, undefined, hostname);
+    assert.equal(headers.Accept, 'application/octet-stream');
+  }
+  assert.equal(officialDownloadHeaders('api.github.com').Authorization, undefined,
+    'Normal extension requests must remain unauthenticated by default');
 });
