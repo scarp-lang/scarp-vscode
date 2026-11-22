@@ -443,3 +443,18 @@ test('published alpha.17 array and typed Boolean input calls have safe lexical s
       name, 'entity.name.function.definition.scarp'));
   }
 });
+
+test('published alpha.18 array_set has a builtin scope only at genuine calls', async () => {
+  const grammar = await tokenizer();
+  const name = 'array_set';
+  assert.ok(hasScope(tokens('bind updated = array_set(values, 1, 99);', grammar),
+    name, 'support.function.builtin.scarp'));
+  assert.ok(!hasScope(tokens('bind updated = array_set_helper(values, 1, 99);', grammar),
+    'array_set_helper', 'support.function.builtin.scarp'));
+  assert.ok(!hasScope(tokens('// array_set(values, 1, 99);', grammar),
+    name, 'support.function.builtin.scarp'));
+  assert.ok(!hasScope(tokens('print("array_set(values, 1, 99)");', grammar),
+    name, 'support.function.builtin.scarp'));
+  assert.ok(hasScope(tokens('pure funcra array_set(values: integer) {', grammar),
+    name, 'entity.name.function.definition.scarp'));
+});
