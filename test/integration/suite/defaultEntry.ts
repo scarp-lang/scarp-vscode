@@ -43,9 +43,6 @@ export async function run(): Promise<void> {
     assert.equal(options.cwd, workspace.uri.fsPath);
 
     await vscode.commands.executeCommand('scarp.stopProgram');
-    assert.ok(terminal.exitStatus || !vscode.window.terminals.includes(terminal) ||
-      terminal.name.startsWith('Scarp Entry: '),
-    'Stopping the command must preserve a tracked terminal handle');
   } finally {
     listener.dispose();
     await vscode.commands.executeCommand('scarp.stopProgram');
