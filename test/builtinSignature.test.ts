@@ -13,7 +13,7 @@ const builtins = [
   'decimal', 'decimal_from_integer', 'decimal_to_integer', 'decimal_to_text',
   'decimal_round', 'decimal_format', 'decimal_div_rounded', 'input_decimal',
   'list_len', 'list_push', 'list_set', 'list_remove', 'map_len', 'map_keys', 'map_values', 'map_contains', 'map_get_or', 'map_set', 'map_remove',
-  'median', 'quantile', 'text_lower', 'text_upper', 'text_reverse', 'text_from_codepoint', 'text_rfind', 'text_count', 'bits_count_ones', 'bits_leading_zeros', 'bits_trailing_zeros', 'bits_reverse', 'bits_swap_bytes', 'bits_rotate_left', 'bits_rotate_right', 'integer_abs', 'integer_sign', 'integer_gcd', 'integer_lcm'
+  'median', 'quantile', 'text_lower', 'text_upper', 'text_reverse', 'text_from_codepoint', 'text_rfind', 'text_count', 'bits_count_ones', 'bits_leading_zeros', 'bits_trailing_zeros', 'bits_reverse', 'bits_swap_bytes', 'bits_rotate_left', 'bits_rotate_right', 'integer_abs', 'integer_sign', 'integer_gcd', 'integer_lcm', 'array_set'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
@@ -176,4 +176,16 @@ test('published alpha.17 signatures track array generics and Boolean prompt arit
   assert.deepEqual(scarpSignatureAt('input_boolean(')?.parameters, ['prompt: string']);
   assert.equal(scarpSignatureAt('module.array_get_or('), undefined);
   assert.equal(scarpSignatureAt('// input_boolean('), undefined);
+});
+
+test('published alpha.18 array_set signature treats fixed-array generics as one parameter', () => {
+  const hint = scarpSignatureAt('bind result = array_set([array: 4, 8, 12], 1, ');
+  assert.equal(hint?.help.name, 'array_set');
+  assert.equal(hint?.help.introduced, 'v0.0.6-alpha.18');
+  assert.deepEqual(hint?.parameters, [
+    'values: array<T, N>', 'index: integer', 'replacement: T'
+  ]);
+  assert.equal(hint?.activeParameter, 2);
+  assert.equal(scarpSignatureAt('module.array_set('), undefined);
+  assert.equal(scarpSignatureAt('// array_set('), undefined);
 });
