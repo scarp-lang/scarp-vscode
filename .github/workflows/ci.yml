@@ -216,6 +216,10 @@ jobs:
         # This tests release consumption only; it never publishes anything.
         # The script verifies independently pinned SHA-256 asset digests,
         # installs real downloaded bytes and exports SCARP_TEST_BINARY.
+        # Scope GitHub's read-only Actions token to this step's API metadata;
+        # never forward it to browser asset URLs or redirect hosts.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-published-compiler.cjs
       - name: Exercise verified published compiler in VS Code (Linux)
         if: matrix.os == 'ubuntu-latest'
