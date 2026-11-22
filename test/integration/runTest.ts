@@ -10,14 +10,16 @@ async function main(): Promise<void> {
   const suite = process.env.SCARP_TEST_SUITE;
   const windows = suite === 'windows';
   const published = suite === 'published';
-  if (suite && !windows && !published) {
+  const alpha18 = suite === 'alpha18';
+  if (suite && !windows && !published && !alpha18) {
     throw new Error('Unknown Scarp integration suite: ' + suite);
   }
   if (windows && process.platform !== 'win32') {
     throw new Error('The Windows integration suite requires Windows.');
   }
   const extensionTestsPath = path.resolve(__dirname,
-    windows ? './suite/windows' : published ? './suite/publishedPackage' : './suite/index');
+    windows ? './suite/windows' : published ? './suite/publishedPackage' :
+      alpha18 ? './suite/defaultEntry' : './suite/index');
   const compiler = process.env.SCARP_TEST_BINARY;
   if (!compiler || !path.isAbsolute(compiler)) {
     throw new Error('SCARP_TEST_BINARY must name an absolute official compiler path');
@@ -42,7 +44,8 @@ async function main(): Promise<void> {
       '--disable-workspace-trust',
       '--skip-welcome',
       '--skip-release-notes',
-      '--no-sandbox'
+      '--no-sandbox',
+      ...(alpha18 ? [path.join(extensionDevelopmentPath, 'test/fixtures/alpha18-workspace')] : [])
     ]
   });
 }
