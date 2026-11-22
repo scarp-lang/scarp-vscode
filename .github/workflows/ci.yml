@@ -53,6 +53,11 @@ jobs:
           # An explicit project root also runs without forwarding its path.
           "$bin" init "$sandbox/modern"
           (cd "$sandbox/modern" && "$bin" exec)
+      - name: Exercise real VS Code default-entry command with published alpha.18
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+          SCARP_TEST_SUITE: alpha18
+        run: xvfb-run -a npm run test:integration
 
   verify:
     name: Verify on ${{ matrix.os }}
