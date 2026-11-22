@@ -38,8 +38,28 @@ export async function run(): Promise<void> {
     const options = terminal.creationOptions;
     assert.ok('shellPath' in options, 'Default entry must launch a real shell-free executable');
     assert.equal(options.shellPath, compiler);
-    assert.deepEqual(options.shellArgs, ['exec'],
-      'No filename, --input-file, --interactive or trailing -- may be forwarded');
+    assert.ok(Array.isArray(options.shellArgs),
+      'The extension must pass direct argv without a shell-string interpolation');
+    const args = options.shellArgs as string[];
+    assert.equal(args[0], 'exec');
+    assert.equal(args.length % 2, 1,
+      'Only name/value resource budget pairs may follow the exec verb');
+    const budgetFlags = new Set([
+      '--max-steps', '--max-prints', '--max-call-depth', '--max-calls',
+      '--max-live-slots', '--max-capture-bytes', '--max-vector-bytes',
+      '--max-text-bytes', '--max-tuple-bytes', '--max-array-bytes',
+      '--max-bigint-digits', '--max-bigint-bytes', '--max-input-line-bytes',
+      '--max-input-bytes', '--max-input-reads'
+    ]);
+    for (let i = 1; i < args.length; i += 2) {
+      assert.ok(budgetFlags.has(args[i]),
+        'Implicit exec must never forward a source path or unapproved option: ' + args[i]);
+      assert.match(args[i + 1], /^\\d+$/,
+        'Each resource budget must be a decimal integer, not a source file');
+    }
+    assert.ok(!args.includes('--interactive') && !args.includes('--input-file') &&
+      !args.includes('--'),
+      'No interactive toggle, input file or path separator is forwarded');
     assert.equal(options.cwd, workspace.uri.fsPath);
 
     await vscode.commands.executeCommand('scarp.stopProgram');
