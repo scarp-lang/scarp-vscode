@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add an explicit **Run Workspace Entry (scarp exec)** command for published Scarp alpha.18: select only an open trusted local workspace root, probe actual implicit-entry support instead of assuming from version numbers, and invoke `exec` without a source filename. Honor compiler entrypoint precedence and default interactive stdin while rejecting dirty files, stale disk snapshots, duplicate runs and obsolete compiler probes. Unit tests and a pinned compiler smoke gate cover the new contract. No automatic execution or extension publication.
+
 - Add **published alpha.12/alpha.13 structured-type editor coverage**: record and variant top-level Outline symbols; lexical highlighting for nominal declarations, Option/Result generics, constructors, match/case, contracts and propagation; five compiler-verified opt-in snippets. Expand immutable alpha.12 and alpha.13 CI compiler gates with official structured type, exhaustive match and propagation examples/golden outputs. Maintain explicit execution, Workspace Trust and no release publication.
 
 - Add **published Scarp alpha.12/alpha.13 immutable typed collection editing**: contextual list/map type/literal highlighting, 11 versioned collection builtin hover/completion/signature entries, generic-aware argument tracking, two starter snippets, negative lexical tests and pinned release compatibility CI. Exact immutable alpha.12 and alpha.13 compiler commits verify official examples, expected outputs, all 19 snippets, and a real VS Code Extension Host. No extension release or automatic execution.
