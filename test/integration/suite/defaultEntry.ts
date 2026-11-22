@@ -54,7 +54,7 @@ export async function run(): Promise<void> {
     for (let i = 1; i < args.length; i += 2) {
       assert.ok(budgetFlags.has(args[i]),
         'Implicit exec must never forward a source path or unapproved option: ' + args[i]);
-      assert.match(args[i + 1], /^\\d+$/,
+      assert.match(args[i + 1], /^\d+$/,
         'Each resource budget must be a decimal integer, not a source file');
     }
     assert.ok(!args.includes('--interactive') && !args.includes('--input-file') &&
