@@ -16,6 +16,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-alpha18-default-entry:
+    name: Published alpha.18 implicit-entry CLI + extension checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.18
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify immutable compiler revision and default entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "84d8de05968a488773e7c5b6eda1376d8957553c"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          bin="$GITHUB_WORKSPACE/compiler/target/release/scarp"
+          "$bin" --version | grep -F '0.0.6-alpha.18'
+          "$bin" guide exec | grep -F '[file.srp|project-directory]'
+          sandbox="$(mktemp -d)"
+          trap 'rm -rf "$sandbox"' EXIT
+          cp test/fixtures/hello.srp "$sandbox/main.srp"
+          output="$(cd "$sandbox" && "$bin" exec)"
+          test "$output" = "Hello from Scarp!"
+          mkdir -p "$sandbox/nested/src"
+          cp test/fixtures/hello.srp "$sandbox/nested/src/main.srp"
+          output="$(cd "$sandbox/nested" && "$bin" exec)"
+          test "$output" = "Hello from Scarp!"
+          # An explicit project root also runs without forwarding its path.
+          "$bin" init "$sandbox/modern"
+          (cd "$sandbox/modern" && "$bin" exec)
+
   verify:
     name: Verify on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
