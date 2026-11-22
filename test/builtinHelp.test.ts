@@ -91,7 +91,8 @@ const versions: Record<string, string> = {
   integer_lcm: 'v0.0.6-alpha.16',
   array_len: 'v0.0.6-alpha.17',
   array_get_or: 'v0.0.6-alpha.17',
-  input_boolean: 'v0.0.6-alpha.17'
+  input_boolean: 'v0.0.6-alpha.17',
+  array_set: 'v0.0.6-alpha.18'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -249,5 +250,26 @@ test('published alpha.17 array and Boolean input hovers retain exact interpreter
       'print("' + name + '(x)");', 'funcra ' + name + '(x: integer) {']) {
       assert.equal(scarpBuiltinAt(source, source.indexOf(name) + 2), undefined, source);
     }
+  }
+});
+
+test('published alpha.18 persistent array_set hover preserves immutable semantics', () => {
+  const help = scarpBuiltinAt('array_set(original, 1, 99)', 4)?.help;
+  assert.equal(help?.name, 'array_set');
+  assert.equal(help?.introduced, 'v0.0.6-alpha.18');
+  assert.equal(help?.signature,
+    'array_set(values: array<T, N>, index: integer, replacement: T) -> array<T, N>');
+  assert.match(help!.summary, /preserving the original/);
+  assert.match(help!.constraints, /E0063/);
+  assert.match(help!.constraints, /E0064/);
+  assert.match(help!.constraints, /--max-array-bytes/);
+  for (const line of [
+    'module.array_set(values, 0, 1)',
+    'array_set_helper(values, 0, 1)',
+    '// array_set(values, 0, 1)',
+    'print("array_set(values, 0, 1)")',
+    'pure funcra array_set(values: integer) -> integer {'
+  ]) {
+    assert.equal(scarpBuiltinAt(line, line.indexOf('array_set') + 2), undefined, line);
   }
 });
