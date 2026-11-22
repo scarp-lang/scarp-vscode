@@ -29,6 +29,7 @@ const alpha11 = 'v0.0.6-alpha.11';
 const alpha12 = 'v0.0.6-alpha.12';
 const alpha16 = 'v0.0.6-alpha.16';
 const alpha17 = 'v0.0.6-alpha.17';
+const alpha18 = 'v0.0.6-alpha.18';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -647,12 +648,19 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     summary: 'Returns the array element at an index, or a typed fallback for an invalid index.',
     constraints: 'A negative or out-of-bounds index returns the fallback. All three arguments, including the fallback, are eagerly evaluated exactly once in source order; the fallback must match the element type.'
   },
+  array_set: {
+    name: 'array_set',
+    signature: 'array_set(values: array<T, N>, index: integer, replacement: T) -> array<T, N>',
+    introduced: alpha18,
+    summary: 'Returns a new fixed array with one element replaced, preserving the original and every existing alias.',
+    constraints: 'Pure and persistent, not indexed assignment. Index must be nonnegative and within the array (E0063); replacement must match element type T. Arguments evaluate once in source order. Every successful update charges a new array allocation (E0064) against --max-array-bytes.'
+  },
   input_boolean: {
     name: 'input_boolean',
     signature: 'input_boolean(prompt: string) -> boolean',
     introduced: alpha17,
     summary: 'Prompts for a typed Boolean value from the explicitly selected interactive input stream.',
-    constraints: 'Impure; requires --interactive. Accepts only lowercase true or false with no surrounding whitespace. Invalid input reports E0084; immediate EOF reports E0055. Supports --input-file replay.'
+    constraints: 'Impure; on alpha.17 exec and legacy run requires --interactive. Published alpha.18 exec accepts terminal prompts by default. Accepts only lowercase true or false with no surrounding whitespace. Invalid input reports E0084; immediate EOF reports E0055. Supports --input-file replay.'
   }
 };
 
