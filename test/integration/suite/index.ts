@@ -414,6 +414,7 @@ export async function run(): Promise<void> {
       const navUri = vscode.Uri.file(navSource);
       await vscode.workspace.openTextDocument(navUri);
       const navMarker = path.join(projectParent, 'navigation-inspection-started');
+      const navHoldOutput = path.join(projectParent, 'navigation-hold-output');
       const navCompiler = path.join(projectParent, 'delayed-navigation');
       const declaration = {
         source: 0, span: [5, 9],
@@ -439,8 +440,18 @@ export async function run(): Promise<void> {
         'const argv = process.argv.slice(2);',
         'if (argv[0] !== "inspect" || argv[1] !== "references") process.exit(2);',
         'fs.writeFileSync(' + JSON.stringify(navMarker) + ', "started");',
-        'setTimeout(() => { process.stdout.write(' +
-          JSON.stringify(JSON.stringify(navIndex)) + '); }, 350);'
+        // If this file exists at process start, the mock compiler cannot
+        // finish until the test has completed its source/configuration edit.
+        // The old fixed timer raced on heavily loaded GitHub runners.
+        'const gate = ' + JSON.stringify(navHoldOutput) + ';',
+        'const reply = () => process.stdout.write(' +
+          JSON.stringify(JSON.stringify(navIndex)) + ');',
+        'if (!fs.existsSync(gate)) { setTimeout(reply, 350); } else {',
+        '  const poll = setInterval(() => {',
+        '    if (fs.existsSync(gate)) return;',
+        '    clearInterval(poll); reply();',
+        '  }, 20);',
+        '}'
       ].join('\n');
       await fs.writeFile(navCompiler, navScript, { mode: 0o755 });
       await fs.chmod(navCompiler, 0o755);
@@ -454,30 +465,47 @@ export async function run(): Promise<void> {
         'Unchanged standalone source should resolve compiler navigation');
 
         await fs.rm(navMarker);
-        const pendingNavigation = vscode.commands.executeCommand<vscode.Location[]>(
-          'vscode.executeDefinitionProvider', navUri, new vscode.Position(1, 8));
-        await waitFor(() => fsSync.existsSync(navMarker) ? true : undefined,
-          'Delayed navigation inspection did not start');
-        await fs.writeFile(navImport, 'pub bind answer = 2;\n');
-        const staleNavigation = await pendingNavigation;
-        assert.equal(staleNavigation?.length ?? 0, 0,
-          'External rewrite of another source must suppress stale definition results');
+        await fs.writeFile(navHoldOutput, 'hold');
+        try {
+          const pendingNavigation = vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeDefinitionProvider', navUri, new vscode.Position(1, 8));
+          await waitFor(() => fsSync.existsSync(navMarker) ? true : undefined,
+            'Delayed navigation inspection did not start');
+          await fs.writeFile(navImport, 'pub bind answer = 2;\n');
+          await fs.rm(navHoldOutput, { force: true });
+          const staleNavigation = await pendingNavigation;
+          assert.equal(staleNavigation?.length ?? 0, 0,
+            'External rewrite of another source must suppress stale definition results');
+        } finally {
+          await fs.rm(navHoldOutput, { force: true });
+        }
 
         // A compiler-path switch while navigation runs must cancel the old
         // subprocess and discard its index for both navigation entry points.
         for (const command of ['vscode.executeDefinitionProvider',
           'vscode.executeReferenceProvider']) {
-          await fs.rm(navMarker);
-          await settings.update('compilerPath', navCompiler,
-            vscode.ConfigurationTarget.Global);
-          const pending = vscode.commands.executeCommand<vscode.Location[]>(
-            command, navUri, new vscode.Position(1, 8));
-          await waitFor(() => fsSync.existsSync(navMarker) ? true : undefined,
-            'Delayed navigation did not begin before the compiler-path change');
-          await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
-          const stale = await pending;
-          assert.equal(stale?.length ?? 0, 0,
-            command + ' must not publish references from a previous compiler');
+          await fs.rm(navMarker, { force: true });
+          // The old compiler must still be running when its configured path
+          // changes. Holding its result makes the cancellation assertion
+          // independent of host load and VS Code configuration write latency.
+          await fs.writeFile(navHoldOutput, 'hold');
+          try {
+            await settings.update('compilerPath', navCompiler,
+              vscode.ConfigurationTarget.Global);
+            const pending = vscode.commands.executeCommand<vscode.Location[]>(
+              command, navUri, new vscode.Position(1, 8));
+            await waitFor(() => fsSync.existsSync(navMarker) ? true : undefined,
+              'Delayed navigation did not begin before the compiler-path change');
+            await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
+            assert.equal(vscode.workspace.getConfiguration('scarp').get<string>('compilerPath'),
+              binary, 'The replacement compiler setting must be effective before release');
+            await fs.rm(navHoldOutput, { force: true });
+            const stale = await pending;
+            assert.equal(stale?.length ?? 0, 0,
+              command + ' must not publish references from a previous compiler');
+          } finally {
+            await fs.rm(navHoldOutput, { force: true });
+          }
         }
       } finally {
         await settings.update('compilerPath', binary, vscode.ConfigurationTarget.Global);
