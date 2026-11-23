@@ -51,7 +51,12 @@ async function main() {
     throw new Error('Expected an absolute temporary runner directory');
   }
   const root = path.join(tempRoot, 'scarp-published-package-ci');
-  const metadata = await readOfficialBytes(OFFICIAL_RELEASE, 512 * 1024);
+  // GitHub Actions runs many parallel jobs; use only the job's read-only token
+  // for API metadata to avoid unauthenticated 60-requests/hour rate limits.
+  // The library never forwards this credential to asset download redirects.
+  const metadata = await readOfficialBytes(
+    OFFICIAL_RELEASE, 512 * 1024, undefined, process.env.GITHUB_TOKEN
+  );
   const official = JSON.parse(metadata.toString('utf8'));
   assert.equal(official.tag_name, TAG, 'Release tag must match the exact pinned published version');
   assert.equal(official.draft, false, 'Never install draft release artifacts');

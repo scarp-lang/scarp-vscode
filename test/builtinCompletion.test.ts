@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 89);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 90);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -141,13 +141,32 @@ test('alpha.16 completions expose the precise published groups without false pos
 
 test('published alpha.17 array access and Boolean prompt complete only in source expressions', () => {
   const arrays = scarpBuiltinCompletionAt('bind count = array_', 'bind count = array_'.length);
-  assert.deepEqual(arrays?.matches.map(item => item.name), ['array_len', 'array_get_or']);
-  assert.ok(arrays?.matches.every(item => item.introduced === 'v0.0.6-alpha.17'));
+  assert.deepEqual(arrays?.matches.map(item => item.name), ['array_len', 'array_get_or', 'array_set']);
+  assert.deepEqual(arrays?.matches.map(item => item.introduced), [
+    'v0.0.6-alpha.17', 'v0.0.6-alpha.17', 'v0.0.6-alpha.18'
+  ]);
   const prompt = scarpBuiltinCompletionAt('bind ok = input_bo', 'bind ok = input_bo'.length);
   assert.deepEqual(prompt?.matches.map(item => item.name), ['input_boolean']);
   for (const line of [
     'funcra array_len', 'module.array_get_or', '// input_boolean',
     'print("input_boolean', 'bind array_len', 'pub pure funcra input_boolean'
+  ]) {
+    assert.equal(scarpBuiltinCompletionAt(line, line.length), undefined, line);
+  }
+});
+
+test('published alpha.18 persistent array update suggests only true call sites', () => {
+  const line = 'bind updated = array_se';
+  const completion = scarpBuiltinCompletionAt(line, line.length);
+  assert.deepEqual(completion?.matches.map(item => item.name), ['array_set']);
+  assert.equal(completion?.matches[0].introduced, 'v0.0.6-alpha.18');
+  for (const line of [
+    'module.array_set',
+    'funcra array_set',
+    'bind array_set',
+    '// array_set',
+    'print("array_set',
+    'array_set_helper'
   ]) {
     assert.equal(scarpBuiltinCompletionAt(line, line.length), undefined, line);
   }

@@ -40,6 +40,7 @@
     "onCommand:scarp.createProject",
     "onCommand:scarp.verifyProject",
     "onCommand:scarp.launchProject",
+    "onCommand:scarp.runWorkspaceEntry",
     "onCommand:scarp.reconcileProjects",
     "onCommand:scarp.browseProjectModules",
     "onCommand:scarp.browseProjectSymbols",
@@ -133,6 +134,11 @@
       {
         "command": "scarp.launchProject",
         "title": "Scarp: Launch Project",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.runWorkspaceEntry",
+        "title": "Scarp: Run Workspace Entry (scarp exec)",
         "category": "Scarp"
       },
       {
@@ -231,6 +237,10 @@
         },
         {
           "command": "scarp.launchProject",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.runWorkspaceEntry",
           "when": "isWorkspaceTrusted"
         },
         {

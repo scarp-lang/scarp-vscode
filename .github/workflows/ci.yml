@@ -16,6 +16,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-alpha18-default-entry:
+    name: Published alpha.18 implicit-entry CLI + extension checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.18
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify immutable compiler revision and default entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "84d8de05968a488773e7c5b6eda1376d8957553c"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          bin="$GITHUB_WORKSPACE/compiler/target/release/scarp"
+          "$bin" --version | grep -F '0.0.6-alpha.18'
+          "$bin" guide exec | grep -F '[file.srp|project-directory]'
+          sandbox="$(mktemp -d)"
+          trap 'rm -rf "$sandbox"' EXIT
+          cp test/fixtures/hello.srp "$sandbox/main.srp"
+          output="$(cd "$sandbox" && "$bin" exec)"
+          test "$output" = "Hello from Scarp!"
+          mkdir -p "$sandbox/nested/src"
+          cp test/fixtures/hello.srp "$sandbox/nested/src/main.srp"
+          output="$(cd "$sandbox/nested" && "$bin" exec)"
+          test "$output" = "Hello from Scarp!"
+          # An explicit project root also runs without forwarding its path.
+          "$bin" init "$sandbox/modern"
+          (cd "$sandbox/modern" && "$bin" exec)
+          # Also check alpha.18 persistent-array calls against published goldens.
+          "$bin" verify compiler/examples/array_updates.srp
+          "$bin" exec compiler/examples/array_updates.srp > "$RUNNER_TEMP/array_updates.actual"
+          diff -u compiler/examples/array_updates.stdout "$RUNNER_TEMP/array_updates.actual"
+      - name: Exercise real VS Code default-entry command with published alpha.18
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+          SCARP_TEST_SUITE: alpha18
+        run: xvfb-run -a npm run test:integration
+
   verify:
     name: Verify on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -169,6 +216,10 @@ jobs:
         # This tests release consumption only; it never publishes anything.
         # The script verifies independently pinned SHA-256 asset digests,
         # installs real downloaded bytes and exports SCARP_TEST_BINARY.
+        # Scope GitHub's read-only Actions token to this step's API metadata;
+        # never forward it to browser asset URLs or redirect hosts.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-published-compiler.cjs
       - name: Exercise verified published compiler in VS Code (Linux)
         if: matrix.os == 'ubuntu-latest'

@@ -33,6 +33,9 @@ import { scarpBuiltinAt } from './builtinHelp';
 import { scarpSignatureAt } from './builtinSignature';
 import { scarpBuiltinCompletionAt } from './builtinCompletion';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
+import {
+  compilerAdvertisesImplicitExec, hasDefaultWorkspaceEntry, implicitExecArgv
+} from './defaultWorkspaceExec';
 
 const running = new Map<string, vscode.Terminal>();
 // Reserve a filename/root before the first await so simultaneous commands
@@ -841,6 +844,96 @@ async function launchProject(explicit: vscode.Uri | undefined,
     if (pendingStarts.get(key) === pending) { pendingStarts.delete(key); }
     if (activeProjectRunProbes.get(key) === controller) {
       activeProjectRunProbes.delete(key);
+    }
+  }
+}
+
+/**
+ * Explicit alpha.18 default-entry run: scarp exec (no filename argument).
+ * Only an opened, local, trusted workspace root may be chosen. Compiler
+ * capability is probed and source snapshots protect against stale launches.
+ */
+async function runWorkspaceEntry(
+  explicit: vscode.Uri | undefined, output: vscode.OutputChannel
+): Promise<void> {
+  if (!vscode.workspace.isTrusted) {
+    throw new Error('Trust the workspace before running Scarp.');
+  }
+  const generation = stopGeneration;
+  const revision = compilerRevision;
+  const uri = explicit ?? (await vscode.window.showWorkspaceFolderPick({
+    placeHolder: 'Choose an open workspace root for Scarp default entry execution'
+  }))?.uri;
+  if (!uri || generation !== stopGeneration || revision !== compilerRevision ||
+      !vscode.workspace.isTrusted) { return; }
+  if (!(uri instanceof vscode.Uri) || uri.scheme !== 'file' ||
+      !vscode.workspace.workspaceFolders?.some(folder => folder.uri.toString() === uri.toString())) {
+    throw new Error('Select an opened local workspace root, not an arbitrary directory.');
+  }
+  const root = uri.fsPath;
+  const stat = await vscode.workspace.fs.stat(uri);
+  if ((stat.type & vscode.FileType.Directory) === 0) {
+    throw new Error('Scarp default-entry execution requires a workspace directory.');
+  }
+  if (running.has(root) || pendingStarts.has(root)) {
+    running.get(root)?.show();
+    throw new Error('Scarp is already running or starting for this workspace. Stop it before relaunching.');
+  }
+
+  const pending = { cancelled: false };
+  const controller = new AbortController();
+  pendingStarts.set(root, pending);
+  activeProjectRunProbes.set(root, controller);
+  const isCurrent = (): boolean => !pending.cancelled &&
+    !controller.signal.aborted && generation === stopGeneration &&
+    revision === compilerRevision && vscode.workspace.isTrusted;
+  try {
+    const dirty = unsavedProjectInput(root);
+    if (dirty) {
+      throw new Error('Save open Scarp workspace sources before running: ' + dirty.uri.fsPath);
+    }
+    // Unlike legacy project commands, alpha.18 allows a plain src/main.srp or
+    // main.srp without a manifest. Still inspect only the explicit root.
+    const before = await snapshotProjectDisk(root, false);
+    if (!isCurrent()) { return; }
+    if (!hasDefaultWorkspaceEntry(before)) {
+      throw new Error('No Scarp default entrypoint found at this workspace root. ' +
+        'Add scarp.project, Scarp.project, src/main.srp or main.srp.');
+    }
+
+    const { binary, version } = await validateCompiler(controller.signal);
+    if (!isCurrent()) { return; }
+    const guide = await executeProcess(binary, ['guide', 'exec'], {
+      timeoutMs: 5000, maxOutputBytes: 32768, signal: controller.signal
+    });
+    if (!isCurrent()) { return; }
+    if (guide.exitCode !== 0 || !compilerAdvertisesImplicitExec(guide.stdout)) {
+      throw new Error('Run Workspace Entry requires the published Scarp ' +
+        'v0.0.6-alpha.18+ default-entry exec capability. ' +
+        'Use Run Current File with older compilers.');
+    }
+
+    const after = await snapshotProjectDisk(root, false);
+    if (!isCurrent() || unsavedProjectInput(root) || !sameProjectDisk(before, after)) {
+      output.appendLine('Scarp workspace changed during default-entry launch preparation; ' +
+        'obsolete terminal cancelled. Save sources and retry.');
+      return;
+    }
+    const terminal = vscode.window.createTerminal({
+      name: 'Scarp Entry: ' + path.basename(root),
+      shellPath: binary,
+      shellArgs: implicitExecArgv(budgets()),
+      cwd: root
+    });
+    running.set(root, terminal);
+    output.appendLine('Scarp ' + version + ' — exec default workspace entry in ' + root);
+    terminal.show();
+  } catch (error) {
+    if (isCurrent()) { throw error; }
+  } finally {
+    if (pendingStarts.get(root) === pending) { pendingStarts.delete(root); }
+    if (activeProjectRunProbes.get(root) === controller) {
+      activeProjectRunProbes.delete(root);
     }
   }
 }
@@ -1677,6 +1770,8 @@ export function activate(context: vscode.ExtensionContext): void {
       })),
     vscode.commands.registerCommand('scarp.launchProject',
       (uri?: vscode.Uri): Promise<void> => safe(async () => launchProject(uri, output))),
+    vscode.commands.registerCommand('scarp.runWorkspaceEntry',
+      (uri?: vscode.Uri): Promise<void> => safe(async () => runWorkspaceEntry(uri, output))),
     vscode.commands.registerCommand('scarp.launchProjectInteractive',
       (uri?: vscode.Uri): Promise<void> => safe(async () =>
         launchProject(uri, output, 'launch', undefined, true))),

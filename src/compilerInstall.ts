@@ -272,12 +272,32 @@ function extractZipMember(bytes: Buffer, member: string): Buffer {
 }
 
 /**
+ * An explicitly supplied CI token can authenticate read-only GitHub API
+ * metadata requests. Never send it to release assets or redirect hosts.
+ * Ordinary extension setup does not receive or infer an ambient token.
+ */
+export function officialDownloadHeaders(
+  hostname: string, githubApiToken?: string
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'User-Agent': 'ScarpLang-scarp-vscode',
+    'Accept': hostname === 'api.github.com'
+      ? 'application/vnd.github+json' : 'application/octet-stream'
+  };
+  if (hostname === 'api.github.com' && githubApiToken) {
+    headers.Authorization = 'Bearer ' + githubApiToken;
+  }
+  return headers;
+}
+
+/**
  * Only HTTPS on strictly allowed GitHub download domains, with explicit
  * redirect handling. Bounded response bytes, timeouts and cancellation.
  * Never accept externally supplied arbitrary download URLs.
  */
 export async function readOfficialBytes(
-  address: string, maxBytes: number, signal?: AbortSignal
+  address: string, maxBytes: number, signal?: AbortSignal,
+  githubApiToken?: string
 ): Promise<Buffer> {
   active(signal);
   const controller = new AbortController();
@@ -295,11 +315,7 @@ export async function readOfficialBytes(
       }
       const response = await fetch(url, {
         signal: controller.signal, redirect: 'manual',
-        headers: {
-          'User-Agent': 'ScarpLang-scarp-vscode',
-          'Accept': url.hostname === 'api.github.com'
-            ? 'application/vnd.github+json' : 'application/octet-stream'
-        }
+        headers: officialDownloadHeaders(url.hostname, githubApiToken)
       });
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.get('location');
