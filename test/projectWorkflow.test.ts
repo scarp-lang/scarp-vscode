@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { hasProjectWorkflow, validProjectName, validProjectTestFilter, projectArgv, projectTestListArgv } from '../src/projectWorkflow';
+import { hasProjectWorkflow, validProjectName, validProjectTestFilter, projectArgv, projectCreationUi, projectTestListArgv } from '../src/projectWorkflow';
 
 const report = (extra: object = {}): string => JSON.stringify({
   schema_version: 1, version: '0.0.5-alpha.4',
@@ -18,6 +18,21 @@ test('enables project integration only with real schema-v1 capability flag', () 
   assert.equal(hasProjectWorkflow('scarp 0.0.5-alpha.4'), false);
   assert.equal(hasProjectWorkflow('{broken'), false);
   assert.equal(hasProjectWorkflow('{}'), false);
+});
+
+test('project scaffold UI reports CLI verbs, never guesses legacy or declarative formats', () => {
+  assert.deepEqual(projectCreationUi('create'), {
+    title: 'Create Scarp Project (scarp create)',
+    commandLabel: 'scarp create'
+  });
+  assert.deepEqual(projectCreationUi('init'), {
+    title: 'Initialize Scarp Project (scarp init)',
+    commandLabel: 'scarp init'
+  });
+  for (const verb of ['create', 'init'] as const) {
+    const details = projectCreationUi(verb);
+    assert.doesNotMatch(details.title + details.commandLabel, /legacy|declarative/i);
+  }
 });
 
 test('name validator allows Unicode but rejects traversal, separators and compiler-invalid names', () => {

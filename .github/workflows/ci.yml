@@ -16,6 +16,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-alpha19-qualification:
+    name: Published alpha.19 compiler + release candidate editor (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.19
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify exact published compiler, all editor snippets and alpha.18 entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.6-alpha.19'
+          "$binary" guide exec | grep -F '[file.srp|project-directory]'
+          node scripts/verify-snippets.cjs "$binary" 19
+          "$binary" verify compiler/examples/array_updates.srp
+          "$binary" exec compiler/examples/array_updates.srp > "$RUNNER_TEMP/array_updates.actual"
+          diff -u compiler/examples/array_updates.stdout "$RUNNER_TEMP/array_updates.actual"
+          sandbox="$(mktemp -d)"
+          trap 'rm -rf "$sandbox"' EXIT
+          mkdir -p "$sandbox/fallback/src"
+          cp test/fixtures/hello.srp "$sandbox/fallback/src/main.srp"
+          fallback="$(cd "$sandbox/fallback" && "$binary" exec)"
+          test "$fallback" = "Hello from Scarp!"
+          "$binary" init "$sandbox/manifest-project"
+          (cd "$sandbox/manifest-project" && "$binary" exec)
+      - name: Exercise genuine VS Code Extension Host against published alpha.19
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   compiler-alpha18-default-entry:
     name: Published alpha.18 implicit-entry CLI + extension checks
     runs-on: ubuntu-latest
@@ -187,15 +230,18 @@ jobs:
             echo "Unsafe first-upload validator accepted missing VSIX metadata." >&2
             exit 1
           fi
+      # A short-lived trial package, never a GitHub Release or registry upload.
+      # Other required compiler and host checks must pass independently.
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:
-          name: scarp-vscode-0.1.6-dev-vsix
-          path: "*.vsix"
+          name: scarp-vscode-${{ github.sha }}-candidate-vsix
+          path: "scarp-*.vsix"
           if-no-files-found: error
+          retention-days: 7
 
   published-native-artifact:
-    name: Published alpha.17 native package + VS Code Host (${{ matrix.os }})
+    name: Published alpha.${{ matrix.alpha }} native package + VS Code Host (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -204,6 +250,8 @@ jobs:
         # GitHub's public macOS runner is Apple Silicon, matching the
         # published aarch64-apple-darwin archive. Fail closed otherwise.
         os: [ubuntu-latest, windows-latest, macos-latest]
+        # Retain alpha.17 provenance while independently qualifying alpha.19.
+        alpha: ["17", "19"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -220,6 +268,7 @@ jobs:
         # never forward it to browser asset URLs or redirect hosts.
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          SCARP_NATIVE_PACKAGE_VERSION: 0.0.6-alpha.${{ matrix.alpha }}
         run: node scripts/verify-published-compiler.cjs
       - name: Exercise verified published compiler in VS Code (Linux)
         if: matrix.os == 'ubuntu-latest'

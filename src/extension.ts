@@ -17,7 +17,7 @@ import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
 import { DebouncedSerialTasks } from './saveVerification';
 import { scanScarpSymbols, ScarpSymbolKind } from './documentSymbols';
-import { hasProjectWorkflow, projectArgv, projectTestListArgv, validProjectName, validProjectTestFilter } from './projectWorkflow';
+import { hasProjectWorkflow, projectArgv, projectCreationUi, projectTestListArgv, validProjectName, validProjectTestFilter } from './projectWorkflow';
 import { isWithinProject, ProjectChangeTracker } from './projectChangeTracker';
 import { findProjectManifest, isProjectManifestName } from './projectManifest';
 import {
@@ -939,6 +939,8 @@ async function runWorkspaceEntry(
 }
 
 async function createProject(output: vscode.OutputChannel, modern = false): Promise<void> {
+  const command = modern ? 'init' : 'create';
+  const presentation = projectCreationUi(command);
   if (!vscode.workspace.isTrusted) {
     throw new Error('Trust the workspace before creating a Scarp project.');
   }
@@ -950,7 +952,7 @@ async function createProject(output: vscode.OutputChannel, modern = false): Prom
     throw new Error('Scarp project creation requires a local workspace folder.');
   }
   const name = await vscode.window.showInputBox({
-    title: modern ? 'Initialize Modern Scarp Project' : 'Create Legacy Scarp Project',
+    title: presentation.title,
     prompt: 'Name for a new subfolder (existing destinations are never overwritten)',
     placeHolder: 'hello-world',
     validateInput: text => validProjectName(text) ? undefined
@@ -961,7 +963,7 @@ async function createProject(output: vscode.OutputChannel, modern = false): Prom
   const destination = path.join(parent.uri.fsPath, name);
   const { binary, version } = await validateProjectCompiler();
   if (modern) {
-    // Older compilers may expose legacy create but cannot initialize v2 manifests.
+    // Older compilers may provide create but not the separate init command.
     const help = await executeProcess(binary, ['guide', 'init'], {
       timeoutMs: 5000, maxOutputBytes: 32768
     });
@@ -969,7 +971,7 @@ async function createProject(output: vscode.OutputChannel, modern = false): Prom
       throw new Error('Modern projects require Scarp v0.0.6-alpha.8+ with guide init support.');
     }
   }
-  const result = await executeProcess(binary, projectArgv(modern ? 'init' : 'create', destination), {
+  const result = await executeProcess(binary, projectArgv(command, destination), {
     cwd: parent.uri.fsPath, timeoutMs: 30000, maxOutputBytes: 65536
   });
   if (result.stdout) { output.append(result.stdout); }
@@ -979,8 +981,8 @@ async function createProject(output: vscode.OutputChannel, modern = false): Prom
     throw new Error('Scarp project creation failed. The compiler will not overwrite '
       + 'an existing directory. See Scarp output.');
   }
-  output.appendLine('Created Scarp ' + version + (modern ? ' declarative' : ' legacy') +
-    ' project ' + destination);
+  output.appendLine('Created Scarp ' + version + ' project with ' +
+    presentation.commandLabel + ': ' + destination);
   const choice = await vscode.window.showInformationMessage(
     'Created Scarp project ' + name + '.', 'Open Project'
   );
