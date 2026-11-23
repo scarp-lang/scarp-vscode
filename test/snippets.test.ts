@@ -11,8 +11,10 @@ const snippets = JSON.parse(fs.readFileSync(
 
 test('registers 26 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.deepEqual(pkg.contributes.snippets,
-    [{ language: 'scarp', path: './snippets/scarp.code-snippets' }]);
+  assert.deepEqual(pkg.contributes.snippets, [
+    { language: 'scarp', path: './snippets/scarp.code-snippets' },
+    { language: 'scarp-project', path: './snippets/scarp-project.code-snippets' }
+  ]);
   assert.equal(Object.keys(snippets).length, 26);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {

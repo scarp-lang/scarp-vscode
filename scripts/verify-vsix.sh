@@ -52,6 +52,9 @@ for required in \
   'extension/package.json' \
   'extension/dist/src/extension.js' \
   'extension/syntaxes/scarp.tmLanguage.json' \
+  'extension/syntaxes/scarp-project.tmLanguage.json' \
+  'extension/scarp-project.language-configuration.json' \
+  'extension/snippets/scarp-project.code-snippets' \
   'extension/snippets/scarp.code-snippets' \
   'extension/language-configuration.json'; do
   if ! grep -Fxq "$required" <<< "$entries"; then

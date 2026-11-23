@@ -42,6 +42,35 @@ export async function run(): Promise<void> {
 
   const languages = await vscode.languages.getLanguages();
   assert.ok(languages.includes('scarp'), 'Scarp language registration is missing');
+  assert.ok(languages.includes('scarp-project'), 'Scarp project manifest language missing');
+
+  // Filename association must work in a real Extension Host, including
+  // workspace-independent files, not only via a JSON contribution check.
+  const manifestDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-project-language-'));
+  try {
+    const manifest = vscode.Uri.file(path.join(manifestDir, 'scarp.project'));
+    await fs.writeFile(manifest.fsPath,
+      'project "editor-test" {\n  version: "0.1.0"\n' +
+      '  entry: "src/main.srp"\n  type: "application"\n  dependencies {}\n}\n');
+    const doc = await vscode.workspace.openTextDocument(manifest);
+    assert.equal(doc.languageId, 'scarp-project',
+      'Exact lowercase manifest must receive dedicated editor language');
+    const original = doc.getText();
+    assert.ok(original.includes('version: "0.1.0"'));
+    const editor = await vscode.window.showTextDocument(doc, {
+      preview: false, preserveFocus: false
+    });
+    editor.selection = new vscode.Selection(1, 0, 1, 0);
+    await vscode.commands.executeCommand('editor.action.commentLine');
+    assert.ok(doc.lineAt(1).text.trimStart().startsWith('//'),
+      'Manifest Toggle Line Comment must use compiler-valid // syntax');
+    await vscode.commands.executeCommand('editor.action.commentLine');
+    assert.equal(doc.getText(), original, 'Comment toggle must restore the v2 manifest');
+  } finally {
+    await removeTemporaryTree(manifestDir);
+  }
+
+
 
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
