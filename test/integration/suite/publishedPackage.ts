@@ -16,6 +16,9 @@ const runExecutable = promisify(execFile);
 export async function run(): Promise<void> {
   const binary = process.env.SCARP_TEST_BINARY;
   const installRoot = process.env.SCARP_PUBLISHED_INSTALL_ROOT;
+  const publishedVersion = process.env.SCARP_PUBLISHED_VERSION;
+  assert.match(publishedVersion || '', /^0\.0\.6-alpha\.(17|19)$/,
+    'The native installer must export the exact independently pinned version');
   assert.ok(binary && path.isAbsolute(binary), 'Verified official compiler path is required');
   assert.ok(installRoot && path.isAbsolute(installRoot),
     'Official package installation root must be explicitly provided');
@@ -26,7 +29,7 @@ export async function run(): Promise<void> {
   const nativeVersion = await runExecutable(binary, ['--version'], {
     timeout: 10000, windowsHide: true
   });
-  assert.equal(nativeVersion.stdout.trim(), 'scarp 0.0.6-alpha.17');
+  assert.equal(nativeVersion.stdout.trim(), 'scarp ' + publishedVersion);
   assert.equal(nativeVersion.stderr, '');
 
   const extension = vscode.extensions.getExtension('ScarpLang.scarp');

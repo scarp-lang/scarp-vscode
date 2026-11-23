@@ -23,6 +23,22 @@ export function hasProjectWorkflow(stdout: string): boolean {
     fields.project_workflow === true;
 }
 
+/**
+ * The compiler, not this extension, chooses the manifest schema and casing.
+ * Published and development versions can scaffold different formats using
+ * the same CLI verb; never label `scarp create` unconditionally as legacy.
+ */
+export function projectCreationUi(command: 'create' | 'init'): {
+  title: string; commandLabel: string
+} {
+  return {
+    title: command === 'init'
+      ? 'Initialize Scarp Project (scarp init)'
+      : 'Create Scarp Project (scarp create)',
+    commandLabel: 'scarp ' + command
+  };
+}
+
 /** A single directory component, respecting the compiler's 96-byte name cap. */
 export function validProjectName(name: string): boolean {
   return name.length > 0 &&

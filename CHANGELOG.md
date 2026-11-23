@@ -2,6 +2,10 @@
 
 ## Unreleased — v0.1.6 development
 
+- Independently verify **both alpha.17 and alpha.19 published native compiler archives** on Windows x64, Linux x64 and Apple Silicon macOS. Pin archive and checksum-sidecar SHA-256 digests per immutable release; reuse the actual opt-in downloader/installer and validate the downloaded CLI in a real VS Code Extension Host. Historical distribution coverage remains intact and nothing is published automatically.
+
+- Keep project creation prompts and success logs accurate with both published and development compiler scaffolds: identify the invoked `scarp create` or `scarp init` verb instead of assuming either always emits a legacy or lowercase declarative manifest. Preserve existing non-overwrite and Workspace Trust safeguards with unit coverage.
+
 - Introduce an editor-only language registration for the canonical lowercase `scarp.project` declarative v2 manifest: accurate TextMate tokens, dedicated line comment/brace editing, a manual skeleton snippet, real Extension Host filename association and adversarial lexical/VSIX inventory tests. Preserve uppercase legacy project files and all existing compiler actions, with no auto-migration, runtime execution or extension publication.
 
 - Add published alpha.18 `array_set` editor-only signature, hover, completion and grammar support with exact immutable array type and E0063/E0064 quota/bounds guidance. Add lexical/generic regression tests and execute the compiler's published `array_updates.srp` golden example in the immutable alpha.18 CI gate. Older compilers remain source-compatible but do not acquire this new runtime builtin.
