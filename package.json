@@ -63,6 +63,16 @@
           ".srp"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "scarp-project",
+        "aliases": [
+          "Scarp Project Manifest"
+        ],
+        "filenames": [
+          "scarp.project"
+        ],
+        "configuration": "./scarp-project.language-configuration.json"
       }
     ],
     "commands": [
@@ -396,12 +406,21 @@
         "language": "scarp",
         "scopeName": "source.scarp",
         "path": "./syntaxes/scarp.tmLanguage.json"
+      },
+      {
+        "language": "scarp-project",
+        "scopeName": "source.scarp-project",
+        "path": "./syntaxes/scarp-project.tmLanguage.json"
       }
     ],
     "snippets": [
       {
         "language": "scarp",
         "path": "./snippets/scarp.code-snippets"
+      },
+      {
+        "language": "scarp-project",
+        "path": "./snippets/scarp-project.code-snippets"
       }
     ]
   },

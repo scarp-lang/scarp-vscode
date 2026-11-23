@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Introduce an editor-only language registration for the canonical lowercase `scarp.project` declarative v2 manifest: accurate TextMate tokens, dedicated line comment/brace editing, a manual skeleton snippet, real Extension Host filename association and adversarial lexical/VSIX inventory tests. Preserve uppercase legacy project files and all existing compiler actions, with no auto-migration, runtime execution or extension publication.
+
 - Add published alpha.18 `array_set` editor-only signature, hover, completion and grammar support with exact immutable array type and E0063/E0064 quota/bounds guidance. Add lexical/generic regression tests and execute the compiler's published `array_updates.srp` golden example in the immutable alpha.18 CI gate. Older compilers remain source-compatible but do not acquire this new runtime builtin.
 
 - Add an explicit **Run Workspace Entry (scarp exec)** command for published Scarp alpha.18: select only an open trusted local workspace root, probe actual implicit-entry support instead of assuming from version numbers, and invoke `exec` without a source filename. Honor compiler entrypoint precedence and default interactive stdin while rejecting dirty files, stale disk snapshots, duplicate runs and obsolete compiler probes. Unit tests and a pinned compiler smoke gate cover the new contract. No automatic execution or extension publication.

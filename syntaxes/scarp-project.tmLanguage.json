@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Scarp Declarative Project Manifest",
+  "scopeName": "source.scarp-project",
+  "fileTypes": [],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#project-declaration"
+    },
+    {
+      "include": "#fields"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.scarp-project",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.scarp-project",
+          "begin": "\"",
+          "end": "\"|(?=$)",
+          "patterns": [
+            {
+              "name": "constant.character.escape.scarp-project",
+              "match": "\\\\(?:\\\\|\")"
+            },
+            {
+              "name": "invalid.illegal.escape.scarp-project",
+              "match": "\\\\[^\\r\\n]"
+            }
+          ]
+        }
+      ]
+    },
+    "project-declaration": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.scarp-project",
+          "match": "\\bproject\\b(?=\\s*\")"
+        }
+      ]
+    },
+    "fields": {
+      "patterns": [
+        {
+          "name": "support.type.property-name.scarp-project",
+          "match": "\\b(?:version|entry|type)\\b(?=\\s*:)"
+        },
+        {
+          "name": "keyword.other.dependencies.scarp-project",
+          "match": "\\bdependencies\\b(?=\\s*\\{)"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.key-value.scarp-project",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.section.block.scarp-project",
+          "match": "[{}]"
+        }
+      ]
+    }
+  }
+}

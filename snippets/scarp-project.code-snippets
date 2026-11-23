@@ -1,0 +1,15 @@
+{
+  "Declarative Scarp project": {
+    "prefix": "sproject",
+    "body": [
+      "project \"${1:my-app}\" {",
+      "    version: \"${2:0.1.0}\"",
+      "    entry: \"${3:src/main.srp}\"",
+      "    type: \"application\"",
+      "    dependencies {}",
+      "}",
+      "$0"
+    ],
+    "description": "Insert the official v2 scarp.project manifest skeleton (Scarp alpha.8+)."
+  }
+}
