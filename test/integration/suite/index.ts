@@ -111,6 +111,7 @@ export async function run(): Promise<void> {
     'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.runWorkspaceEntry',
+    'scarp.browseWorkspaceImports', 'scarp.browseWorkspaceProjects',
     'scarp.runFileInteractive', 'scarp.launchProjectInteractive', 'scarp.testProject',
     'scarp.testProjectFiltered', 'scarp.listProjectTests',
     'scarp.listFilteredProjectTests']) {

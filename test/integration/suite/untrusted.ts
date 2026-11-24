@@ -66,6 +66,12 @@ export async function run(): Promise<void> {
   const previousCompiler = settings.inspect<string>('compilerPath')?.globalValue;
   const previousVerifyOnSave = settings.inspect<boolean>('verifyOnSave')?.globalValue;
   const previousStrict = settings.inspect<boolean>('requireNonemptyProjectTests')?.globalValue;
+  const explorerCommands = await vscode.commands.getCommands(true);
+  for (const command of ['scarp.browseWorkspaceImports', 'scarp.browseWorkspaceProjects']) {
+    assert.ok(explorerCommands.includes(command),
+      'Read-only command must still be registered in Restricted Mode: ' + command);
+  }
+
   const marker = path.join(root, 'compiler-invoked');
   const fakeCompiler = path.join(root, 'scarp-probe');
   await fs.writeFile(fakeCompiler, [
@@ -80,6 +86,13 @@ export async function run(): Promise<void> {
     await settings.update('verifyOnSave', true, vscode.ConfigurationTarget.Global);
     await settings.update('requireNonemptyProjectTests', true,
       vscode.ConfigurationTarget.Global);
+    // Programmatic invocation must not bypass Workspace Trust, even though
+    // both commands are hidden from the ordinary Restricted Mode palette.
+    await vscode.commands.executeCommand('scarp.browseWorkspaceImports');
+    await vscode.commands.executeCommand('scarp.browseWorkspaceProjects');
+    assert.equal(fsSync.existsSync(marker), false,
+      'Workspace explorer commands must not probe or execute compiler in Restricted Mode');
+
     const initialTerminals = vscode.window.terminals.length;
 
     // Hover help must remain a pure editor operation in Restricted Mode.
