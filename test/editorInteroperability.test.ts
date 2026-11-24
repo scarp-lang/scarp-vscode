@@ -186,8 +186,8 @@ test('read-only Markdown report can summarize both project types and source grap
     const report = formatScarpWorkspaceReport(
       buildScarpImportGraph(inventory.sources), inventory, projects
     );
-    assert.match(report, /basic_tuple\/src\/math\.srp/);
-    assert.match(report, /basic_integer\/src\/main\.srp/);
+    assert.ok(report.includes('basic\\_tuple/src/math.srp'));
+    assert.ok(report.includes('basic\\_integer/src/main.srp'));
     assert.match(report, /## Source structure/);
     assert.match(report, /declarative-v2/);
     assert.match(report, /legacy-v1/);
