@@ -39,9 +39,6 @@ function basename(filename: string): string {
   const index = filename.lastIndexOf('/');
   return index < 0 ? filename : filename.slice(index + 1);
 }
-function descendants(root: string, candidate: string): boolean {
-  return root === '' || candidate.startsWith(root + '/');
-}
 export function validProjectSourcePath(
   filename: string, maxDepth = DEFAULT_DEPTH,
   maxLength = DEFAULT_FILENAME_LENGTH
