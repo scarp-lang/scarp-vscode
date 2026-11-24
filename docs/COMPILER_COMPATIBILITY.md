@@ -99,3 +99,16 @@ To verify your installed compiler locally, use `scarp --version`, then run the e
 This extension never installs or upgrades the compiler automatically; compiler installation requires the explicit, confirmed setup wizard. Workspace Trust, saved-source checks, cancellation, path containment and compiler capability probes continue to gate privileged operations. Alpha.13–alpha.15 Rust embedding/cache and experimental native-kernel APIs require a separate host integration design; the extension's current implementation uses the compiler's released CLI and its own editor-side source-generation validation.
 
 The extension is still **experimental**. Do not publish a stable VS Code extension before Scarp publishes and verifies a stable compiler release. Pre-release publishing to Visual Studio Marketplace or Open VSX requires explicit owner authorization and the repository's existing release gates.
+
+## Offline Scarp structural editor assistance
+
+The development extension registers three native VS Code editor providers:
+
+- **Code folding:** multiline parentheses, arrays, braces, whole-line comment groups, adjacent import declarations, and explicit // #region / // #endregion pairs. Malformed or unclosed syntax produces no speculative fold.
+- **Expand Selection:** local token, quoted-string content, enclosing tuples/arrays/blocks, whole lines and the document, with strictly nested UTF-16 ranges. The VS Code Expand Selection command is available without a custom shortcut.
+- **Import navigation:** Go to File links inside complete top-level import "relative.srp" as alias; declarations, only in a trusted local workspace. Both the source and the destination are checked with realpath against the selected workspace root to reject symlink escapes. Missing, malformed, remote and out-of-workspace imports have no link.
+
+Folding and selection are compiler-free, read-only, usable in Restricted Mode and never probe executable capabilities. Import discovery is likewise read-only, but requires Workspace Trust before checking the filesystem and cannot navigate across workspace roots. None of these providers install a compiler, execute source, change project files or validate Scarp semantics. The official compiler remains responsible for import resolution and source errors.
+
+To prevent editor stalls on adversarial source, the lexical index refuses files above 2,000,000 UTF-16 code units, more than 120,000 tokens, or delimiter nesting above 256. Folding returns at most the editor-requested range cap (or 5,000 by default), and Expand Selection returns at most 48 nested ranges. A rejected scan simply omits structural assistance; normal TextMate highlighting still works.
+

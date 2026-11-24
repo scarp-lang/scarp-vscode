@@ -29,6 +29,24 @@ export async function run(): Promise<void> {
   assert.ok(symbols?.some(item => item.name === 'answer'),
     'Read-only local Scarp Outline should remain available in Restricted Mode');
 
+  // Structural editor assistance must remain available in Restricted Mode
+  // without executing even the configured fake compiler executable.
+  const protectedText = await vscode.workspace.openTextDocument({
+    language: 'scarp',
+    content: '// #region offline\nfuncra offline() {\n  print(1);\n}\n// #endregion'
+  });
+  const protectedFolds = await vscode.commands.executeCommand<vscode.FoldingRange[]>(
+    'vscode.executeFoldingRangeProvider', protectedText.uri);
+  assert.ok(protectedFolds?.some(item => item.kind === vscode.FoldingRangeKind.Region));
+  const protectedSelections = await vscode.commands.executeCommand<vscode.SelectionRange[]>(
+    'vscode.executeSelectionRangeProvider', protectedText.uri,
+    [new vscode.Position(2, 8)]);
+  assert.ok(protectedSelections?.[0]?.parent);
+  const protectedLinks = await vscode.commands.executeCommand<vscode.DocumentLink[]>(
+    'vscode.executeLinkProvider', sourceUri);
+  assert.deepEqual(protectedLinks ?? [], [],
+    'Restricted Mode must never expose import navigation filesystem targets');
+
   // A user setting cannot expose execution shortcuts in Restricted Mode.
   const lensSettings = vscode.workspace.getConfiguration('scarp', sourceUri);
   const previousLenses = lensSettings.inspect<boolean>('showFileActionsCodeLens')?.globalValue;
