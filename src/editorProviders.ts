@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { scanScarpStructure } from './editorStructure';
+import { ScarpStructureCache } from './editorStructureCache';
 import { scarpFoldsFromStructure } from './editorFolding';
 import { scarpSelectionRangesFromStructure } from './editorSelection';
 import { scarpImportLinksFromStructure } from './editorImports';
@@ -11,6 +11,7 @@ import { scarpImportLinksFromStructure } from './editorImports';
  */
 export function registerScarpEditorProviders(): vscode.Disposable[] {
   const selector: vscode.DocumentSelector = { language: 'scarp' };
+  const cache = new ScarpStructureCache();
 
   const folding = vscode.languages.registerFoldingRangeProvider(selector, {
     provideFoldingRanges(
@@ -19,7 +20,7 @@ export function registerScarpEditorProviders(): vscode.Disposable[] {
     ): vscode.FoldingRange[] {
       if (token.isCancellationRequested) { return []; }
       const text = document.getText();
-      const parsed = scanScarpStructure(text);
+      const parsed = cache.get(document.uri.toString(), document.version, text);
       if (!parsed) { return []; }
       return scarpFoldsFromStructure(text, parsed, { maximumRanges: 5000 }).map(item => {
         const kind = item.kind === 'region' ? vscode.FoldingRangeKind.Region :
@@ -37,7 +38,7 @@ export function registerScarpEditorProviders(): vscode.Disposable[] {
     ): vscode.SelectionRange[] {
       if (token.isCancellationRequested) { return []; }
       const text = document.getText();
-      const parsed = scanScarpStructure(text);
+      const parsed = cache.get(document.uri.toString(), document.version, text);
       return positions.map(position => {
         // The API requires one selection chain per requested position.
         const cursor = document.offsetAt(position);
@@ -67,7 +68,7 @@ export function registerScarpEditorProviders(): vscode.Disposable[] {
       const folder = vscode.workspace.getWorkspaceFolder(document.uri);
       if (!folder || folder.uri.scheme !== 'file') { return []; }
       const text = document.getText();
-      const parsed = scanScarpStructure(text);
+      const parsed = cache.get(document.uri.toString(), document.version, text);
       if (!parsed) { return []; }
       const references = await scarpImportLinksFromStructure(parsed, {
         workspaceRoot: folder.uri.fsPath,
@@ -84,5 +85,8 @@ export function registerScarpEditorProviders(): vscode.Disposable[] {
       });
     }
   });
-  return [folding, selections, links];
+  const closed = vscode.workspace.onDidCloseTextDocument(
+    document => cache.invalidate(document.uri.toString()));
+  const cleanup = new vscode.Disposable(() => cache.clear());
+  return [folding, selections, links, closed, cleanup];
 }
