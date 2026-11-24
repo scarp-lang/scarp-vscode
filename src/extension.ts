@@ -34,6 +34,7 @@ import { scarpSignatureAt } from './builtinSignature';
 import { scarpBuiltinCompletionAt } from './builtinCompletion';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
 import { registerScarpEditorProviders } from './editorProviders';
+import { registerWorkspaceImportExplorer } from './editorWorkspaceExplorer';
 import {
   compilerAdvertisesImplicitExec, hasDefaultWorkspaceEntry, implicitExecArgv
 } from './defaultWorkspaceExec';
@@ -1672,7 +1673,8 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
     builtinHover, builtinSignatures, builtinCompletions, explainActions,
-    registerFileActionCodeLens(), ...registerScarpEditorProviders(), projectMonitors,
+    registerFileActionCodeLens(), ...registerScarpEditorProviders(),
+    registerWorkspaceImportExplorer(output), projectMonitors,
     ...registerCompilerNavigation(output),
     vscode.window.onDidChangeWindowState(state => {
       if (state.focused) {
