@@ -66,7 +66,7 @@ before publishing. A successful qualification-only run does not constitute
 publication approval.
 
 Ordinary CI independently builds the immutable published alpha.19 compiler,
-checks all 26 source snippets, default-entry execution, persistent-array
+checks all 28 source snippets, default-entry execution, persistent-array
 goldens and the real VS Code Extension Host. Its Ubuntu verifier retains a
 **seven-day, commit-SHA-named candidate VSIX** for local trial installation.
 The candidate-package job passing alone does not qualify a release: the
@@ -75,7 +75,7 @@ approved qualification-only manual run must also pass.
 
 ## v0.1.6 qualification gate
 
-For v0.1.6, the publish workflow pins the exact released compiler `v0.0.6-alpha.19` at `e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75`, verifies the alpha.18 no-argument workspace `scarp exec` behavior and immutable `array_set` golden, and statically validates all 26 `.srp` snippets. The Rust-host callable APIs in alpha.19 do not create source-level function values; newer changes on compiler `main` are not implied to ship in alpha.19.
+For v0.1.6, the publish workflow pins the exact released compiler `v0.0.6-alpha.19` at `e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75`, verifies the alpha.18 no-argument workspace `scarp exec` behavior and immutable `array_set` golden, and statically validates all 28 `.srp` snippets. The Rust-host callable APIs in alpha.19 do not create source-level function values; newer changes on compiler `main` are not implied to ship in alpha.19.
 
 The version-matched `docs/releases/v0.1.6-public.md` file is **proposed release copy**, not publication authorization. First merge all independently tested v0.1.6 changes to protected `main`, confirm full CI, and run a qualification-only workflow dispatch leaving `publish_github`, `publish_marketplace` and `publish_openvsx` **false**. A release/tag, GitHub upload or registry upload still requires separate explicit approval.
 
@@ -102,10 +102,16 @@ Publishing requires an explicit human release action; routine pushes and pull re
 
 The shared `scripts/verify-vsix.sh` pre-release packaging gate checks the package publisher, extension ID, numeric version, compiled entrypoint, grammar and the VS Code pre-release marker. It rejects VSIX archives containing internal workflow, compiler-checkout, test, source, scripts or release-request files. In particular, approval marker files must remain in GitHub and **must not** ship inside the installed extension.
 
-The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The release workflow independently builds and checks the published `v0.0.6-alpha.19` compiler, including `verify`, `exec`, project creation/verification/launch, read-only `inspect modules --json PROJECT_DIRECTORY`, static references, and exact alpha.3–alpha.7 scientific, text, tuple, redirected-input and conditional-Unicode fixtures. CI retains separately pinned historical compiler checks with real VS Code Extension Host integration. This does **not** imply that native executable generation is available.
+The shared release workflow confirms the GitHub tag matches the extension's numeric version, the release is flagged pre-release, and the VSIX contains `ScarpLang.scarp` with a pre-release marker. The release workflow independently builds and checks the published `v0.0.6-alpha.20` compiler, including `verify`, `exec`, project creation/verification/launch, read-only `inspect modules --json PROJECT_DIRECTORY`, static references, and exact alpha.3–alpha.7 scientific, text, tuple, redirected-input and conditional-Unicode fixtures. CI retains separately pinned historical compiler checks with real VS Code Extension Host integration. This does **not** imply that native executable generation is available.
 
 **The PAT secret's existence cannot be verified by reading public repository files.** If Open VSX publishing is requested and `OVSX_PAT` is missing or empty, the workflow fails before compiler qualification, VSIX creation or any GitHub pre-release asset upload. An existing GitHub pre-release published externally still requires the secret for the registry step.
 
 ## Pages
 
 The optional static documentation page is deployed from `site/` on meaningful updates, not solely to increase visible deployment activity.
+
+## v0.1.6 updated alpha.20 independent qualification
+
+The manual release workflow now builds the immutable published `v0.0.6-alpha.20` compiler (`b1a9347f93540fdf95b0ddecba4adc55a3b4bb98`) instead of relying only on its ordinary-CI compatibility job. It validates exact lowercase `d` literal output, persistent mutable tuple replacement and a rejected implicit decimal/integer mix; also checks modern lowercase `scarp.project` initialization and all **28** source snippets. The historical alpha.19 native package and backwards-compatibility matrix stays independent in CI. The workflow continues to rerun trusted and Restricted Mode VS Code Extension Host suites before packaging.
+
+**Safe qualification:** Actions → Publish experimental pre-release → Run workflow, on `main`, with all three publishing inputs **false**. The resulting `scarp-0.1.6.vsix` is a seven-day qualification artifact, not a public GitHub Release or registry upload. The action must be deliberately dispatched; an ordinary merge does not invoke it.

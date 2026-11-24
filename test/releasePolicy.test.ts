@@ -356,7 +356,7 @@ test('historical compiler alpha.7 remains pinned while release gate advances', (
   const release = repoFile('.github/workflows/prerelease.yml');
   assert.match(release, /compiler\/examples\/conditional_unicode\.srp/);
   assert.match(release, /cmp compiler\/examples\/conditional_unicode\.stdout/);
-  assert.match(release, /verify-snippets\.cjs.*scarp" 19/);
+  assert.match(release, /verify-snippets\.cjs.*scarp" 20/);
 });
 
 
@@ -523,4 +523,30 @@ test('published alpha.15 frontend and editor contract is pinned without publishi
   assert.match(doc, /v0\.0\.6-alpha\.15\+/);
   assert.match(doc, /1 MiB \+ 1 byte/);
   assert.match(doc, /non-publishing compatibility gate/);
+});
+
+test('v0.1.6 manual release qualification pins published alpha.20 and its new editor contracts', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const ci = repoFile('.github/workflows/ci.yml');
+  const start = publish.indexOf('repository: scarp-lang/scarp');
+  const smoke = publish.indexOf('name: Smoke-test pinned official compiler');
+  const features = publish.indexOf('name: Qualify exact decimals, persistent tuples, and modern project scaffolding');
+  const snippets = publish.indexOf('name: Verify all 28 source snippets with pinned Scarp alpha.20');
+  const trusted = publish.indexOf('name: Gate release on trusted VS Code Extension Host integration');
+  const packageStep = publish.indexOf('name: Build verified pre-release package');
+  assert.ok(start >= 0 && smoke > start && features > smoke &&
+    snippets > features && trusted > snippets && packageStep > trusted,
+    'Published compiler, alpha.20 smoke fixtures, all snippets and real VS Code host must precede packaging');
+  assert.match(publish, /ref: v0\.0\.6-alpha\.20/);
+  assert.match(publish, /b1a9347f93540fdf95b0ddecba4adc55a3b4bb98/);
+  assert.match(publish, /0\.0\.6-alpha\.20/);
+  assert.match(publish, /verify-snippets\.cjs "\$PWD\/compiler\/target\/release\/scarp" 20/);
+  assert.match(publish, /bind amount: decimal = 0\.1d \+ 0\.2d;/);
+  assert.match(publish, /position\[0\] = 50;/);
+  assert.match(publish, /Incorrectly accepted implicit decimal\/integer mixing|unexpectedly accepted implicit decimal\/integer mixing/);
+  assert.match(publish, /test -f "\$sandbox\/new-project\/scarp\.project"/);
+  assert.match(publish, /test ! -f "\$sandbox\/new-project\/Scarp\.project"/);
+  assert.match(ci, /compiler-alpha19-qualification/);
+  assert.match(ci, /compiler-alpha20-editor-compatibility/);
+  assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.19/);
 });
