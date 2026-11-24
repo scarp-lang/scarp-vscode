@@ -277,5 +277,25 @@
       "$0"
     ],
     "description": "Scarp v0.0.6-alpha.17+: read exact lowercase true/false with an explicit interactive prompt (interpreter only)."
+  },
+  "Scarp: Exact decimal literal (alpha.20)": {
+    "prefix": "sdecimalliteral",
+    "body": [
+      "bind ${1:amount}: decimal = ${2:0.1}d + ${3:0.2}d;",
+      "print(${1});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.20+: exact base-10 literal arithmetic with lowercase d suffix; interpreter only."
+  },
+  "Scarp: Mutable tuple replacement (alpha.20)": {
+    "prefix": "stuplereplace",
+    "body": [
+      "var ${1:position} = (${2:10}, ${3:20});",
+      "bind ${4:before} = ${1};",
+      "${1}[0] = ${5:50};",
+      "print(${1}, ${4});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.6-alpha.20+: replace a constant-index member on var with a fresh tuple snapshot; interpreter only."
   }
 }

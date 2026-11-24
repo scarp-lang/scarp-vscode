@@ -89,6 +89,22 @@ test('real TextMate tokenizer recognizes current Scarp syntax and avoids false c
   assert.ok(hasScope(fourth, 'add', 'entity.name.function.call.scarp'));
 });
 
+test('published alpha.20 exact decimal literals retain the lowercase suffix as one numeric token', async () => {
+  const grammar = await tokenizer();
+  const parts = tokens('bind amount = 0.1d + 42d + 1.20d + 0.1;', grammar);
+  for (const literal of ['0.1d', '42d', '1.20d']) {
+    assert.ok(parts.some(part => part.text === literal &&
+      part.scopes.includes('constant.numeric.decimal.scarp')), literal);
+  }
+  assert.ok(parts.some(part => part.text === '0.1' &&
+    part.scopes.includes('constant.numeric.scarp')), 'Unsuffixed floats remain binary64');
+  for (const line of ['bind invalid = 1.2D;', 'bind invalid = 1e3d;',
+    'bind invalid = 1.2d_more;', '// 0.1d', 'print("0.1d");']) {
+    assert.ok(!tokens(line, grammar).some(part =>
+      part.scopes.includes('constant.numeric.decimal.scarp')), line);
+  }
+});
+
 test('published alpha.3 numerical builtins are highlighted only as calls', async () => {
   const grammar = await tokenizer();
   for (const name of ['topk', 'topk_values', 'softmax_temp', 'logsoftmax_temp']) {

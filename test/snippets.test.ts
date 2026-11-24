@@ -9,13 +9,13 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 26 bounded Scarp snippets with unique prefixes', () => {
+test('registers 28 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets, [
     { language: 'scarp', path: './snippets/scarp.code-snippets' },
     { language: 'scarp-project', path: './snippets/scarp-project.code-snippets' }
   ]);
-  assert.equal(Object.keys(snippets).length, 26);
+  assert.equal(Object.keys(snippets).length, 28);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -49,6 +49,9 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     }
     if (name.includes('(alpha.17)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.17\+/);
+    }
+    if (name.includes('(alpha.20)')) {
+      assert.match(snippet.description, /v0\.0\.6-alpha\.20\+/);
     }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
@@ -165,4 +168,18 @@ test('alpha.17 array traversal and interactive Boolean snippets use real publish
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /verify-snippets\.cjs "\$binary" 17/);
   assert.match(ci, /7831a37939965f557ce746e1d86bf82d3d629f74/);
+});
+
+test('alpha.20 snippets describe exact decimals and persistent tuple replacement', () => {
+  const exact = snippets['Scarp: Exact decimal literal (alpha.20)'];
+  assert.equal(exact.prefix, 'sdecimalliteral');
+  assert.ok(exact.body.join('\n').includes('${2:0.1}d + ${3:0.2}d'));
+  assert.match(exact.description, /interpreter only/);
+  const tuple = snippets['Scarp: Mutable tuple replacement (alpha.20)'];
+  assert.equal(tuple.prefix, 'stuplereplace');
+  assert.ok(tuple.body.join('\n').includes('${1}[0] = ${5:50};'));
+  assert.ok(tuple.body.join('\n').includes('bind ${4:before} = ${1};'));
+  assert.match(tuple.description, /fresh tuple snapshot/);
+  const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.ok(ci.includes('verify-snippets.cjs "\$binary" 20'.replace('\\',''));
 });
