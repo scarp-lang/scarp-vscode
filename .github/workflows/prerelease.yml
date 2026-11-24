@@ -193,7 +193,7 @@ jobs:
           SRP
           "$binary" verify "$sandbox/persistent-tuple.srp"
           test "$("$binary" exec "$sandbox/persistent-tuple.srp")" = "(50, 20) (10, 20)"
-          printf 'print(1d + 1);\\n' > "$sandbox/invalid-mixing.srp"
+          printf 'print(1d + 1);\n' > "$sandbox/invalid-mixing.srp"
           if "$binary" verify "$sandbox/invalid-mixing.srp"; then
             echo "Compiler unexpectedly accepted implicit decimal/integer mixing." >&2
             exit 1
