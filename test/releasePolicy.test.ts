@@ -312,8 +312,8 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
     assert.match(workflow, /schema_version !== 2/);
   }
   assert.match(alpha6, /cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e/);
-  assert.match(publish, /e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75/);
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.19'/);
+  assert.match(publish, /b1a9347f93540fdf95b0ddecba4adc55a3b4bb98/);
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.20'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
