@@ -87,7 +87,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: scarp-lang/scarp
-          ref: v0.0.6-alpha.19
+          ref: v0.0.6-alpha.20
           path: compiler
 
       - name: Smoke-test pinned official compiler
@@ -95,11 +95,11 @@ jobs:
         run: |
           set -euo pipefail
           cargo build --locked --release --manifest-path compiler/Cargo.toml
-          # Prove this release gate uses the current published prerelease,
-          # not an unreviewed compiler-main checkout or an older CLI.
+          # Prove the release gate uses the immutable compiler alpha.20 tag,
+          # never an unreviewed compiler-main checkout or an older CLI.
           # Match the compiler's verified immutable publication commit.
-          test "$(git -C compiler rev-parse HEAD)" = "e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75"
-          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.19'
+          test "$(git -C compiler rev-parse HEAD)" = "b1a9347f93540fdf95b0ddecba4adc55a3b4bb98"
+          compiler/target/release/scarp --version | grep -F '0.0.6-alpha.20'
           compiler/target/release/scarp verify test/fixtures/hello.srp
           compiler/target/release/scarp guide exec
           output="$(compiler/target/release/scarp exec test/fixtures/hello.srp)"
@@ -145,7 +145,7 @@ jobs:
           compiler/target/release/scarp exec compiler/examples/conditional_unicode.srp > "$RUNNER_TEMP/conditional_unicode.actual"
           cmp compiler/examples/conditional_unicode.stdout "$RUNNER_TEMP/conditional_unicode.actual"
           # Published alpha.18 implicit-entry and persistent arrays must work
-          # with the pinned alpha.19 binary before preparing any VSIX.
+          # with the pinned alpha.20 binary before preparing any VSIX.
           mkdir -p "$project_parent/implicit/src"
           cp test/fixtures/hello.srp "$project_parent/implicit/src/main.srp"
           implicit_output="$(cd "$project_parent/implicit" && "$GITHUB_WORKSPACE/compiler/target/release/scarp" exec)"
@@ -172,6 +172,38 @@ jobs:
               }
             '
 
+      - name: Qualify exact decimals, persistent tuples, and modern project scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="$PWD/compiler/target/release/scarp"
+          sandbox="$(mktemp -d)"
+          trap 'rm -rf "$sandbox"' EXIT
+          cat > "$sandbox/exact-decimal.srp" <<'SRP'
+          bind amount: decimal = 0.1d + 0.2d;
+          print(amount, 42d);
+          SRP
+          "$binary" verify "$sandbox/exact-decimal.srp"
+          test "$("$binary" exec "$sandbox/exact-decimal.srp")" = "0.3 42"
+          cat > "$sandbox/persistent-tuple.srp" <<'SRP'
+          var position = (10, 20);
+          bind before = position;
+          position[0] = 50;
+          print(position, before);
+          SRP
+          "$binary" verify "$sandbox/persistent-tuple.srp"
+          test "$("$binary" exec "$sandbox/persistent-tuple.srp")" = "(50, 20) (10, 20)"
+          printf 'print(1d + 1);\n' > "$sandbox/invalid-mixing.srp"
+          if "$binary" verify "$sandbox/invalid-mixing.srp"; then
+            echo "Compiler unexpectedly accepted implicit decimal/integer mixing." >&2
+            exit 1
+          fi
+          "$binary" init "$sandbox/new-project"
+          test -f "$sandbox/new-project/scarp.project"
+          test ! -f "$sandbox/new-project/Scarp.project"
+          test "$(cd "$sandbox/new-project" && "$binary" exec)" = "Hello from Scarp!"
+          "$binary" verify -- "$sandbox/new-project"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -179,8 +211,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run check
 
-      - name: Verify all 26 source snippets with pinned Scarp alpha.19
-        run: node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 19
+      - name: Verify all 28 source snippets with pinned Scarp alpha.20
+        run: node scripts/verify-snippets.cjs "$PWD/compiler/target/release/scarp" 20
 
       - name: Validate extension module browser against official tuple metadata
         shell: bash

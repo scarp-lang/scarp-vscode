@@ -250,7 +250,7 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.10\b/g) ?? []).length, 1);
   assert.match(ci, /44fcd0f77ccb92648cdb1fc7632495c506c87cb3/);
   assert.match(ci, /compiler-alpha10-interactive:/);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.19/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.20/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12](?!\d)/,
     'The release workflow must not pin historical alpha.1 or alpha.2 tags');
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
@@ -312,8 +312,8 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
     assert.match(workflow, /schema_version !== 2/);
   }
   assert.match(alpha6, /cdf6a3924ec2a36c7beca5a9aec4f01a0bce515e/);
-  assert.match(publish, /e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75/);
-  assert.match(publish, /grep -F '0\.0\.6-alpha\.19'/);
+  assert.match(publish, /b1a9347f93540fdf95b0ddecba4adc55a3b4bb98/);
+  assert.match(publish, /grep -F '0\.0\.6-alpha\.20'/);
   // Release verification must still include all supported public CLI contracts.
   for (const workflow of [ci, publish]) {
     assert.match(workflow, /scarp verify test\/fixtures\/hello\.srp/);
@@ -356,7 +356,7 @@ test('historical compiler alpha.7 remains pinned while release gate advances', (
   const release = repoFile('.github/workflows/prerelease.yml');
   assert.match(release, /compiler\/examples\/conditional_unicode\.srp/);
   assert.match(release, /cmp compiler\/examples\/conditional_unicode\.stdout/);
-  assert.match(release, /verify-snippets\.cjs.*scarp" 19/);
+  assert.match(release, /verify-snippets\.cjs.*scarp" 20/);
 });
 
 
@@ -410,18 +410,18 @@ test('native asset provenance checks both published alpha.17 and alpha.19 on eac
   assert.match(script, /installOfficialCompiler/);
 });
 
-test('v0.1.6 qualification uses published alpha.19 and remains nonpublishing by default', () => {
+test('v0.1.6 qualification uses published alpha.20 and remains nonpublishing by default', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
   const currentNotes = repoFile('docs/releases/v0.1.6-public.md');
-  assert.match(publish, /ref: v0\.0\.6-alpha\.19/);
-  assert.match(publish, /e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75/);
+  assert.match(publish, /ref: v0\.0\.6-alpha\.20/);
+  assert.match(publish, /b1a9347f93540fdf95b0ddecba4adc55a3b4bb98/);
   assert.match(publish, /compiler\/examples\/array_updates\.srp/);
   assert.match(publish, /implicit_output=/);
-  assert.match(publish, /verify-snippets\.cjs.*scarp" 19/);
+  assert.match(publish, /verify-snippets\.cjs.*scarp" 20/);
   assert.match(publish, /if: github\.event_name == 'workflow_dispatch' && !inputs\.publish_github/);
   assert.match(currentNotes, /v0\.1\.6/);
   assert.match(currentNotes, /Experimental Pre-release/);
-  assert.match(currentNotes, /v0\.0\.6-alpha\.19/);
+  assert.match(currentNotes, /v0\.0\.6-alpha\.20/);
   assert.doesNotMatch(currentNotes, /development draft|not authorized|not published/i);
 });
 
@@ -523,4 +523,30 @@ test('published alpha.15 frontend and editor contract is pinned without publishi
   assert.match(doc, /v0\.0\.6-alpha\.15\+/);
   assert.match(doc, /1 MiB \+ 1 byte/);
   assert.match(doc, /non-publishing compatibility gate/);
+});
+
+test('v0.1.6 manual release qualification pins published alpha.20 and its new editor contracts', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const ci = repoFile('.github/workflows/ci.yml');
+  const start = publish.indexOf('repository: scarp-lang/scarp');
+  const smoke = publish.indexOf('name: Smoke-test pinned official compiler');
+  const features = publish.indexOf('name: Qualify exact decimals, persistent tuples, and modern project scaffolding');
+  const snippets = publish.indexOf('name: Verify all 28 source snippets with pinned Scarp alpha.20');
+  const trusted = publish.indexOf('name: Gate release on trusted VS Code Extension Host integration');
+  const packageStep = publish.indexOf('name: Build verified pre-release package');
+  assert.ok(start >= 0 && smoke > start && features > smoke &&
+    snippets > features && trusted > snippets && packageStep > trusted,
+    'Published compiler, alpha.20 smoke fixtures, all snippets and real VS Code host must precede packaging');
+  assert.match(publish, /ref: v0\.0\.6-alpha\.20/);
+  assert.match(publish, /b1a9347f93540fdf95b0ddecba4adc55a3b4bb98/);
+  assert.match(publish, /0\.0\.6-alpha\.20/);
+  assert.match(publish, /verify-snippets\.cjs "\$PWD\/compiler\/target\/release\/scarp" 20/);
+  assert.match(publish, /bind amount: decimal = 0\.1d \+ 0\.2d;/);
+  assert.match(publish, /position\[0\] = 50;/);
+  assert.match(publish, /Incorrectly accepted implicit decimal\/integer mixing|unexpectedly accepted implicit decimal\/integer mixing/);
+  assert.match(publish, /test -f "\$sandbox\/new-project\/scarp\.project"/);
+  assert.match(publish, /test ! -f "\$sandbox\/new-project\/Scarp\.project"/);
+  assert.match(ci, /compiler-alpha19-qualification/);
+  assert.match(ci, /compiler-alpha20-editor-compatibility/);
+  assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.19/);
 });
