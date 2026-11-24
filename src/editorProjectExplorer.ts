@@ -5,6 +5,8 @@ import {
   catalogScarpProjects, projectEntryPath, type ScarpProjectCandidate,
   type ScarpProjectDescription
 } from './editorProjectCatalog';
+import { buildScarpProjectTree, scarpProjectChildren,
+  scarpProjectParent, scarpProjectBreadcrumb } from './editorProjectTree';
 
 const COMMAND = 'scarp.browseWorkspaceProjects';
 const MAX_MANIFESTS = 256;
@@ -63,6 +65,62 @@ async function safeOpen(
     await vscode.workspace.openTextDocument(vscode.Uri.file(realFile)),
     { preview: false }
   );
+}
+async function browseSourceTree(
+  workspaceRoot: string, project: ScarpProjectDescription
+): Promise<void> {
+  const projectRoot = path.resolve(workspaceRoot,
+    ...project.root.split('/').filter(Boolean));
+  const [realWorkspace, realProject] = await Promise.all([
+    fs.realpath(workspaceRoot), fs.realpath(projectRoot)
+  ]);
+  if (!within(realWorkspace, realProject)) {
+    throw new Error('Project root escapes the selected workspace.');
+  }
+  const entries = await vscode.workspace.findFiles(
+    new vscode.RelativePattern(vscode.Uri.file(projectRoot), '**/*.srp'),
+    '**/{.git,node_modules,target,dist,build}/**', 513
+  );
+  if (entries.length > 512) {
+    throw new Error('Too many project source files; open a narrower source folder.');
+  }
+  const filenames = entries.map(uri =>
+    relative(projectRoot, uri.fsPath));
+  const tree = buildScarpProjectTree(filenames, { maximumFiles: 512 });
+  let folder = '';
+  while (vscode.workspace.isTrusted) {
+    const children = scarpProjectChildren(tree, folder);
+    const items = [
+      ...(folder ? [{
+        label: '$(arrow-left) Parent folder',
+        description: scarpProjectParent(tree, folder) || '(project root)',
+        target: '..', kind: 'back' as const
+      }] : []),
+      ...children.map(item => ({
+        label: (item.kind === 'folder' ? '$(folder) ' : '$(file-code) ') + item.name,
+        description: item.kind === 'folder'
+          ? item.descendantSources + ' Scarp files' : item.path,
+        target: item.path, kind: item.kind
+      }))
+    ];
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: scarpProjectBreadcrumb(tree, folder).join(' / ') +
+        ' (' + tree.sourceCount + ' sources)'
+    });
+    if (!selected || !vscode.workspace.isTrusted) { return; }
+    if (selected.kind === 'back') {
+      folder = scarpProjectParent(tree, folder) || '';
+      continue;
+    }
+    if (selected.kind === 'folder') {
+      folder = selected.target;
+      continue;
+    }
+    const relativeFile = project.root
+      ? project.root + '/' + selected.target : selected.target;
+    await safeOpen(workspaceRoot, relativeFile);
+    return;
+  }
 }
 interface ProjectQuickPick extends vscode.QuickPickItem {
   project: ScarpProjectDescription;
@@ -145,11 +203,21 @@ export function registerWorkspaceProjectExplorer(
       { label: 'Open Project Entry', kind: 'entry' as const,
         description: project.entry },
       { label: 'Open Project Manifest', kind: 'manifest' as const,
-        description: project.manifest }
+        description: project.manifest },
+      { label: 'Browse Project Source Tree', kind: 'tree' as const,
+        description: 'Navigate nested Scarp source folders without executing code' }
     ], {
       placeHolder: 'Choose a read-only navigation action for ' + project.name
     });
     if (!action || !vscode.workspace.isTrusted) { return; }
+    if (action.kind === 'tree') {
+      try { await browseSourceTree(root, project); }
+      catch (error) {
+        void vscode.window.showWarningMessage('Cannot browse Scarp source tree: ' +
+          (error instanceof Error ? error.message : String(error)));
+      }
+      return;
+    }
     const selected = action.kind === 'manifest'
       ? project.manifest : projectEntryPath(project);
     if (!selected) {
