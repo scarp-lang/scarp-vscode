@@ -3,6 +3,7 @@ import type {
 } from './editorImportGraph';
 import type { ScarpWorkspaceInventory } from './editorWorkspaceInventory';
 import type { ScarpProjectCatalog } from './editorProjectCatalog';
+import { scarpSourceMetrics, summarizeScarpSourceMetrics } from './editorStructuralMetrics';
 
 export interface ScarpWorkspaceReportOptions {
   readonly title?: string;
@@ -60,6 +61,7 @@ export function formatScarpWorkspaceReport(
   if (!Number.isSafeInteger(maxChars) || maxChars < 256) {
     return '# Scarp workspace report\n\nReport limit too small.\n';
   }
+  const metrics = inventory ? summarizeScarpSourceMetrics(inventory.sources) : undefined;
   const lines: string[] = [
     '# ' + title,
     '',
@@ -76,7 +78,10 @@ export function formatScarpWorkspaceReport(
       ['Graph root modules', String(graph.roots.length)],
       ['Workspace input bytes', String(inventory?.byteCount ?? 'not recorded')],
       ['Disk inventory issues', String(inventory?.issues.length ?? 0)],
-      ['Recognized projects', String(projects?.projects.length ?? 0)]
+      ['Recognized projects', String(projects?.projects.length ?? 0)],
+      ['Lexical source lines', String(metrics?.lines ?? 'not recorded')],
+      ['Outlined functions', String(metrics?.functions ?? 'not recorded')],
+      ['Maximum bracket nesting', String(metrics?.maximumDepth ?? 'not recorded')]
     ]),
     ''
   ];
@@ -91,6 +96,26 @@ export function formatScarpWorkspaceReport(
           x.name, x.manifest, x.root ? x.root + '/' + x.entry : x.entry, x.kind
         ])
       ), '');
+    }
+  }
+  if (inventory) {
+    lines.push('## Source structure', '');
+    const rows = inventory.sources.map(item => {
+      const profile = scarpSourceMetrics(item.source);
+      return [
+        item.file, String(profile?.physicalLines ?? '-'),
+        String(profile?.functions ?? '-'),
+        String(profile?.topLevelBindings ?? '-'),
+        String(profile?.maximumDelimiterDepth ?? '-')
+      ];
+    });
+    if (rows.length) {
+      lines.push(...table(
+        ['File', 'Lines', 'Functions', 'Bindings', 'Max nesting'],
+        stableItems(rows, item => item[0])
+      ), '');
+    } else {
+      lines.push('_No source metrics available._', '');
     }
   }
   lines.push('## Indexed modules', '');
