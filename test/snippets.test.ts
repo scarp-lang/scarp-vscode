@@ -181,5 +181,5 @@ test('alpha.20 snippets describe exact decimals and persistent tuple replacement
   assert.ok(tuple.body.join('\n').includes('bind ${4:before} = ${1};'));
   assert.match(tuple.description, /fresh tuple snapshot/);
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
-  assert.ok(ci.includes('verify-snippets.cjs "\$binary" 20'.replace('\\',''));
+  assert.ok(ci.includes('verify-snippets.cjs "$binary" 20'));
 });
