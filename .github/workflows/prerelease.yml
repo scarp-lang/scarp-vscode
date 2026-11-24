@@ -145,7 +145,7 @@ jobs:
           compiler/target/release/scarp exec compiler/examples/conditional_unicode.srp > "$RUNNER_TEMP/conditional_unicode.actual"
           cmp compiler/examples/conditional_unicode.stdout "$RUNNER_TEMP/conditional_unicode.actual"
           # Published alpha.18 implicit-entry and persistent arrays must work
-          # with the pinned alpha.19 binary before preparing any VSIX.
+          # with the pinned alpha.20 binary before preparing any VSIX.
           mkdir -p "$project_parent/implicit/src"
           cp test/fixtures/hello.srp "$project_parent/implicit/src/main.srp"
           implicit_output="$(cd "$project_parent/implicit" && "$GITHUB_WORKSPACE/compiler/target/release/scarp" exec)"

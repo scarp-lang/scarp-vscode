@@ -37,7 +37,7 @@ Because a trusted publisher is identified by GitHub repository/workflow identity
   It rejects a tag whose commit is not reachable from protected `main`.
 - Source verification, official compiler tests, typechecking, linting, unit
   tests and package validation run before a new VSIX is attached to a release.
-- The publishing workflow independently runs **both** real Linux VS Code Extension Host suites against the checked-out approved revision before packaging or uploading: the trusted host uses published compiler **v0.0.6-alpha.19**, checking exact Top-K, temperature-softmax, sampled-calculus, cosine-similarity, nucleus-selection, Pearson-correlation, text and tuple example output and redirected UTF-8 input; the Restricted Mode host confirms that no compiler can be invoked in an untrusted folder. CI retains separate historical compiler compatibility checks. The publish runner needs `xvfb-run`; earlier PR CI checks alone are not enough to pass the release gate.
+- The publishing workflow independently runs **both** real Linux VS Code Extension Host suites against the checked-out approved revision before packaging or uploading: the trusted host uses published compiler **v0.0.6-alpha.20**, checking exact Top-K, temperature-softmax, sampled-calculus, cosine-similarity, nucleus-selection, Pearson-correlation, text and tuple example output and redirected UTF-8 input; the Restricted Mode host confirms that no compiler can be invoked in an untrusted folder. CI retains separate historical compiler compatibility checks. The publish runner needs `xvfb-run`; earlier PR CI checks alone are not enough to pass the release gate.
 - CI-generated `.vscode-test/` editor installations are excluded from the VSIX; the package validator also rejects a VSIX that contains this directory.
   A downloaded GitHub release VSIX is validated again after download.
 - When a release already contains `scarp-VERSION.vsix`, the shared
@@ -75,7 +75,7 @@ approved qualification-only manual run must also pass.
 
 ## v0.1.6 qualification gate
 
-For v0.1.6, the publish workflow pins the exact released compiler `v0.0.6-alpha.19` at `e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75`, verifies the alpha.18 no-argument workspace `scarp exec` behavior and immutable `array_set` golden, and statically validates all 28 `.srp` snippets. The Rust-host callable APIs in alpha.19 do not create source-level function values; newer changes on compiler `main` are not implied to ship in alpha.19.
+For v0.1.6, the publish workflow pins the exact released compiler `v0.0.6-alpha.20` at `b1a9347f93540fdf95b0ddecba4adc55a3b4bb98`, verifies alpha.18 no-argument workspace `scarp exec` behavior, the immutable `array_set` golden, lowercase exact-decimal literals, persistent mutable-tuple assignment, modern lowercase `scarp.project` scaffolding, and statically validates all 28 `.srp` snippets. The Rust-host callable APIs from alpha.19 do not create source-level function values; unreleased compiler-main changes are not implied to ship with this extension.
 
 The version-matched `docs/releases/v0.1.6-public.md` file is **proposed release copy**, not publication authorization. First merge all independently tested v0.1.6 changes to protected `main`, confirm full CI, and run a qualification-only workflow dispatch leaving `publish_github`, `publish_marketplace` and `publish_openvsx` **false**. A release/tag, GitHub upload or registry upload still requires separate explicit approval.
 
