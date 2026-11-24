@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { buildScarpImportGraph } from './editorImportGraph';
 import { collectScarpWorkspaceSources } from './editorWorkspaceInventory';
+import { formatScarpWorkspaceReport } from './editorWorkspaceReport';
 
 const MAX_FILES = 512;
 function within(root: string, filename: string): boolean {
@@ -109,12 +110,26 @@ export function registerWorkspaceImportExplorer(
         filename: node.file
       };
     });
+    items.unshift({
+      label: '$(file-text) View Local Dependency Report',
+      description: 'Read-only Markdown summary',
+      detail: 'Modules, import edges, cycles, missing files and disk limits',
+      filename: ''
+    });
     const chosen = await vscode.window.showQuickPick(items, {
       placeHolder: 'Choose a Scarp source (' + graph.nodes.length +
         ' modules, ' + graph.issues.length + ' warnings)',
       matchOnDescription: true, matchOnDetail: true
     });
     if (!chosen || !vscode.workspace.isTrusted) { return; }
+    if (!chosen.filename) {
+      const report = formatScarpWorkspaceReport(graph, inventory);
+      const document = await vscode.workspace.openTextDocument({
+        language: 'markdown', content: report
+      });
+      await vscode.window.showTextDocument(document, { preview: false });
+      return;
+    }
     const target = path.resolve(directory, ...chosen.filename.split('/'));
     try {
       const [realRoot, realTarget, stat] = await Promise.all([
