@@ -42,8 +42,8 @@ test('nested folders resolve imports relative to importing module', () => {
     source('src/extra/nested/calc.srp', 'print(2);')
   ]);
   assert.deepEqual(graph.edges.map(e => e.to), [
-    'src/extra/nested/calc.srp', 'src/lib/math.srp'
-  ].sort().reverse().reverse().sort((a, b) => 0));
+    'src/lib/math.srp', 'src/extra/nested/calc.srp'
+  ]);
   assert.equal(graph.issues.length, 0);
 });
 test('diamond graphs preserve multiple reverse imports and shortest depth', () => {
