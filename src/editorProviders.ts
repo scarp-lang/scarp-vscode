@@ -14,15 +14,14 @@ export function registerScarpEditorProviders(): vscode.Disposable[] {
 
   const folding = vscode.languages.registerFoldingRangeProvider(selector, {
     provideFoldingRanges(
-      document: vscode.TextDocument, context: vscode.FoldingContext,
+      document: vscode.TextDocument, _context: vscode.FoldingContext,
       token: vscode.CancellationToken
     ): vscode.FoldingRange[] {
       if (token.isCancellationRequested) { return []; }
       const text = document.getText();
       const parsed = scanScarpStructure(text);
       if (!parsed) { return []; }
-      const maximumRanges = context.rangeLimit ?? 5000;
-      return scarpFoldsFromStructure(text, parsed, { maximumRanges }).map(item => {
+      return scarpFoldsFromStructure(text, parsed, { maximumRanges: 5000 }).map(item => {
         const kind = item.kind === 'region' ? vscode.FoldingRangeKind.Region :
           item.kind === 'comment' ? vscode.FoldingRangeKind.Comment :
           item.kind === 'imports' ? vscode.FoldingRangeKind.Imports : undefined;
