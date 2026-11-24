@@ -250,7 +250,7 @@ test('published compiler alpha.1 through alpha.6 remain independently qualified'
   assert.equal((ci.match(/ref: v0\.0\.6-alpha\.10\b/g) ?? []).length, 1);
   assert.match(ci, /44fcd0f77ccb92648cdb1fc7632495c506c87cb3/);
   assert.match(ci, /compiler-alpha10-interactive:/);
-  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.19/g) ?? []).length, 1);
+  assert.equal((publish.match(/ref: v0\.0\.6-alpha\.20/g) ?? []).length, 1);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.[12](?!\d)/,
     'The release workflow must not pin historical alpha.1 or alpha.2 tags');
   const alpha2 = ci.slice(ci.indexOf('  compiler-alpha2-compatibility:'),
@@ -410,18 +410,18 @@ test('native asset provenance checks both published alpha.17 and alpha.19 on eac
   assert.match(script, /installOfficialCompiler/);
 });
 
-test('v0.1.6 qualification uses published alpha.19 and remains nonpublishing by default', () => {
+test('v0.1.6 qualification uses published alpha.20 and remains nonpublishing by default', () => {
   const publish = repoFile('.github/workflows/prerelease.yml');
   const currentNotes = repoFile('docs/releases/v0.1.6-public.md');
-  assert.match(publish, /ref: v0\.0\.6-alpha\.19/);
-  assert.match(publish, /e534e73a81c9500e3aef9f3d51cafa0bc7bbcf75/);
+  assert.match(publish, /ref: v0\.0\.6-alpha\.20/);
+  assert.match(publish, /b1a9347f93540fdf95b0ddecba4adc55a3b4bb98/);
   assert.match(publish, /compiler\/examples\/array_updates\.srp/);
   assert.match(publish, /implicit_output=/);
-  assert.match(publish, /verify-snippets\.cjs.*scarp" 19/);
+  assert.match(publish, /verify-snippets\.cjs.*scarp" 20/);
   assert.match(publish, /if: github\.event_name == 'workflow_dispatch' && !inputs\.publish_github/);
   assert.match(currentNotes, /v0\.1\.6/);
   assert.match(currentNotes, /Experimental Pre-release/);
-  assert.match(currentNotes, /v0\.0\.6-alpha\.19/);
+  assert.match(currentNotes, /v0\.0\.6-alpha\.20/);
   assert.doesNotMatch(currentNotes, /development draft|not authorized|not published/i);
 });
 
