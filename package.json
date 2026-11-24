@@ -50,7 +50,9 @@
     "onCommand:scarp.listFilteredProjectTests",
     "onCommand:scarp.initProject",
     "onCommand:scarp.runFileInteractive",
-    "onCommand:scarp.launchProjectInteractive"
+    "onCommand:scarp.launchProjectInteractive",
+    "onCommand:scarp.browseWorkspaceImports",
+    "onCommand:scarp.browseWorkspaceProjects"
   ],
   "contributes": {
     "languages": [
@@ -185,6 +187,16 @@
         "command": "scarp.launchProjectInteractive",
         "title": "Scarp: Launch Project Interactively",
         "category": "Scarp"
+      },
+      {
+        "command": "scarp.browseWorkspaceImports",
+        "title": "Scarp: Browse Local Workspace Imports",
+        "category": "Scarp"
+      },
+      {
+        "command": "scarp.browseWorkspaceProjects",
+        "title": "Scarp: Browse Nested Workspace Projects",
+        "category": "Scarp"
       }
     ],
     "menus": {
@@ -279,6 +291,14 @@
         },
         {
           "command": "scarp.launchProjectInteractive",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.browseWorkspaceImports",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.browseWorkspaceProjects",
           "when": "isWorkspaceTrusted"
         }
       ]

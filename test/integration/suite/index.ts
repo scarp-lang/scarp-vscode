@@ -40,6 +40,38 @@ export async function run(): Promise<void> {
   assert.ok(extension, 'Official Scarp extension must be installed in Extension Host');
   await extension.activate();
 
+  // These native providers are purely lexical. They must be registered in a
+  // real Extension Host, independent of any installed compiler capability.
+  const structuralSource = [
+    '// #region editor',
+    'funcra structure() -> unit {',
+    '  print([array:',
+    '    1, 2',
+    '  ]);',
+    '}',
+    '// #endregion'
+  ].join('\n');
+  const structuralDocument = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: structuralSource
+  });
+  const structuralFolds = await vscode.commands.executeCommand<vscode.FoldingRange[]>(
+    'vscode.executeFoldingRangeProvider', structuralDocument.uri);
+  assert.ok(structuralFolds?.some(fold =>
+    fold.start === 0 && fold.end === 6 && fold.kind === vscode.FoldingRangeKind.Region),
+  'Real folding provider must recognize explicit Scarp regions');
+  assert.ok(structuralFolds?.some(fold => fold.start === 1 && fold.end === 5),
+    'Real folding provider must recognize multiline function bodies');
+  const structuralSelections = await vscode.commands.executeCommand<vscode.SelectionRange[]>(
+    'vscode.executeSelectionRangeProvider', structuralDocument.uri,
+    [new vscode.Position(3, 4)]);
+  assert.equal(structuralSelections?.length, 1);
+  assert.ok(structuralSelections?.[0].parent,
+    'Real Selection Range provider must supply a nested ancestor');
+  const structuralLinks = await vscode.commands.executeCommand<vscode.DocumentLink[]>(
+    'vscode.executeLinkProvider', structuralDocument.uri);
+  assert.equal(structuralLinks?.length ?? 0, 0,
+    'In-memory Scarp documents cannot fabricate local file hyperlinks');
+
   const languages = await vscode.languages.getLanguages();
   assert.ok(languages.includes('scarp'), 'Scarp language registration is missing');
   assert.ok(languages.includes('scarp-project'), 'Scarp project manifest language missing');
@@ -79,6 +111,7 @@ export async function run(): Promise<void> {
     'scarp.createProject', 'scarp.initProject',
     'scarp.verifyProject', 'scarp.browseProjectModules',
     'scarp.browseProjectSymbols', 'scarp.launchProject', 'scarp.runWorkspaceEntry',
+    'scarp.browseWorkspaceImports', 'scarp.browseWorkspaceProjects',
     'scarp.runFileInteractive', 'scarp.launchProjectInteractive', 'scarp.testProject',
     'scarp.testProjectFiltered', 'scarp.listProjectTests',
     'scarp.listFilteredProjectTests']) {
