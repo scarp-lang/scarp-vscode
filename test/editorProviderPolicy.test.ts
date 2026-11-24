@@ -77,8 +77,12 @@ test('project and import browsers explicitly check trust before disk access', ()
     'src/editorProjectExplorer.ts'
   ]) {
     const content = source(file);
-    const trust = content.indexOf('if (!vscode.workspace.isTrusted)');
-    const findFiles = content.indexOf('vscode.workspace.findFiles');
+    // Trust is enforced at the command entrypoint; the project explorer
+    // also has a helper that is reachable only after the trusted picker.
+    const commandBody = content.slice(content.indexOf(
+      "return vscode.commands.registerCommand("));
+    const trust = commandBody.indexOf('if (!vscode.workspace.isTrusted)');
+    const findFiles = commandBody.indexOf('vscode.workspace.findFiles');
     assert.ok(trust >= 0 && findFiles > trust,
       file + ' must enforce trust before enumerating source files');
     assert.match(content, /fs\.realpath/);

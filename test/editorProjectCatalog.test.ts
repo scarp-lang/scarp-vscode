@@ -42,11 +42,11 @@ test('nested subprojects remain independent across deep workspace trees', () => 
   ]);
   assert.equal(result.projects.length, 3);
   assert.deepEqual(result.projects.map(x => x.root), [
+    'another/legacy',
     'Scarp-Practice/basic_integer',
-    'Scarp-Practice/basic_tuple',
-    'another/legacy'
+    'Scarp-Practice/basic_tuple'
   ]);
-  assert.equal(projectEntryPath(result.projects[1]),
+  assert.equal(projectEntryPath(result.projects[2]),
     'Scarp-Practice/basic_tuple/src/main.srp');
 });
 test('v2 fields accept reordering and full-line comments', () => {
