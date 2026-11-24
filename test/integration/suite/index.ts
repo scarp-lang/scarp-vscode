@@ -322,8 +322,19 @@ export async function run(): Promise<void> {
     const projectUri = vscode.Uri.file(projectPath);
     try {
       await promisify(execFile)(binary, ['create', '--', projectPath], { timeout: 10000 });
-      const manifest = await fs.readFile(path.join(projectPath, 'Scarp.project'), 'utf8');
-      assert.match(manifest, /scarp-project: 1/);
+      // Published alpha.20 creates a lowercase v2 manifest; historical
+      // compilers scaffold legacy uppercase v1. Assert the real on-disk
+      // format instead of hardcoding the older filename.
+      const lowercaseManifest = path.join(projectPath, 'scarp.project');
+      const manifestName = await fs.access(lowercaseManifest)
+        .then(() => 'scarp.project', () => 'Scarp.project');
+      const manifest = await fs.readFile(path.join(projectPath, manifestName), 'utf8');
+      if (manifestName === 'scarp.project') {
+        assert.match(manifest, /project\s+"/);
+        assert.match(manifest, /dependencies\s*\{/);
+      } else {
+        assert.match(manifest, /scarp-project: 1/);
+      }
       const entryUri = vscode.Uri.file(path.join(projectPath, 'src', 'main.srp'));
       const entryDocument = await vscode.workspace.openTextDocument(entryUri);
       await vscode.commands.executeCommand('scarp.verifyProject', projectUri);
@@ -1238,7 +1249,7 @@ export async function run(): Promise<void> {
         const staleManifestCheck = vscode.commands.executeCommand('scarp.verifyProject', projectUri);
         await waitFor(() => fsSync.existsSync(started) ? true : undefined,
           'Delayed manifest verification did not start');
-        const manifestUri = vscode.Uri.file(path.join(projectPath, 'Scarp.project'));
+        const manifestUri = vscode.Uri.file(path.join(projectPath, manifestName));
         const manifestDocument = await vscode.workspace.openTextDocument(manifestUri);
         const changedManifest = new vscode.WorkspaceEdit();
         changedManifest.insert(manifestUri,
