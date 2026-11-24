@@ -21,7 +21,7 @@ test('empty files have no fake syntax and one valid line', () => {
 test('bracket pairs preserve offsets, depth and UTF-16 enclosure', () => {
   const text = 'funcra test() {\n  print([array: (1, 2)]);\n}';
   const x = scan(text);
-  assert.equal(x.pairs.length, 4);
+  assert.equal(x.pairs.length, 5);
   const braces = x.pairs.find(p => p.kind === '{');
   assert.ok(braces);
   assert.equal(text.slice(braces.span.start, braces.span.end),
