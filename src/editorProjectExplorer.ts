@@ -90,17 +90,17 @@ async function browseSourceTree(
   let folder = '';
   while (vscode.workspace.isTrusted) {
     const children = scarpProjectChildren(tree, folder);
-    const items = [
+    const items: SourceTreeChoice[] = [
       ...(folder ? [{
         label: '$(arrow-left) Parent folder',
         description: scarpProjectParent(tree, folder) || '(project root)',
-        target: '..', kind: 'back' as const
+        target: '..', choice: 'back' as const
       }] : []),
       ...children.map(item => ({
         label: (item.kind === 'folder' ? '$(folder) ' : '$(file-code) ') + item.name,
         description: item.kind === 'folder'
           ? item.descendantSources + ' Scarp files' : item.path,
-        target: item.path, kind: item.kind
+        target: item.path, choice: item.kind
       }))
     ];
     const selected = await vscode.window.showQuickPick(items, {
@@ -108,11 +108,11 @@ async function browseSourceTree(
         ' (' + tree.sourceCount + ' sources)'
     });
     if (!selected || !vscode.workspace.isTrusted) { return; }
-    if (selected.kind === 'back') {
+    if (selected.choice === 'back') {
       folder = scarpProjectParent(tree, folder) || '';
       continue;
     }
-    if (selected.kind === 'folder') {
+    if (selected.choice === 'folder') {
       folder = selected.target;
       continue;
     }
@@ -121,6 +121,13 @@ async function browseSourceTree(
     await safeOpen(workspaceRoot, relativeFile);
     return;
   }
+}
+interface SourceTreeChoice extends vscode.QuickPickItem {
+  readonly target: string;
+  readonly choice: 'back' | 'folder' | 'source';
+}
+interface ProjectActionChoice extends vscode.QuickPickItem {
+  readonly choice: 'entry' | 'manifest' | 'tree';
 }
 interface ProjectQuickPick extends vscode.QuickPickItem {
   project: ScarpProjectDescription;
@@ -199,18 +206,19 @@ export function registerWorkspaceProjectExplorer(
     });
     if (!picked || !vscode.workspace.isTrusted) { return; }
     const project = picked.project;
-    const action = await vscode.window.showQuickPick([
-      { label: 'Open Project Entry', kind: 'entry' as const,
+    const actions: ProjectActionChoice[] = [
+      { label: 'Open Project Entry', choice: 'entry',
         description: project.entry },
-      { label: 'Open Project Manifest', kind: 'manifest' as const,
+      { label: 'Open Project Manifest', choice: 'manifest',
         description: project.manifest },
-      { label: 'Browse Project Source Tree', kind: 'tree' as const,
+      { label: 'Browse Project Source Tree', choice: 'tree',
         description: 'Navigate nested Scarp source folders without executing code' }
-    ], {
+    ];
+    const action = await vscode.window.showQuickPick(actions, {
       placeHolder: 'Choose a read-only navigation action for ' + project.name
     });
     if (!action || !vscode.workspace.isTrusted) { return; }
-    if (action.kind === 'tree') {
+    if (action.choice === 'tree') {
       try { await browseSourceTree(root, project); }
       catch (error) {
         void vscode.window.showWarningMessage('Cannot browse Scarp source tree: ' +
@@ -218,7 +226,7 @@ export function registerWorkspaceProjectExplorer(
       }
       return;
     }
-    const selected = action.kind === 'manifest'
+    const selected = action.choice === 'manifest'
       ? project.manifest : projectEntryPath(project);
     if (!selected) {
       void vscode.window.showWarningMessage('Scarp project entry path is unsafe.');
