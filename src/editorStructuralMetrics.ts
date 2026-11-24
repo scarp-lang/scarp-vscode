@@ -1,5 +1,5 @@
 import { scanScarpSymbols, type ScarpSymbolKind } from './documentSymbols';
-import { scanScarpStructure, type ScarpStructure } from './editorStructure';
+import { scanScarpStructure, scarpLineAt, type ScarpStructure } from './editorStructure';
 
 export interface ScarpSourceMetrics {
   readonly sourceBytes: number;
@@ -27,11 +27,6 @@ function physicalLines(source: string): readonly string[] {
   // CRLF is one physical newline. Lone CR is supported for older editor files.
   return source.split(/\r\n|\r|\n/);
 }
-function isCommentOnly(source: string, start: number): boolean {
-  const lineStart = Math.max(source.lastIndexOf('\n', start - 1),
-    source.lastIndexOf('\r', start - 1)) + 1;
-  return source.slice(lineStart, start).trim() === '';
-}
 function symbolsByKind(
   symbols: readonly { kind: ScarpSymbolKind }[], kind: ScarpSymbolKind
 ): number {
@@ -54,8 +49,10 @@ export function scarpSourceMetrics(
   const commentOnlyLines = new Set<number>();
   let trailingComments = 0;
   for (const comment of parsed.comments) {
-    const line = source.slice(0, comment.start).split(/\r\n|\r|\n/).length - 1;
-    if (isCommentOnly(source, comment.start)) { commentOnlyLines.add(line); }
+    const line = scarpLineAt(parsed.lines, comment.start);
+    if (source.slice(parsed.lines[line], comment.start).trim() === '') {
+      commentOnlyLines.add(line);
+    }
     else { trailingComments++; }
   }
   const maxDepth = parsed.pairs.reduce((largest, item) =>
