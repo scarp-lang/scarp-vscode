@@ -156,6 +156,10 @@
     "numbers": {
       "patterns": [
         {
+          "name": "constant.numeric.decimal.scarp",
+          "match": "\\b[0-9]+(?:\\.[0-9]+)?d\\b"
+        },
+        {
           "name": "constant.numeric.scarp",
           "match": "\\b(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\\b"
         }

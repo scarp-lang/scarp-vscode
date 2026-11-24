@@ -16,6 +16,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-alpha20-editor-compatibility:
+    name: Published alpha.20 exact decimals, tuple replacement and editor (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.6-alpha.20
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify immutable published compiler and alpha.20 feature contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "b1a9347f93540fdf95b0ddecba4adc55a3b4bb98"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.6-alpha.20'
+          node scripts/verify-snippets.cjs "$binary" 20
+          sandbox="$(mktemp -d)"
+          trap 'rm -rf "$sandbox"' EXIT
+          cat > "$sandbox/decimal.srp" <<'SRP'
+          bind amount: decimal = 0.1d + 0.2d;
+          print(amount, 42d);
+          SRP
+          "$binary" verify "$sandbox/decimal.srp"
+          test "$("$binary" exec "$sandbox/decimal.srp")" = "0.3 42"
+          cat > "$sandbox/tuple.srp" <<'SRP'
+          var position = (10, 20);
+          bind before = position;
+          position[0] = 50;
+          print(position, before);
+          SRP
+          "$binary" verify "$sandbox/tuple.srp"
+          test "$("$binary" exec "$sandbox/tuple.srp")" = "(50, 20) (10, 20)"
+          printf 'print(1d + 1);\n' > "$sandbox/mixed.srp"
+          if "$binary" verify "$sandbox/mixed.srp"; then
+            echo "Incorrectly accepted implicit decimal/integer mixing" >&2
+            exit 1
+          fi
+          "$binary" init "$sandbox/new-project"
+          test -f "$sandbox/new-project/scarp.project"
+          test ! -f "$sandbox/new-project/Scarp.project"
+          (cd "$sandbox/new-project" && "$binary" exec)
+      - name: Exercise genuine VS Code Extension Host against published alpha.20
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   compiler-alpha19-qualification:
     name: Published alpha.19 compiler + release candidate editor (Linux)
     runs-on: ubuntu-latest
