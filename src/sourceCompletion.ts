@@ -14,6 +14,8 @@ const MAX_TOKENS = 24_000;
 const MAX_DEPTH = 128;
 const MAX_RESULTS = 100;
 const MAX_HEADER_TOKENS = 512;
+const MAX_PATTERN_DEPTH = 32;
+const MAX_PATTERN_NAMES = 128;
 const RESERVED = new Set([
   'bind', 'var', 'funcra', 'pub', 'pure', 'import', 'as', 'record', 'variant',
   'case', 'new', 'if', 'else', 'while', 'repeat', 'break', 'continue', 'return',
@@ -21,7 +23,7 @@ const RESERVED = new Set([
 ]);
 
 interface Binding {
-  readonly symbol: SourceCompletion;
+  readonly symbols: readonly SourceCompletion[];
   assigned: boolean;
 }
 interface Scope {
@@ -107,6 +109,69 @@ function callableHeader(tokens: readonly ScarpToken[], start: number):
   return undefined;
 }
 
+/** Read only a bounded destructuring pattern, not its initializer. */
+function bindingPattern(tokens: readonly ScarpToken[], start: number):
+  { names: ScarpToken[]; next: number } | undefined {
+  const names: ScarpToken[] = [];
+  const seen = new Set<string>();
+  const limit = Math.min(tokens.length, start + MAX_HEADER_TOKENS);
+  let at = start;
+  function member(depth: number): boolean {
+    if (depth > MAX_PATTERN_DEPTH || at >= limit) return false;
+    const token = tokens[at++];
+    if (token.text === '_') return true;
+    if (isName(token)) {
+      if (seen.has(token.text) || names.length >= MAX_PATTERN_NAMES) return false;
+      seen.add(token.text);
+      names.push(token);
+      return true;
+    }
+    const open = token.text;
+    const close = open === '(' ? ')' : open === '[' ? ']' : open === '{' ? '}' : undefined;
+    if (!close) return false;
+    let count = 0;
+    let trailing = false;
+    while (at < limit) {
+      if (tokens[at].text === close) {
+        at++;
+        return count > 0 && (open !== '(' || count > 1 || trailing);
+      }
+      if (count > 0 && !trailing) return false;
+      if (open === '{') {
+        if (!isName(tokens[at]) || tokens[at + 1]?.text !== ':') return false;
+        at += 2;
+      }
+      if (!member(depth + 1)) return false;
+      count++;
+      trailing = tokens[at]?.text === ',';
+      if (trailing) at++;
+      else if (tokens[at]?.text !== close) return false;
+    }
+    return false;
+  }
+  if (!member(0)) return undefined;
+  return { names, next: at };
+}
+
+/** Counted-repeat indices exist only in the body. Complex brace expressions
+ * in the count are deliberately not guessed. */
+function repeatHeader(tokens: readonly ScarpToken[], start: number):
+  { body: number; index: SourceCompletion } | undefined {
+  const depth = tokens[start].depth;
+  const end = Math.min(tokens.length, start + MAX_HEADER_TOKENS);
+  for (let i = start + 1; i < end; i++) {
+    const token = tokens[i];
+    if (token.depth !== depth) continue;
+    if (token.text === ';' || token.text === '}') return undefined;
+    if (token.text === '{') {
+      const name = tokens[i - 1];
+      if (i <= start + 3 || tokens[i - 2]?.text !== 'as' || !isName(name)) return undefined;
+      return { body: i, index: symbol(name, 'constant', 'Immutable integer repeat index') };
+    }
+  }
+  return undefined;
+}
+
 /**
  * Conservative, prefix-only lexical completion. Only complete declarations
  * preceding the replacement token are considered. A closing block discards
@@ -153,19 +218,40 @@ export function scarpSourceCompletions(
           insert(child, header.callable); // recursion
           for (const param of header.parameters) insert(child, param);
           frames.push(child);
+          if (frames.length > MAX_DEPTH) return [];
           i = header.body;
           continue;
         }
       }
       if (keyword === 'bind' || keyword === 'var') {
+        const kind = keyword === 'bind' ? 'constant' : 'variable';
+        const detail = keyword === 'bind' ? 'Immutable binding' : 'Mutable variable';
         const name = tokens[declaration + 1];
         const separator = tokens[declaration + 2]?.text;
         if (isName(name) && (separator === ':' || separator === '=')) {
+          frame.pending = { symbols: [symbol(name, kind, detail)], assigned: false };
+        } else if (name && ['(', '[', '{'].includes(name.text)) {
+          const pattern = bindingPattern(tokens, declaration + 1);
+          if (!pattern || tokens[pattern.next]?.text !== '=') return [];
           frame.pending = {
-            symbol: symbol(name, keyword === 'bind' ? 'constant' : 'variable',
-              keyword === 'bind' ? 'Immutable binding' : 'Mutable variable'),
-            assigned: false
+            symbols: pattern.names.map(item => symbol(item, kind, 'Destructured ' + detail.toLowerCase())),
+            assigned: true
           };
+          frame.statement = false;
+          i = pattern.next;
+          continue;
+        }
+      }
+      if (t === 'repeat') {
+        const header = repeatHeader(tokens, i);
+        if (header) {
+          frame.statement = true;
+          const child = scope('{');
+          insert(child, header.index);
+          frames.push(child);
+          if (frames.length > MAX_DEPTH) return [];
+          i = header.body;
+          continue;
         }
       }
       if (keyword === 'import' && frame.kind === 'root') {
@@ -195,7 +281,7 @@ export function scarpSourceCompletions(
       if (t === '}' && isBlock(parent) && !parent.pending) parent.statement = true;
     } else if (t === ';' && isBlock(frame)) {
       if (frame.pending?.assigned && tokens[i - 1]?.text !== '=') {
-        insert(frame, frame.pending.symbol);
+        for (const item of frame.pending.symbols) insert(frame, item);
       }
       frame.pending = undefined;
       frame.statement = true;

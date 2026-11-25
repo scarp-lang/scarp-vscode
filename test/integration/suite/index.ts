@@ -364,6 +364,22 @@ export async function run(): Promise<void> {
     'vscode.executeCompletionItemProvider', paramsDoc.uri, new vscode.Position(1, 'return first_'.length));
   assert.ok(paramItems?.items.some(item => item.label === 'first_value' &&
     item.kind === vscode.CompletionItemKind.Variable));
+  const loopDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'repeat 3 as loop_index {\nprint(loop_);\n}\nprint(loop_);'
+  });
+  const loopItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', loopDoc.uri, new vscode.Position(1, 'print(loop_'.length));
+  assert.ok(loopItems?.items.some(item => item.label === 'loop_index' &&
+    item.kind === vscode.CompletionItemKind.Constant));
+  const closedLoop = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', loopDoc.uri, new vscode.Position(3, 'print(loop_'.length));
+  assert.ok(!closedLoop?.items.some(item => item.label === 'loop_index'));
+  const patternDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'bind (item_first, item_second) = (1, 2);\nprint(item_);'
+  });
+  const patternItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', patternDoc.uri, new vscode.Position(1, 'print(item_'.length));
+  for (const name of ['item_first', 'item_second']) assert.ok(patternItems?.items.some(item => item.label === name));
   const declaredText = 'funcra text_re';
   const declaredDoc = await vscode.workspace.openTextDocument({
     language: 'scarp', content: declaredText

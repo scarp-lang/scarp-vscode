@@ -17,7 +17,7 @@ export async function run(): Promise<void> {
   const binary = process.env.SCARP_TEST_BINARY;
   const installRoot = process.env.SCARP_PUBLISHED_INSTALL_ROOT;
   const publishedVersion = process.env.SCARP_PUBLISHED_VERSION;
-  assert.match(publishedVersion || '', /^0\.0\.6-alpha\.(17|19)$/,
+  assert.match(publishedVersion || '', /^(?:0\.0\.6-alpha\.(?:17|19)|0\.0\.7-alpha\.1)$/,
     'The native installer must export the exact independently pinned version');
   assert.ok(binary && path.isAbsolute(binary), 'Verified official compiler path is required');
   assert.ok(installRoot && path.isAbsolute(installRoot),
@@ -76,6 +76,34 @@ export async function run(): Promise<void> {
     assert.ok(vscode.languages.getDiagnostics(invalidUri).some(
       item => item.source === 'Scarp' && item.severity === vscode.DiagnosticSeverity.Error
     ), 'Published compiler errors must appear as true Problems diagnostics');
+
+    if (publishedVersion === '0.0.7-alpha.1') {
+      const featureUri = vscode.Uri.file(path.join(tempRoot, 'new series features.srp'));
+      const featureSource = [
+        'bind joined = array_concat([array: 12, 18], [array: 24]);',
+        'print(joined, integer_hcf(24, 36, 60));',
+        ''
+      ].join('\n');
+      await fs.writeFile(featureUri.fsPath, featureSource, 'utf8');
+      const featureDoc = await vscode.workspace.openTextDocument(featureUri);
+      await vscode.window.showTextDocument(featureDoc, { preview: false });
+      await vscode.commands.executeCommand('scarp.checkFile', featureUri);
+      assert.equal(vscode.languages.getDiagnostics(featureUri).length, 0);
+      const hover = await vscode.commands.executeCommand<vscode.Hover[]>(
+        'vscode.executeHoverProvider', featureUri,
+        new vscode.Position(0, featureDoc.lineAt(0).text.indexOf('array_concat') + 2));
+      assert.ok(hover?.some(item => item.contents.some(content =>
+        (typeof content === 'string' ? content : content.value).includes('v0.0.7-alpha.1'))));
+      // Use a distinct URI for the negative fixture so the host does not race
+      // disk-to-buffer reload of the previous document.
+      const wrongUri = vscode.Uri.file(path.join(tempRoot, 'wrong arity.srp'));
+      await fs.writeFile(wrongUri.fsPath, 'print(integer_hcf(1));\n', 'utf8');
+      const wrong = await vscode.workspace.openTextDocument(wrongUri);
+      await vscode.window.showTextDocument(wrong, { preview: false });
+      await vscode.commands.executeCommand('scarp.checkFile', wrongUri);
+      assert.ok(vscode.languages.getDiagnostics(wrongUri).some(item =>
+        item.source === 'Scarp' && item.severity === vscode.DiagnosticSeverity.Error));
+    }
 
     // A fast-running native program may exit before we inspect the terminal
     // collection. Capture its real VS Code open event rather than racing exit.

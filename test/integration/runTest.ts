@@ -37,6 +37,9 @@ async function main(): Promise<void> {
       SCARP_TEST_BINARY: compiler,
       ...(process.env.SCARP_PUBLISHED_INSTALL_ROOT
         ? { SCARP_PUBLISHED_INSTALL_ROOT: process.env.SCARP_PUBLISHED_INSTALL_ROOT }
+        : {}),
+      ...(process.env.SCARP_PUBLISHED_VERSION
+        ? { SCARP_PUBLISHED_VERSION: process.env.SCARP_PUBLISHED_VERSION }
         : {})
     },
     launchArgs: [

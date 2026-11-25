@@ -76,3 +76,38 @@ test('malformed scope, unsupported headers and size limits fail closed', () => {
   const many = Array.from({ length: 150 }, (_, i) => 'bind many_' + i + ' = 1;').join('\n');
   assert.equal(names(many + ' print(', 'many_').length, 100);
 });
+
+test('repeat index is immutable and scoped to its loop, including shadowing', () => {
+  const source = 'bind loop_index = 5; repeat loop_index as loop_index { print(';
+  const inside = scarpSourceCompletions(source, 'loop_');
+  assert.deepEqual(inside.map(x => [x.name, x.kind]), [['loop_index', 'constant']]);
+  assert.equal(inside[0].declaration, source.lastIndexOf('loop_index'));
+  assert.match(inside[0].detail, /repeat index/);
+  const nested = source + '1); repeat 2 as loop_inner { print(';
+  assert.deepEqual(names(nested, 'loop_'), ['loop_inner', 'loop_index']);
+  const closed = nested + '1); } } print(';
+  assert.deepEqual(names(closed, 'loop_'), ['loop_index']);
+  assert.equal(scarpSourceCompletions(closed, 'loop_')[0].declaration, source.indexOf('loop_index'));
+  assert.deepEqual(names('repeat 3 as loop_index { print(1); } print(', 'loop_'), []);
+  assert.deepEqual(names('repeat 3 as loop_index ', 'loop_'), []);
+});
+
+test('destructuring exposes only complete binding leaves, not field labels or discards', () => {
+  const source = 'bind ([(item_quantity, item_price), (_, item_spare)], item_currency) = ' +
+    '([array: (2, 15), (1, 7)], "INR"); print(';
+  assert.deepEqual(names(source, 'item_'), ['item_quantity', 'item_price', 'item_spare', 'item_currency']);
+  assert.deepEqual(names('var [item_first, item_second] = [array: 3, 5]; print(', 'item_'),
+    ['item_first', 'item_second']);
+  assert.ok(scarpSourceCompletions('var [item_first, item_second] = [array: 3, 5]; print(', 'item_')
+    .every(item => item.kind === 'variable'));
+  assert.deepEqual(names('bind {item_field: item_value} = point; print(', 'item_'), ['item_value']);
+  assert.deepEqual(names('bind (item_first, item_second) = (1, ', 'item_'), []);
+  assert.deepEqual(names('bind (item_first, item_second) = ; print(', 'item_'), []);
+  assert.deepEqual(names('if true { bind (item_first, item_second) = (1, 2); } print(', 'item_'), []);
+  for (const malformed of [
+    'bind (item_first) = 1; print(',
+    'bind (item_first, item_first) = (1, 2); print(',
+    'bind {item_field} = point; print(',
+    'bind [item_first,, item_second] = values; print('
+  ]) assert.deepEqual(names(malformed, 'item_'), [], malformed);
+});

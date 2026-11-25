@@ -2,7 +2,9 @@
 
 ## Unreleased — v0.1.6 development
 
-- Add conservative, bounded current-document symbol completion for preceding simple bindings, mutable variables, typed parameters, functions and module aliases; exclude closed block declarations, avoid inferred captures, reuse full-identifier replacement and preserve compiler-free Restricted Mode support. Include unit and genuine Extension Host regressions.
+- Improve compiler distribution reliability: choose the highest eligible semantic version within the official bounded release catalogue; reject duplicate matching assets and duplicate selected tags. Preserve all historical native package checks and add a separately pinned v0.0.7-alpha.1 native installer and real VS Code Host gate for Windows x64, Linux x64 and Apple Silicon macOS, including modern project and interpreter contracts. No publication or automatic installation.
+
+- Add conservative, bounded current-document symbol completion for preceding simple bindings, mutable variables, typed parameters, functions, repeat indices, destructured binding leaves and module aliases; exclude closed block declarations, avoid inferred captures, reuse full-identifier replacement and preserve compiler-free Restricted Mode support. Include unit and genuine Extension Host regressions.
 
 - Improve builtin IntelliSense with a shared bounded UTF-16 lexical scanner, full-identifier replacement when completing mid-word, multiline qualifier/declaration rejection, grouping-aware signature help, and safe recovery from clipped source windows. Add unit and real VS Code Host regressions, including Restricted Mode. No compiler invocation or automatic execution is introduced.
 
