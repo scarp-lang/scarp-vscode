@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { gunzipSync, inflateRawSync } from 'node:zlib';
 import { executeProcess } from './cli';
+import { compareCompilerVersions, parseCompilerVersion } from './compilerStatus';
 
 const RELEASES_API = 'https://api.github.com/repos/scarp-lang/scarp/releases?per_page=10';
 export const OFFICIAL_RELEASES_URL = 'https://github.com/scarp-lang/scarp/releases';
@@ -68,8 +69,9 @@ export function supportedCompilerTarget(
 }
 
 function versionFromTag(tag: string): string | undefined {
-  return /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[0-9A-Za-z.-]*[0-9A-Za-z])?)?$/.test(tag)
-    ? tag.slice(1) : undefined;
+  if (!tag.startsWith('v') || tag.length > 128) return undefined;
+  const version = tag.slice(1);
+  return parseCompilerVersion(version) ? version : undefined;
 }
 
 export function choosePublishedCompiler(
@@ -83,20 +85,36 @@ export function choosePublishedCompiler(
   if (!Array.isArray(releases) || releases.length > 10) {
     return fail('invalid official release catalogue');
   }
-  // GitHub returns releases newest first. Only an actual published release,
-  // never a draft, is eligible for installation.
+  // Release publication order is not semantic version order (backports may
+  // be published later). Rank complete host packages within the bounded API
+  // catalogue before inspecting the selected package's security metadata.
+  const candidates: { release: Partial<OfficialRelease>; version: string }[] = [];
   for (const item of releases) {
     if (!item || typeof item !== 'object') { continue; }
     const release = item as Partial<OfficialRelease>;
     const version = typeof release.tag_name === 'string'
       ? versionFromTag(release.tag_name) : undefined;
-    if (!version || release.draft !== false || !release.published_at ||
+    if (!version || release.draft !== false ||
+        typeof release.published_at !== 'string' || !release.published_at ||
         !Array.isArray(release.assets)) { continue; }
+    candidates.push({ release, version });
+  }
+  candidates.sort((left, right) => compareCompilerVersions(right.version, left.version) ?? 0);
+  for (const { release, version } of candidates) {
     const filename = 'scarp-' + version + '-' + target +
       (platform === 'win32' ? '.zip' : '.tar.gz');
-    const asset = release.assets.find(x => x.name === filename);
-    const checksum = release.assets.find(x => x.name === filename + '.sha256');
+    const assets = release.assets!;
+    const archives = assets.filter(x => x && typeof x === 'object' && x.name === filename);
+    const checksums = assets.filter(x => x && typeof x === 'object' && x.name === filename + '.sha256');
+    if (archives.length > 1 || checksums.length > 1) {
+      return fail('ambiguous official asset metadata: ' + filename);
+    }
+    const asset = archives[0];
+    const checksum = checksums[0];
     if (!asset || !checksum) { continue; }
+    if (candidates.filter(item => item.version === version).length > 1) {
+      return fail('ambiguous official release tag: v' + version);
+    }
     for (const entry of [asset, checksum]) {
       const expected = OFFICIAL_RELEASES_URL + '/download/' +
         release.tag_name + '/' + entry.name;
