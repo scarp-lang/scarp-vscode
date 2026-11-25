@@ -37,7 +37,7 @@ interface Scope {
 function scope(kind: Scope['kind'], callable = false): Scope {
   return { kind, callable, symbols: new Map(), statement: kind === 'root' || kind === '{' };
 }
-function isName(token: ScarpToken | undefined): token is ScarpToken {
+function isName(token: ScarpToken | undefined): token is ScarpToken & { kind: 'word' } {
   return token !== undefined && token.kind === 'word' && !RESERVED.has(token.text) &&
     token.text.length <= 64;
 }
