@@ -1,11 +1,14 @@
 import { PUBLISHED_SCARP_BUILTINS, type ScarpBuiltinHelp } from './builtinHelp';
 import { blockedBuiltinName, previousCodeToken, scanBuiltinContext } from './builtinLexicalContext';
 
-export interface ScarpBuiltinCompletion {
+export interface ScarpCompletionPrefix {
   readonly start: number;
   /** End of the entire identifier, including text after the cursor. */
   readonly end: number;
   readonly prefix: string;
+}
+
+export interface ScarpBuiltinCompletion extends ScarpCompletionPrefix {
   readonly matches: readonly ScarpBuiltinHelp[];
 }
 
@@ -16,9 +19,9 @@ const MIN_PREFIX = 2;
  * full-token replacement range so mid-word completion cannot duplicate suffixes.
  * Prior lines (if supplied) must end at a line boundary.
  */
-export function scarpBuiltinCompletionAt(
+export function scarpCompletionPrefixAt(
   line: string, character: number, preceding = ''
-): ScarpBuiltinCompletion | undefined {
+): ScarpCompletionPrefix | undefined {
   if (!Number.isSafeInteger(character) || character < 0 || character > line.length) {
     return undefined;
   }
@@ -33,10 +36,15 @@ export function scarpBuiltinCompletionAt(
   const prefix = token.text.slice(0, cursor - token.start);
   if (prefix.length < MIN_PREFIX || prefix.length > 64 || token.text.length > 64) return undefined;
 
-  const matches = PUBLISHED_SCARP_BUILTINS.filter(help => help.name.startsWith(prefix));
-  return matches.length ? {
-    start: token.start - preceding.length,
-    end: token.end - preceding.length,
-    prefix, matches
-  } : undefined;
+  return { start: token.start - preceding.length,
+    end: token.end - preceding.length, prefix };
+}
+
+export function scarpBuiltinCompletionAt(
+  line: string, character: number, preceding = ''
+): ScarpBuiltinCompletion | undefined {
+  const range = scarpCompletionPrefixAt(line, character, preceding);
+  if (!range) return undefined;
+  const matches = PUBLISHED_SCARP_BUILTINS.filter(help => help.name.startsWith(range.prefix));
+  return matches.length ? { ...range, matches } : undefined;
 }

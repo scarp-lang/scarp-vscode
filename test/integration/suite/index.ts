@@ -347,6 +347,23 @@ export async function run(): Promise<void> {
     'vscode.executeSignatureHelpProvider', windowDoc.uri,
     new vscode.Position(windowLines.length - 1, windowLines[windowLines.length - 1].length), ',');
   assert.equal(windowHint?.activeParameter, 1);
+  const localSource = 'bind local_value = 7;\nif true { bind local_hidden = 1; }\nprint(local_old);';
+  const localDoc = await vscode.workspace.openTextDocument({ language: 'scarp', content: localSource });
+  const localItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', localDoc.uri, new vscode.Position(2, 'print(local_'.length));
+  const localItem = localItems?.items.find(item => item.label === 'local_value');
+  assert.ok(localItem?.range instanceof vscode.Range);
+  assert.equal(localItem.kind, vscode.CompletionItemKind.Constant);
+  assert.equal(localItem.range.start.character, 6);
+  assert.equal(localItem.range.end.character, 15);
+  assert.ok(!localItems?.items.some(item => item.label === 'local_hidden'));
+  const paramsDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'pure funcra calculate(first_value: integer) -> integer {\nreturn first_\n}'
+  });
+  const paramItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', paramsDoc.uri, new vscode.Position(1, 'return first_'.length));
+  assert.ok(paramItems?.items.some(item => item.label === 'first_value' &&
+    item.kind === vscode.CompletionItemKind.Variable));
   const declaredText = 'funcra text_re';
   const declaredDoc = await vscode.workspace.openTextDocument({
     language: 'scarp', content: declaredText

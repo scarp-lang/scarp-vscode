@@ -31,7 +31,8 @@ import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
 import { scarpSignatureAt } from './builtinSignature';
-import { scarpBuiltinCompletionAt } from './builtinCompletion';
+import { scarpBuiltinCompletionAt, scarpCompletionPrefixAt } from './builtinCompletion';
+import { scarpSourceCompletions, SOURCE_COMPLETION_LIMIT, type SourceCompletionKind } from './sourceCompletion';
 import { BUILTIN_CONTEXT_LIMIT } from './builtinLexicalContext';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
 import { registerScarpEditorProviders } from './editorProviders';
@@ -1614,8 +1615,15 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     '(', ','
   );
-  // Static suggestions never invoke the compiler, query the network or
-  // invent user-defined symbols. Manual Ctrl+Space works in Restricted Mode.
+  // Both completion sources are lexical and compiler-free. The current
+  // unsaved document is the only source of user-defined candidates.
+  const sourceKinds: Record<SourceCompletionKind, vscode.CompletionItemKind> = {
+    function: vscode.CompletionItemKind.Function,
+    constant: vscode.CompletionItemKind.Constant,
+    variable: vscode.CompletionItemKind.Variable,
+    parameter: vscode.CompletionItemKind.Variable,
+    import: vscode.CompletionItemKind.Module
+  };
   const builtinCompletions = vscode.languages.registerCompletionItemProvider(
     { language: 'scarp' },
     {
@@ -1625,10 +1633,12 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         const preceding = builtinPreceding(document, position.line);
         if (preceding === undefined) return [];
-        const suggestion = scarpBuiltinCompletionAt(
-          document.lineAt(position.line).text, position.character, preceding);
-        if (!suggestion) { return []; }
-        return suggestion.matches.map(meta => {
+        const line = document.lineAt(position.line).text;
+        const prefix = scarpCompletionPrefixAt(line, position.character, preceding);
+        if (!prefix) return [];
+        const range = new vscode.Range(position.line, prefix.start, position.line, prefix.end);
+        const suggestion = scarpBuiltinCompletionAt(line, position.character, preceding);
+        const items = (suggestion?.matches ?? []).map(meta => {
           const item = new vscode.CompletionItem(
             meta.name, vscode.CompletionItemKind.Function);
           item.detail = meta.signature + ' · Scarp ' + meta.introduced + '+' +
@@ -1640,11 +1650,29 @@ export function activate(context: vscode.ExtensionContext): void {
           docs.appendMarkdown(meta.summary + '\n\n**Constraints:** ' + meta.constraints +
             '\n\n*Lexical reference only. Verify with the installed Scarp compiler.*');
           item.documentation = docs;
-          item.range = new vscode.Range(position.line, suggestion.start,
-            position.line, suggestion.end);
+          item.range = range;
           item.insertText = meta.name;
+          item.sortText = '1_' + meta.name;
           return item;
         });
+        const start = document.offsetAt(range.start);
+        if (start > SOURCE_COMPLETION_LIMIT || token.isCancellationRequested) return items;
+        const source = document.getText(new vscode.Range(new vscode.Position(0, 0), range.start));
+        const known = new Set(items.map(item => String(item.label)));
+        for (const candidate of scarpSourceCompletions(source, prefix.prefix)) {
+          if (known.has(candidate.name)) continue;
+          const item = new vscode.CompletionItem(candidate.name, sourceKinds[candidate.kind]);
+          item.range = range;
+          item.insertText = candidate.name;
+          item.detail = candidate.detail + ' · current document';
+          item.sortText = '0_' + candidate.name;
+          const docs = new vscode.MarkdownString();
+          docs.isTrusted = false;
+          docs.appendText('Lexical declaration in the current editor buffer. The Scarp compiler is authoritative.');
+          item.documentation = docs;
+          items.push(item);
+        }
+        return items;
       }
     }
   );
