@@ -217,3 +217,31 @@ test('array concatenation keeps generic commas separate from source argument com
     assert.equal(scarpSignatureAt('// ' + name + '('), undefined);
   }
 });
+
+test('grouped expressions retain their enclosing call without miscounting inner commas', () => {
+  assert.equal(scarpSignatureAt('integer_gcd((1 + ')?.activeParameter, 0);
+  assert.equal(scarpSignatureAt('integer_gcd((1 + 2), (3 + ')?.activeParameter, 1);
+  assert.equal(scarpSignatureAt('integer_gcd((integer_abs(-2')?.help.name, 'integer_abs');
+  assert.equal(scarpSignatureAt('integer_gcd((custom('), undefined);
+  assert.equal(scarpSignatureAt('array_concat((first), ')?.activeParameter, 1);
+});
+
+test('truncated source windows recover only unmatched leading closing delimiters', () => {
+  const source = '}\n);\ninteger_gcd(1, ';
+  assert.equal(scarpSignatureAt(source), undefined);
+  assert.equal(scarpSignatureAt(source, true)?.help.name, 'integer_gcd');
+  assert.equal(scarpSignatureAt(source, true)?.activeParameter, 1);
+  assert.equal(scarpSignatureAt('}\ninteger_gcd([1), ', true), undefined);
+  assert.equal(scarpSignatureAt('}\ninteger_gcd((1, ', true)?.activeParameter, 0);
+});
+
+test('signature help follows lexical qualification across comment and line boundaries', () => {
+  for (const source of ['module. // note\ninteger_gcd(', 'Type::\ninteger_gcd(',
+    'funcra // note\ninteger_gcd(', '123integer_gcd(', 'new integer_gcd(']) {
+    assert.equal(scarpSignatureAt(source), undefined, source);
+  }
+  assert.equal(scarpSignatureAt('integer_gcd // comment\n(1, ')?.activeParameter, 1);
+  assert.equal(scarpSignatureAt('bind value =\ninteger_gcd(1, ')?.activeParameter, 1);
+  assert.equal(scarpSignatureAt('integer_gcd(1, // unfinished'), undefined);
+  assert.equal(scarpSignatureAt('"broken\\\ninteger_gcd(1, ')?.activeParameter, 1);
+});

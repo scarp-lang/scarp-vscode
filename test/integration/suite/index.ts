@@ -313,6 +313,40 @@ export async function run(): Promise<void> {
   assert.ok(textReplace, 'Scarp builtin completion must be registered');
   assert.equal(textReplace.kind, vscode.CompletionItemKind.Function);
   assert.match(textReplace.detail ?? '', /Scarp v0\.0\.6-alpha\.6/);
+  // The actual provider must replace a suffix when invoked mid-identifier.
+  const midSource = 'bind result = integer_gc_old(2, 4);';
+  const midDoc = await vscode.workspace.openTextDocument({ language: 'scarp', content: midSource });
+  const midStart = midSource.indexOf('integer_gc_old');
+  const midItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', midDoc.uri,
+    new vscode.Position(0, midStart + 'integer_gc'.length));
+  const midItem = midItems?.items.find(item => item.label === 'integer_gcd');
+  assert.ok(midItem?.range instanceof vscode.Range);
+  assert.equal(midItem.range.start.character, midStart);
+  assert.equal(midItem.range.end.character, midStart + 'integer_gc_old'.length);
+  const qualifiedDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'module. // split qualifier\ninteger_gcd(2, 4);'
+  });
+  const qualifiedHover = await vscode.commands.executeCommand<vscode.Hover[]>(
+    'vscode.executeHoverProvider', qualifiedDoc.uri, new vscode.Position(1, 3));
+  assert.ok(!qualifiedHover?.some(item => item.contents.some(value =>
+    (typeof value === 'string' ? value : value.value).includes('integer_gcd(left:'))));
+  const groupedSource = 'integer_gcd(12, (18 + ';
+  const groupedDoc = await vscode.workspace.openTextDocument({ language: 'scarp', content: groupedSource });
+  const groupedHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', groupedDoc.uri,
+    new vscode.Position(0, groupedSource.length), '(');
+  assert.equal(groupedHint?.activeParameter, 1);
+  assert.match(groupedHint?.signatures[0].label ?? '', /^integer_gcd\(/);
+  const windowLines = ['funcra example() {', ...Array.from({ length: 30 }, () => ''), '}',
+    'integer_gcd(12, '];
+  const windowDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: windowLines.join('\n')
+  });
+  const windowHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', windowDoc.uri,
+    new vscode.Position(windowLines.length - 1, windowLines[windowLines.length - 1].length), ',');
+  assert.equal(windowHint?.activeParameter, 1);
   const declaredText = 'funcra text_re';
   const declaredDoc = await vscode.workspace.openTextDocument({
     language: 'scarp', content: declaredText

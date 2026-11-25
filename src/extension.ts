@@ -32,6 +32,7 @@ import { browseProjectSymbols } from './projectSymbolBrowser';
 import { scarpBuiltinAt } from './builtinHelp';
 import { scarpSignatureAt } from './builtinSignature';
 import { scarpBuiltinCompletionAt } from './builtinCompletion';
+import { BUILTIN_CONTEXT_LIMIT } from './builtinLexicalContext';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
 import { registerScarpEditorProviders } from './editorProviders';
 import { registerWorkspaceImportExplorer } from './editorWorkspaceExplorer';
@@ -1540,6 +1541,17 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     { label: 'Scarp declarations' }
   );
+  // Read bounded context at whole-line boundaries without allocating an entire
+  // document or a huge line. The current line is included for replacement ranges.
+  function builtinPreceding(document: vscode.TextDocument, line: number): string | undefined {
+    const current = document.lineAt(line);
+    const end = document.offsetAt(current.range.end);
+    const currentStart = document.offsetAt(current.range.start);
+    if (end - currentStart > BUILTIN_CONTEXT_LIMIT) return undefined;
+    let first = Math.max(0, line - 8);
+    while (first < line && end - document.offsetAt(new vscode.Position(first, 0)) > BUILTIN_CONTEXT_LIMIT) first++;
+    return document.getText(new vscode.Range(new vscode.Position(first, 0), current.range.start));
+  }
   // Static, read-only help remains available in Restricted Mode. No compiler
   // executable is launched by pointer movement or hover requests.
   const builtinHover = vscode.languages.registerHoverProvider({ language: 'scarp' }, {
@@ -1547,10 +1559,14 @@ export function activate(context: vscode.ExtensionContext): void {
       if (token.isCancellationRequested || position.line >= document.lineCount) {
         return undefined;
       }
+      const preceding = builtinPreceding(document, position.line);
+      if (preceding === undefined) return undefined;
       const line = document.lineAt(position.line).text;
-      const nextLine = position.line + 1 < document.lineCount
-        ? document.lineAt(position.line + 1).text : '';
-      const call = scarpBuiltinAt(line, position.character, nextLine);
+      const following = position.line + 1 < document.lineCount
+        ? document.lineAt(position.line + 1) : undefined;
+      const nextLine = following && following.range.end.character <= BUILTIN_CONTEXT_LIMIT
+        ? following.text : '';
+      const call = scarpBuiltinAt(line, position.character, nextLine, preceding);
       if (!call) { return undefined; }
       const hover = new vscode.MarkdownString();
       hover.isTrusted = false;
@@ -1576,9 +1592,14 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         // Avoid scanning an entire file while typing. A truncated prefix can
         // simply omit help for a call opened too far above the cursor.
-        const start = new vscode.Position(Math.max(0, position.line - 24), 0);
+        const cursor = document.offsetAt(position);
+        let first = Math.max(0, position.line - 24);
+        while (first < position.line &&
+            cursor - document.offsetAt(new vscode.Position(first, 0)) > BUILTIN_CONTEXT_LIMIT) first++;
+        const start = new vscode.Position(first, 0);
+        if (cursor - document.offsetAt(start) > BUILTIN_CONTEXT_LIMIT) return undefined;
         const prefix = document.getText(new vscode.Range(start, position));
-        const hint = scarpSignatureAt(prefix);
+        const hint = scarpSignatureAt(prefix, first > 0);
         if (!hint) { return undefined; }
         const signature = new vscode.SignatureInformation(hint.help.signature,
           hint.help.summary + '\n\n' + hint.help.constraints + '\n\nRequires ' + hint.help.introduced +
@@ -1602,8 +1623,10 @@ export function activate(context: vscode.ExtensionContext): void {
         if (token.isCancellationRequested || position.line >= document.lineCount) {
           return [];
         }
+        const preceding = builtinPreceding(document, position.line);
+        if (preceding === undefined) return [];
         const suggestion = scarpBuiltinCompletionAt(
-          document.lineAt(position.line).text, position.character);
+          document.lineAt(position.line).text, position.character, preceding);
         if (!suggestion) { return []; }
         return suggestion.matches.map(meta => {
           const item = new vscode.CompletionItem(
@@ -1618,7 +1641,7 @@ export function activate(context: vscode.ExtensionContext): void {
             '\n\n*Lexical reference only. Verify with the installed Scarp compiler.*');
           item.documentation = docs;
           item.range = new vscode.Range(position.line, suggestion.start,
-            position.line, position.character);
+            position.line, suggestion.end);
           item.insertText = meta.name;
           return item;
         });

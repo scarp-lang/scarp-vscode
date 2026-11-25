@@ -126,6 +126,14 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static signature help must never execute the configured compiler');
 
+    const splitDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'module. // qualifier\ninteger_gcd(2, 4)'
+    });
+    const splitHover = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider', splitDoc.uri, new vscode.Position(1, 3));
+    assert.ok(!splitHover?.some(item => item.contents.some(value =>
+      (typeof value === 'string' ? value : value.value).includes('integer_gcd(left:'))));
+
     // Compiler-free builtin completions remain available in Restricted Mode.
     const completionDoc = await vscode.workspace.openTextDocument({
       language: 'scarp', content: 'bind value = top_p_val'
