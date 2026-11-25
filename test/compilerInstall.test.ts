@@ -14,18 +14,18 @@ const VERSION = '0.0.6-alpha.17';
 const TARGET_WIN = 'x86_64-pc-windows-msvc';
 const TARGET_LINUX = 'x86_64-unknown-linux-gnu';
 
-function metadata(platform: 'win32' | 'linux'): CompilerPackage {
+function metadata(platform: 'win32' | 'linux', version = VERSION): CompilerPackage {
   const target = platform === 'win32' ? TARGET_WIN : TARGET_LINUX;
-  const filename = 'scarp-' + VERSION + '-' + target +
+  const filename = 'scarp-' + version + '-' + target +
     (platform === 'win32' ? '.zip' : '.tar.gz');
   const assets = [filename, filename + '.sha256'].map(name => ({
     name, size: 4, digest: 'sha256:' + 'a'.repeat(64),
     browser_download_url: 'https://github.com/scarp-lang/scarp/releases/download/v' +
-      VERSION + '/' + name
+      version + '/' + name
   }));
   return {
-    version: VERSION, target, archive: assets[0], checksum: assets[1],
-    packageRoot: 'scarp-' + VERSION + '-' + target,
+    version, target, archive: assets[0], checksum: assets[1],
+    packageRoot: 'scarp-' + version + '-' + target,
     binaryName: platform === 'win32' ? 'scarp.exe' : 'scarp'
   };
 }
@@ -366,4 +366,55 @@ test('CI-only GitHub API authentication never reaches asset or redirect hosts', 
   }
   assert.equal(officialDownloadHeaders('api.github.com').Authorization, undefined,
     'Normal extension requests must remain unauthenticated by default');
+});
+
+test('official catalogue selects the highest complete host version rather than publication order', () => {
+  const versions = ['0.0.6-alpha.20', '0.0.7-alpha.1', '0.0.6-alpha.99',
+    '0.0.7-alpha.10', '0.0.7-alpha.2'];
+  const releases = versions.map(version => ({
+    tag_name: 'v' + version, draft: false, published_at: '2026-11-25',
+    assets: releaseAssets(metadata('win32', version))
+  }));
+  for (const catalogue of [releases, [...releases].reverse(), [...releases.slice(2), ...releases.slice(0, 2)]]) {
+    assert.equal(choosePublishedCompiler(catalogue, 'win32', 'x64').version, '0.0.7-alpha.10');
+  }
+  assert.deepEqual(releases.map(item => item.tag_name), versions.map(v => 'v' + v),
+    'Selection must not mutate release metadata');
+  const noWindows = {
+    tag_name: 'v0.0.8-alpha.1', draft: false, published_at: '2026-11-25',
+    assets: releaseAssets(metadata('linux', '0.0.8-alpha.1'))
+  };
+  assert.equal(choosePublishedCompiler([noWindows, ...releases], 'win32', 'x64').version,
+    '0.0.7-alpha.10');
+  assert.equal(choosePublishedCompiler([noWindows, ...releases], 'linux', 'x64').version,
+    '0.0.8-alpha.1');
+  const stable = { tag_name: 'v0.0.7', draft: false, published_at: '2026-11-25',
+    assets: releaseAssets(metadata('win32', '0.0.7')) };
+  assert.equal(choosePublishedCompiler([...releases, stable], 'win32', 'x64').version, '0.0.7');
+});
+
+test('newest complete package fails closed on ambiguity or invalid metadata', () => {
+  const makeRelease = (version: string) => ({
+    tag_name: 'v' + version, draft: false, published_at: '2026-11-25',
+    assets: releaseAssets(metadata('win32', version))
+  });
+  const old = makeRelease('0.0.6-alpha.20');
+  const latest = makeRelease('0.0.7-alpha.1');
+  const invalid = { ...latest, assets: [{ ...latest.assets[0], digest: 'invalid' }, latest.assets[1]] };
+  assert.throws(() => choosePublishedCompiler([old, invalid], 'win32', 'x64'),
+    /unexpected official asset metadata/);
+  assert.throws(() => choosePublishedCompiler([old, { ...latest, assets: [...latest.assets, latest.assets[0]] }],
+    'win32', 'x64'), /ambiguous official asset metadata/);
+  assert.throws(() => choosePublishedCompiler([latest, latest], 'win32', 'x64'),
+    /ambiguous official release tag/);
+  for (const version of ['0.0.7-alpha.01', '0.0.7-alpha..1', '00.0.7-alpha.1',
+    '9007199254740992.0.0']) {
+    assert.equal(choosePublishedCompiler([makeRelease(version), old], 'win32', 'x64').version,
+      '0.0.6-alpha.20');
+  }
+  const missingChecksum = { ...latest, assets: [latest.assets[0]] };
+  assert.equal(choosePublishedCompiler([missingChecksum, old], 'win32', 'x64').version,
+    '0.0.6-alpha.20');
+  assert.equal(choosePublishedCompiler([{ ...latest, draft: true }, old], 'win32', 'x64').version,
+    '0.0.6-alpha.20');
 });

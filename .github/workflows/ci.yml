@@ -385,6 +385,45 @@ jobs:
           SCARP_TEST_SUITE: published
         run: npm run test:integration
 
+  published-native-007-artifact:
+    name: Published v0.0.7-alpha.1 native package + VS Code Host (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # GitHub's public macOS runner is Apple Silicon, matching the
+        # published aarch64-apple-darwin archive. Fail closed otherwise.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - name: Build extension and real native installer
+        run: npm run build
+      - name: Download pinned public compiler and install using extension code
+        # This tests release consumption only; it never publishes anything.
+        # The script verifies independently pinned SHA-256 asset digests,
+        # installs real downloaded bytes and exports SCARP_TEST_BINARY.
+        # Scope GitHub's read-only Actions token to this step's API metadata;
+        # never forward it to browser asset URLs or redirect hosts.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SCARP_NATIVE_PACKAGE_VERSION: 0.0.7-alpha.1
+        run: node scripts/verify-published-compiler.cjs
+      - name: Exercise verified published compiler in VS Code (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          SCARP_TEST_SUITE: published
+        run: xvfb-run -a npm run test:integration
+      - name: Exercise verified published compiler in VS Code (Windows/macOS)
+        if: matrix.os != 'ubuntu-latest'
+        env:
+          SCARP_TEST_SUITE: published
+        run: npm run test:integration
+
   compiler-smoke:
     name: Pinned official Scarp CLI smoke test
     runs-on: ubuntu-latest

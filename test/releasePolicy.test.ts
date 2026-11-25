@@ -565,3 +565,29 @@ test('the new compiler series adds an immutable nonpublishing compatibility gate
   assert.match(gate, /npm run test:integration/);
   assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
 });
+
+test('new-series native distribution qualification retains historic checks and pins all public digests', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const start = ci.indexOf('  published-native-007-artifact:');
+  const end = ci.indexOf('  compiler-smoke:', start);
+  assert.ok(start > 0 && end > start);
+  const gate = ci.slice(start, end);
+  assert.match(gate, /SCARP_NATIVE_PACKAGE_VERSION: 0\.0\.7-alpha\.1/);
+  assert.match(gate, /ubuntu-latest, windows-latest, macos-latest/);
+  assert.match(gate, /verify-published-compiler\.cjs/);
+  assert.match(gate, /SCARP_TEST_SUITE: published/);
+  assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
+  const script = repoFile('scripts/verify-published-compiler.cjs');
+  for (const hash of [
+    '371eeabd1b35e9e3530ce44f13d90f376972b0650df9d41ce79a41c814875924',
+    '458d2217de7f9b53473c8cf94ba182dbeefd17ad722ce3c684c5e612ff1593e6',
+    'f034432f46c12720b74ec303446fb46ecef483abdc942bcb9eaca41ea349cb5c',
+    '84d072812c11d03008613451d7148ea1dc52ff9bf9a264dab0a781844875887a',
+    '63697cb53224cf0a22a38a28ae7887b8c694979d54ee780dc0639f1057409909',
+    'c44502f63d73e79ec0780d028d17f2477147b5f163796d35704da591d23728ca'
+  ]) assert.ok(script.includes(hash), hash);
+  assert.match(script, /array_concat/);
+  assert.match(script, /integer_hcf/);
+  assert.match(script, /scarp\.project/);
+  assert.match(repoFile('test/integration/runTest.ts'), /SCARP_PUBLISHED_VERSION/);
+});

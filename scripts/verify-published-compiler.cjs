@@ -19,7 +19,7 @@ const run = promisify(execFile);
 // Backward compatibility and the latest independently reviewed native assets.
 // Normal setup never reads this CI-only selector.
 const VERSION = process.env.SCARP_NATIVE_PACKAGE_VERSION || '0.0.6-alpha.17';
-if (!['0.0.6-alpha.17', '0.0.6-alpha.19'].includes(VERSION)) {
+if (!['0.0.6-alpha.17', '0.0.6-alpha.19', '0.0.7-alpha.1'].includes(VERSION)) {
   throw new Error('Unsupported CI native package version: ' + VERSION);
 }
 const TAG = 'v' + VERSION;
@@ -55,14 +55,29 @@ const PINNED_SHA256 = Object.freeze({
       archive: '5eb73cacc13b21f40e3448310b4f9e5582935250c833108d0493b02db7f65c96',
       checksum: 'c7bcc5393b44f13a69917ac8f92da6bf7c89599b12b07cf1526f24983dbc6dc4'
     }
+  },
+  '0.0.7-alpha.1': {
+    'x86_64-pc-windows-msvc': {
+      archive: '371eeabd1b35e9e3530ce44f13d90f376972b0650df9d41ce79a41c814875924',
+      checksum: '458d2217de7f9b53473c8cf94ba182dbeefd17ad722ce3c684c5e612ff1593e6'
+    },
+    'x86_64-unknown-linux-gnu': {
+      archive: 'f034432f46c12720b74ec303446fb46ecef483abdc942bcb9eaca41ea349cb5c',
+      checksum: '84d072812c11d03008613451d7148ea1dc52ff9bf9a264dab0a781844875887a'
+    },
+    'aarch64-apple-darwin': {
+      archive: '63697cb53224cf0a22a38a28ae7887b8c694979d54ee780dc0639f1057409909',
+      checksum: 'c44502f63d73e79ec0780d028d17f2477147b5f163796d35704da591d23728ca'
+    }
   }
 });
 
-async function runCompiler(binary, args) {
+async function runCompiler(binary, args, cwd) {
   return run(binary, args, {
     timeout: 15000,
     maxBuffer: 128 * 1024,
-    windowsHide: true
+    windowsHide: true,
+    cwd
   });
 }
 
@@ -123,6 +138,41 @@ async function main() {
   const execution = await runCompiler(actualBinary, ['exec', '--', source]);
   assert.equal(execution.stdout, 'Hello from Scarp!\n');
   assert.equal(execution.stderr, '');
+
+  if (VERSION === '0.0.7-alpha.1') {
+    const workspace = await fs.mkdtemp(path.join(tempRoot, 'scarp-native-contract-'));
+    try {
+      const filename = path.join(workspace, 'new series.srp');
+      await fs.writeFile(filename, [
+        'bind first = [array: 12, 18];',
+        'bind joined = array_concat(first, [array: 24]);',
+        'print(first);',
+        'print(joined);',
+        'print(integer_gcd(24, 36, 60), integer_hcf(24, 36, 60), integer_lcm(4, 6, 10));',
+        'print(0.1d + 0.2d);',
+        ''
+      ].join('\n'), 'utf8');
+      const verified = await runCompiler(actualBinary, ['verify', '--', filename]);
+      assert.equal(verified.stdout, '');
+      assert.equal(verified.stderr, '');
+      const executed = await runCompiler(actualBinary, ['exec', '--', filename]);
+      assert.equal(executed.stdout.replace(/\r\n/g, '\n'),
+        '[array: 12, 18]\n[array: 12, 18, 24]\n12 12 60\n0.3\n');
+      assert.equal(executed.stderr, '');
+
+      const project = path.join(workspace, 'new project');
+      await runCompiler(actualBinary, ['init', project]);
+      assert.ok((await fs.stat(path.join(project, 'scarp.project'))).isFile());
+      const names = await fs.readdir(project);
+      assert.ok(!names.includes('Scarp.project'), 'The new project must use the lowercase filename');
+      // Real default-entry execution from a path with spaces on every host.
+      const entry = await runCompiler(actualBinary, ['exec'], project);
+      assert.equal(entry.stdout.replace(/\r\n/g, '\n'), 'Hello from Scarp!\n');
+      assert.equal(entry.stderr, '');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }
 
   // A second explicit install must reuse a valid existing executable and
   // never fetch another archive. The offline reuse test asserts this as well.
