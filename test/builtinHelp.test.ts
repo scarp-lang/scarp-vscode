@@ -298,3 +298,17 @@ test('0.0.7-alpha.1 contracts distinguish new calls from expanded historical cal
   assert.equal(scarpBuiltinAt('softplus(values)', 2)!.help.signature,
     'softplus(values: vector) -> vector');
 });
+
+test('hover rejects digit-leading, qualified and multiline declaration names', () => {
+  for (const line of ['123integer_gcd(2, 4)', 'Type::integer_gcd(2, 4)',
+    'new integer_gcd(2, 4)', 'case integer_gcd(2, 4)']) {
+    assert.equal(scarpBuiltinAt(line, line.indexOf('integer_gcd') + 2), undefined, line);
+  }
+  for (const preceding of ['module.\n', 'module. // comment\r\n', 'Type::\n', 'funcra\n', 'new\n']) {
+    assert.equal(scarpBuiltinAt('integer_gcd(2, 4)', 2, '', preceding), undefined, preceding);
+  }
+  assert.equal(scarpBuiltinAt('integer_gcd(2, 4)', 2, '', 'bind value =\n')?.help.name,
+    'integer_gcd');
+  assert.equal(scarpBuiltinAt('integer_gcd(2, 4)', 2, '', '// module.\n')?.help.name,
+    'integer_gcd');
+});

@@ -1,3 +1,5 @@
+import { BUILTIN_CONTEXT_LIMIT, blockedBuiltinName, previousCodeToken, scanBuiltinContext } from './builtinLexicalContext';
+
 /**
  * Lightweight, editor-only help for published numerical, text, input and collection Scarp built-ins.
  *
@@ -700,66 +702,28 @@ export function scarpBuiltinByName(name: string): ScarpBuiltinHelp | undefined {
 export const PUBLISHED_SCARP_BUILTINS: readonly ScarpBuiltinHelp[] =
   Object.freeze(Object.values(HELP));
 
-function identifierStart(ch: string | undefined): boolean {
-  return ch !== undefined && /[A-Za-z_]/.test(ch);
-}
-
-function identifierPart(ch: string | undefined): boolean {
-  return ch !== undefined && /[A-Za-z_0-9]/.test(ch);
-}
-
 /**
- * Find help only when the pointer is on a real, unqualified call-name token.
- * Scarp double-quoted strings do not span source lines; // starts a comment.
- *
- * The following line is inspected solely for an opening parenthesis after
- * whitespace, allowing calls formatted as "topk\n(". File-sized parsing and
- * all compiler invocation are deliberately avoided on mouse movement.
+ * Find help only on an unqualified call name. Bounded preceding lines preserve
+ * lexical context for declarations and qualified names split across lines.
+ * Following-line lookahead intentionally does not jump over comments.
  */
 export function scarpBuiltinAt(
-  line: string, character: number, nextLine = ''
+  line: string, character: number, nextLine = '', preceding = ''
 ): ScarpBuiltinCall | undefined {
   if (!Number.isSafeInteger(character) || character < 0 ||
-      character >= line.length || line.length > 16384 || nextLine.length > 16384) {
-    return undefined;
-  }
-
-  let i = 0;
-  let previousToken = '';
-  while (i < line.length) {
-    const ch = line[i];
-    if (ch === '/' && line[i + 1] === '/') { return undefined; }
-    if (ch === '"') {
-      // Match the TextMate string boundary: escaped quotes do not end a string.
-      i++;
-      while (i < line.length) {
-        if (line[i] === '\\') { i = Math.min(line.length, i + 2); }
-        else if (line[i++] === '"') { break; }
-      }
-      previousToken = 'string';
-      continue;
-    }
-    if (/\s/.test(ch)) { i++; continue; }
-    if (identifierStart(ch)) {
-      const start = i++;
-      while (identifierPart(line[i])) { i++; }
-      const name = line.slice(start, i);
-      if (character >= start && character < i) {
-        const help = scarpBuiltinByName(name);
-        if (!help || previousToken === 'funcra' || previousToken === '.') {
-          return undefined;
-        }
-        // A lexical hint only: imports or local declarations may still
-        // affect semantic resolution, which remains the compiler's job.
-        const lookahead = line.slice(i) + '\n' + nextLine;
-        if (!/^\s*\(/.test(lookahead)) { return undefined; }
-        return { help, start, end: i };
-      }
-      previousToken = name;
-      continue;
-    }
-    previousToken = ch;
-    i++;
-  }
-  return undefined;
+      character >= line.length || nextLine.length > BUILTIN_CONTEXT_LIMIT) return undefined;
+  const tokens = scanBuiltinContext(preceding + line);
+  if (!tokens) return undefined;
+  const cursor = preceding.length + character;
+  const index = tokens.findIndex(token => token.kind === 'word' &&
+    token.start >= preceding.length && token.start <= cursor && cursor < token.end);
+  if (index < 0) return undefined;
+  const token = tokens[index];
+  if (blockedBuiltinName(previousCodeToken(tokens, index))) return undefined;
+  const help = scarpBuiltinByName(token.text);
+  if (!help) return undefined;
+  const start = token.start - preceding.length;
+  const end = token.end - preceding.length;
+  if (!/^\s*\(/.test(line.slice(end) + '\n' + nextLine)) return undefined;
+  return { help, start, end };
 }

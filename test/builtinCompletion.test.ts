@@ -187,3 +187,31 @@ test('new-series completions preserve exact introduction and variadic availabili
     assert.equal(meta?.variadicSince, 'v0.0.7-alpha.1');
   }
 });
+
+test('mid-identifier completion replaces the complete UTF-16 token, never its suffix alone', () => {
+  const line = 'print("🙂"); bind result = integer_gd_old(2, 4);';
+  const start = line.indexOf('integer_gd_old');
+  const cursor = start + 'integer_gd'.length;
+  const hint = scarpBuiltinCompletionAt(line, cursor);
+  assert.ok(hint);
+  assert.equal(hint.start, start);
+  assert.equal(hint.end, start + 'integer_gd_old'.length);
+  assert.equal(hint.prefix, 'integer_gd');
+  assert.deepEqual(hint.matches.map(item => item.name), ['integer_gcd']);
+  const replaced = line.slice(0, hint.start) + hint.matches[0].name + line.slice(hint.end);
+  assert.equal(replaced, 'print("🙂"); bind result = integer_gcd(2, 4);');
+});
+
+test('completion uses previous source tokens across whitespace and comments', () => {
+  for (const preceding of ['module.\n', 'module . // alias\r\n', 'Type::\n',
+    'pure funcra\n', 'bind // new name\n', 'record\n', 'variant\n', 'new\n', 'case\n']) {
+    assert.equal(scarpBuiltinCompletionAt('  integer_gc', 12, preceding), undefined, preceding);
+  }
+  for (const preceding of ['bind result =\n', '// comment with module.\n', 'print("module.");\n']) {
+    assert.equal(scarpBuiltinCompletionAt('  integer_gc', 12, preceding)?.matches[0].name,
+      'integer_gcd', preceding);
+  }
+  assert.equal(scarpBuiltinCompletionAt('123integer_gc', 13), undefined);
+  assert.equal(scarpBuiltinCompletionAt('Type::integer_gc', 16), undefined);
+  assert.equal(scarpBuiltinCompletionAt('integer_gc', 10, ' '.repeat(16384)), undefined);
+});
