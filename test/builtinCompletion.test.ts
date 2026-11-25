@@ -189,14 +189,14 @@ test('new-series completions preserve exact introduction and variadic availabili
 });
 
 test('mid-identifier completion replaces the complete UTF-16 token, never its suffix alone', () => {
-  const line = 'print("🙂"); bind result = integer_gd_old(2, 4);';
-  const start = line.indexOf('integer_gd_old');
-  const cursor = start + 'integer_gd'.length;
+  const line = 'print("🙂"); bind result = integer_gc_old(2, 4);';
+  const start = line.indexOf('integer_gc_old');
+  const cursor = start + 'integer_gc'.length;
   const hint = scarpBuiltinCompletionAt(line, cursor);
   assert.ok(hint);
   assert.equal(hint.start, start);
-  assert.equal(hint.end, start + 'integer_gd_old'.length);
-  assert.equal(hint.prefix, 'integer_gd');
+  assert.equal(hint.end, start + 'integer_gc_old'.length);
+  assert.equal(hint.prefix, 'integer_gc');
   assert.deepEqual(hint.matches.map(item => item.name), ['integer_gcd']);
   const replaced = line.slice(0, hint.start) + hint.matches[0].name + line.slice(hint.end);
   assert.equal(replaced, 'print("🙂"); bind result = integer_gcd(2, 4);');

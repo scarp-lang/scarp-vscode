@@ -1559,11 +1559,13 @@ export function activate(context: vscode.ExtensionContext): void {
       if (token.isCancellationRequested || position.line >= document.lineCount) {
         return undefined;
       }
-      const line = document.lineAt(position.line).text;
-      const nextLine = position.line + 1 < document.lineCount
-        ? document.lineAt(position.line + 1).text : '';
       const preceding = builtinPreceding(document, position.line);
       if (preceding === undefined) return undefined;
+      const line = document.lineAt(position.line).text;
+      const following = position.line + 1 < document.lineCount
+        ? document.lineAt(position.line + 1) : undefined;
+      const nextLine = following && following.range.end.character <= BUILTIN_CONTEXT_LIMIT
+        ? following.text : '';
       const call = scarpBuiltinAt(line, position.character, nextLine, preceding);
       if (!call) { return undefined; }
       const hover = new vscode.MarkdownString();

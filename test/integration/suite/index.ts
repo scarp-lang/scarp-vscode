@@ -314,16 +314,16 @@ export async function run(): Promise<void> {
   assert.equal(textReplace.kind, vscode.CompletionItemKind.Function);
   assert.match(textReplace.detail ?? '', /Scarp v0\.0\.6-alpha\.6/);
   // The actual provider must replace a suffix when invoked mid-identifier.
-  const midSource = 'bind result = integer_gd_old(2, 4);';
+  const midSource = 'bind result = integer_gc_old(2, 4);';
   const midDoc = await vscode.workspace.openTextDocument({ language: 'scarp', content: midSource });
-  const midStart = midSource.indexOf('integer_gd_old');
+  const midStart = midSource.indexOf('integer_gc_old');
   const midItems = await vscode.commands.executeCommand<vscode.CompletionList>(
     'vscode.executeCompletionItemProvider', midDoc.uri,
-    new vscode.Position(0, midStart + 'integer_gd'.length));
+    new vscode.Position(0, midStart + 'integer_gc'.length));
   const midItem = midItems?.items.find(item => item.label === 'integer_gcd');
   assert.ok(midItem?.range instanceof vscode.Range);
   assert.equal(midItem.range.start.character, midStart);
-  assert.equal(midItem.range.end.character, midStart + 'integer_gd_old'.length);
+  assert.equal(midItem.range.end.character, midStart + 'integer_gc_old'.length);
   const qualifiedDoc = await vscode.workspace.openTextDocument({
     language: 'scarp', content: 'module. // split qualifier\ninteger_gcd(2, 4);'
   });
