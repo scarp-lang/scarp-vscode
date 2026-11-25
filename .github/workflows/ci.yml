@@ -16,6 +16,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-007-alpha1-editor-compatibility:
+    name: Published v0.0.7-alpha.1 editor contracts (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.7-alpha.1
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify published compiler and new builtin contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "996bd5b83c8cb26e98637563729f67bdacc61cd4"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -F '0.0.7-alpha.1'
+          node scripts/verify-snippets.cjs "$binary" v0.0.7-alpha.1
+          for example in array_concat integer_reductions; do
+            "$binary" verify "compiler/examples/$example.srp"
+            "$binary" exec "compiler/examples/$example.srp" | diff - "compiler/examples/$example.stdout"
+          done
+          cargo test --locked --manifest-path compiler/Cargo.toml --test numerical_kernels softplus_matches_reference_values_including_the_small_negative_tail
+          sandbox="$(mktemp -d)"
+          trap 'rm -rf "$sandbox"' EXIT
+          printf 'print(softplus([0.0]));\n' > "$sandbox/softplus.srp"
+          "$binary" verify "$sandbox/softplus.srp"
+          "$binary" exec "$sandbox/softplus.srp"
+          for invalid in 'print(integer_hcf(1));' 'print(array_concat([array: 1], [array: true]));' 'print(softplus(1.0));'; do
+            printf '%s\n' "$invalid" > "$sandbox/invalid.srp"
+            if "$binary" verify "$sandbox/invalid.srp"; then
+              echo "Compiler incorrectly accepted: $invalid" >&2
+              exit 1
+            fi
+          done
+      - name: Exercise genuine VS Code Extension Host against published v0.0.7-alpha.1
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   compiler-alpha20-editor-compatibility:
     name: Published alpha.20 exact decimals, tuple replacement and editor (Linux)
     runs-on: ubuntu-latest

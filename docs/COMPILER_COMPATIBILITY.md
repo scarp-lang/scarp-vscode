@@ -21,6 +21,9 @@ This document tracks the **published** Scarp compiler contracts used by the VS C
 | v0.0.6-alpha.18+ | Default-entry `scarp exec` with no source argument and immutable `array_set`; editor commands probe installed CLI capabilities before execution |
 | v0.0.6-alpha.19+ | New Rust-host callable embedding/usage accounting APIs only; no first-class callable Scarp source values or new VS Code CLI protocol |
 | v0.0.6-alpha.20+ | Exact lowercase `d` decimal literals (`0.1d`, `42d`); constant-index assignment to mutable tuples with persistent snapshots; lexicographic comparison of compatible numeric tuples; `scarp init` / `scarp create` now scaffold lowercase `scarp.project`. Experimental Linux x86-64 pure-function object generation is a Rust embedding API, **not** an editor execution mode. |
+| v0.0.7-alpha.1+ | Pure fixed-array `array_concat` with inferred combined length; new `integer_hcf` alias and expanded `integer_gcd` / `integer_lcm` (2–1,024 operands); stable vector `softplus`. The experimental expanded x86-64 native subset is still a Rust API, not a CLI or VS Code native compilation mode. |
+
+The new-series editor reference is compiler-free and version-labeled. The binary GCD and LCM signatures remain valid on v0.0.6-alpha.16 and later; the additional operands and new names need v0.0.7-alpha.1. The installed compiler is authoritative for actual type checking and execution.
 
 The v0.1.6 dedicated lowercase `scarp.project` language is lexical editor assistance only. Published alpha.20 creates lowercase v2 project manifests. Alpha.19 and older binaries may scaffold uppercase manifests; uppercase `Scarp.project` remains a separately recognized legacy manifest. The editor never rewrites either format.
 

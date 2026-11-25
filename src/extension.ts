@@ -1581,7 +1581,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const hint = scarpSignatureAt(prefix);
         if (!hint) { return undefined; }
         const signature = new vscode.SignatureInformation(hint.help.signature,
-          hint.help.summary + ' Requires ' + hint.help.introduced +
+          hint.help.summary + '\n\n' + hint.help.constraints + '\n\nRequires ' + hint.help.introduced +
           ' or later; the installed compiler is authoritative.');
         signature.parameters = hint.parameters.map(p => new vscode.ParameterInformation(p));
         const help = new vscode.SignatureHelp();
@@ -1608,7 +1608,9 @@ export function activate(context: vscode.ExtensionContext): void {
         return suggestion.matches.map(meta => {
           const item = new vscode.CompletionItem(
             meta.name, vscode.CompletionItemKind.Function);
-          item.detail = meta.signature + ' · Scarp ' + meta.introduced + '+';
+          item.detail = meta.signature + ' · Scarp ' + meta.introduced + '+' +
+            (meta.variadicSince && meta.variadicSince !== meta.introduced
+              ? ' · additional operands: ' + meta.variadicSince + '+' : '');
           const docs = new vscode.MarkdownString();
           docs.isTrusted = false;
           docs.supportHtml = false;

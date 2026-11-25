@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Align the editor-only builtin reference with published Scarp v0.0.7-alpha.1: fixed-array concatenation, integer HCF, stable vector softplus and version-labeled variadic GCD/LCM. Preserve historical binary compatibility and explicit-only interpreter execution. Add lexical, signature, completion, real Extension Host and pinned compiler contract regressions. Add three opt-in starter snippets, and use series-aware verification so historical alpha cutoffs never include new-series syntax. No extension version bump or publication.
+
 - Independently verify **both alpha.17 and alpha.19 published native compiler archives** on Windows x64, Linux x64 and Apple Silicon macOS. Pin archive and checksum-sidecar SHA-256 digests per immutable release; reuse the actual opt-in downloader/installer and validate the downloaded CLI in a real VS Code Extension Host. Historical distribution coverage remains intact and nothing is published automatically.
 
 - Keep project creation prompts and success logs accurate with both published and development compiler scaffolds: identify the invoked `scarp create` or `scarp init` verb instead of assuming either always emits a legacy or lowercase declarative manifest. Preserve existing non-overwrite and Workspace Trust safeguards with unit coverage.

@@ -9,13 +9,13 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 28 bounded Scarp snippets with unique prefixes', () => {
+test('registers 31 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets, [
     { language: 'scarp', path: './snippets/scarp.code-snippets' },
     { language: 'scarp-project', path: './snippets/scarp-project.code-snippets' }
   ]);
-  assert.equal(Object.keys(snippets).length, 28);
+  assert.equal(Object.keys(snippets).length, 31);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -52,6 +52,10 @@ test('documents minimum compiler version and noninteractive input behavior', () 
     }
     if (name.includes('(alpha.20)')) {
       assert.match(snippet.description, /v0\.0\.6-alpha\.20\+/);
+    }
+    if (name.includes('(v0.0.7-alpha.1)')) {
+      assert.match(snippet.description, /v0\.0\.7-alpha\.1\+/);
+      assert.match(snippet.description, /interpreter only/);
     }
   }
   assert.match(snippets['Scarp: Read redirected input (alpha.6)'].description,
@@ -183,3 +187,20 @@ test('alpha.20 snippets describe exact decimals and persistent tuple replacement
   const ci = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   assert.ok(ci.includes('verify-snippets.cjs "$binary" 20'));
 });
+
+test('new series snippets show fixed arrays, integer reductions and vector softplus', () => {
+  const array = snippets['Scarp: Fixed array concatenation (v0.0.7-alpha.1)'];
+  assert.equal(array.prefix, 'sarrayconcat');
+  assert.match(array.body.join('\n'), /array_concat\(/);
+  assert.match(array.description, /persistent snapshots/);
+  const integer = snippets['Scarp: Variadic integer reductions (v0.0.7-alpha.1)'];
+  assert.equal(integer.prefix, 'sintegerreduce');
+  for (const name of ['integer_gcd', 'integer_hcf', 'integer_lcm']) {
+    assert.ok(integer.body.some(line => line.includes(name + '(')));
+  }
+  assert.match(integer.description, /1,024/);
+  const softplus = snippets['Scarp: Vector softplus (v0.0.7-alpha.1)'];
+  assert.equal(softplus.prefix, 'ssoftplus');
+  assert.match(softplus.body.join('\n'), /: vector = softplus\(/);
+});
+

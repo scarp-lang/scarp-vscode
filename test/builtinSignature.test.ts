@@ -13,7 +13,7 @@ const builtins = [
   'decimal', 'decimal_from_integer', 'decimal_to_integer', 'decimal_to_text',
   'decimal_round', 'decimal_format', 'decimal_div_rounded', 'input_decimal',
   'list_len', 'list_push', 'list_set', 'list_remove', 'map_len', 'map_keys', 'map_values', 'map_contains', 'map_get_or', 'map_set', 'map_remove',
-  'median', 'quantile', 'text_lower', 'text_upper', 'text_reverse', 'text_from_codepoint', 'text_rfind', 'text_count', 'bits_count_ones', 'bits_leading_zeros', 'bits_trailing_zeros', 'bits_reverse', 'bits_swap_bytes', 'bits_rotate_left', 'bits_rotate_right', 'integer_abs', 'integer_sign', 'integer_gcd', 'integer_lcm', 'array_set'
+  'median', 'quantile', 'text_lower', 'text_upper', 'text_reverse', 'text_from_codepoint', 'text_rfind', 'text_count', 'bits_count_ones', 'bits_leading_zeros', 'bits_trailing_zeros', 'bits_reverse', 'bits_swap_bytes', 'bits_rotate_left', 'bits_rotate_right', 'integer_abs', 'integer_sign', 'integer_gcd', 'integer_lcm', 'array_set', 'array_concat', 'integer_hcf', 'softplus'
 ];
 
 test('all published builtins provide signature help without invoking the compiler', () => {
@@ -22,7 +22,7 @@ test('all published builtins provide signature help without invoking the compile
     assert.ok(hint, name);
     assert.equal(hint.help.name, name);
     assert.match(hint.help.signature, new RegExp('^' + name + '\\('));
-    assert.ok(hint.help.introduced.startsWith('v0.0.6-alpha.'));
+    assert.match(hint.help.introduced, /^v0\.0\.[67]-alpha\.\d+$/);
     assert.equal(hint.activeParameter, 0);
   }
   const zero = scarpSignatureAt('read_line(');
@@ -160,7 +160,7 @@ test('alpha.16 signature help tracks arity and nested arguments', () => {
     ['value: string', 'needle: string']);
   assert.equal(scarpSignatureAt('bits_rotate_right(15, ')?.activeParameter, 1);
   assert.deepEqual(scarpSignatureAt('integer_lcm(')?.parameters,
-    ['left: integer', 'right: integer']);
+    ['left: integer', 'right: integer', '...more: integer']);
   assert.equal(scarpSignatureAt('my_module.quantile('), undefined);
   assert.equal(scarpSignatureAt('print("quantile(1, 2)"), '), undefined);
 });
@@ -188,4 +188,32 @@ test('published alpha.18 array_set signature treats fixed-array generics as one 
   assert.equal(hint?.activeParameter, 2);
   assert.equal(scarpSignatureAt('module.array_set('), undefined);
   assert.equal(scarpSignatureAt('// array_set('), undefined);
+});
+
+test('variadic integer signatures keep the active rest parameter across nested arguments', () => {
+  for (const name of ['integer_gcd', 'integer_hcf', 'integer_lcm']) {
+    const args = ['','2, ', '2, 3, ', '2, integer_abs(-3), 4, ',
+      Array.from({ length: 1023 }, () => '1').join(',') + ','];
+    for (const [index, source] of args.entries()) {
+      const hint = scarpSignatureAt(name + '(' + source);
+      assert.ok(hint);
+      assert.deepEqual(hint.parameters, ['left: integer', 'right: integer', '...more: integer']);
+      assert.equal(hint.activeParameter, Math.min(index, 2));
+      assert.equal(hint.help.variadicSince, 'v0.0.7-alpha.1');
+    }
+    assert.equal(scarpSignatureAt(name + '(2, 3, unknown('), undefined);
+    assert.equal(scarpSignatureAt(name + '(2, 3, 4)'), undefined);
+  }
+});
+
+test('array concatenation keeps generic commas separate from source argument commas', () => {
+  const hint = scarpSignatureAt('array_concat([array: 1, 2], ');
+  assert.deepEqual(hint?.parameters, ['left: array<T, M>', 'right: array<T, N>']);
+  assert.equal(hint?.activeParameter, 1);
+  assert.equal(scarpSignatureAt('softplus([1.0, ')?.activeParameter, 0);
+  for (const name of ['array_concat', 'integer_hcf', 'softplus']) {
+    assert.equal(scarpSignatureAt('module.' + name + '('), undefined);
+    assert.equal(scarpSignatureAt('funcra ' + name + '('), undefined);
+    assert.equal(scarpSignatureAt('// ' + name + '('), undefined);
+  }
 });
