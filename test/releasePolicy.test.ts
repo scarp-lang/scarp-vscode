@@ -561,7 +561,7 @@ test('the new compiler series adds an immutable nonpublishing compatibility gate
   assert.match(gate, /996bd5b83c8cb26e98637563729f67bdacc61cd4/);
   assert.match(gate, /array_concat integer_reductions/);
   assert.match(gate, /softplus_matches_reference_values_including_the_small_negative_tail/);
-  assert.match(gate, /verify-snippets\.cjs/);
+  assert.match(gate, /verify-snippets\.cjs "\$binary" v0\.0\.7-alpha\.1/);
   assert.match(gate, /npm run test:integration/);
   assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
 });

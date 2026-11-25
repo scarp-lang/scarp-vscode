@@ -41,7 +41,7 @@ jobs:
           cargo build --locked --release --manifest-path compiler/Cargo.toml
           binary="$PWD/compiler/target/release/scarp"
           "$binary" --version | grep -F '0.0.7-alpha.1'
-          node scripts/verify-snippets.cjs "$binary" 20
+          node scripts/verify-snippets.cjs "$binary" v0.0.7-alpha.1
           for example in array_concat integer_reductions; do
             "$binary" verify "compiler/examples/$example.srp"
             "$binary" exec "compiler/examples/$example.srp" | diff - "compiler/examples/$example.stdout"

@@ -7,17 +7,20 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { parseSnippetCutoff, snippetSupported } = require('./snippet-compatibility.cjs');
 const binary = process.argv[2];
 if (!binary || !path.isAbsolute(binary) || !fs.existsSync(binary)) {
   process.stderr.write('Usage: node scripts/verify-snippets.cjs <absolute-compiler-path>\n');
   process.exit(2);
 }
-// An older published compiler must not be asked to verify newer syntax.
-const maxAlphaArg = process.argv[3];
-const maxAlpha = maxAlphaArg === undefined ? Infinity : Number(maxAlphaArg);
-if (maxAlphaArg !== undefined &&
-    (!/^[1-9][0-9]*$/.test(maxAlphaArg) || !Number.isSafeInteger(maxAlpha))) {
-  process.stderr.write('Optional second argument must be a positive compiler alpha number.\n');
+// Numeric cutoffs are retained for historical v0.0.6 jobs. Full versions
+// are required for newer compiler series so alpha numbering cannot reset.
+let cutoff;
+try {
+  if (process.argv.length > 4) throw Error('Unexpected extra arguments');
+  cutoff = parseSnippetCutoff(process.argv[3]);
+} catch (error) {
+  process.stderr.write('Optional second argument must be a positive v0.0.6 alpha number or a full v0.0.x-alpha.N version: ' + error.message + '\n');
   process.exit(2);
 }
 const snippets = JSON.parse(fs.readFileSync(
@@ -41,8 +44,7 @@ const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'scarp-snippets-'));
 try {
   let count = 0;
   for (const [name, snippet] of Object.entries(snippets)) {
-    const introduced = /\(alpha\.(\d+)\)$/.exec(name);
-    if (introduced && Number(introduced[1]) > maxAlpha) continue;
+    if (!snippetSupported(name, cutoff)) continue;
     if (!Array.isArray(snippet.body)) throw Error('Malformed snippet: ' + name);
     const source = expand(snippet.body);
     if (source.includes('$' + '{') || /\$[0-9]+/.test(source)) {
