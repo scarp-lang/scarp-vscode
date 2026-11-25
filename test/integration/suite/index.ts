@@ -270,6 +270,28 @@ export async function run(): Promise<void> {
   assert.match(outerHint.signatures[0].label, /^top_p\(/);
   assert.equal(outerHint.activeParameter, 1);
   assert.equal(outerHint.signatures[0].parameters.length, 2);
+  const variadicSource = 'integer_gcd(12, 18, 30, ';
+  const variadicDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: variadicSource
+  });
+  const variadicHint = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', variadicDoc.uri,
+    new vscode.Position(0, variadicSource.length), ',');
+  assert.ok(variadicHint?.signatures.length);
+  assert.equal(variadicHint.activeParameter, 2);
+  assert.equal(variadicHint.signatures[0].parameters.length, 3);
+  assert.match(variadicHint.signatures[0].label, /\.\.\.more: integer/);
+  assert.match(String(variadicHint.signatures[0].documentation), /v0\.0\.7-alpha\.1/);
+  const latestSource = 'array_concat(first, second)';
+  const latestDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: latestSource
+  });
+  const latestHover = await vscode.commands.executeCommand<vscode.Hover[]>(
+    'vscode.executeHoverProvider', latestDoc.uri, new vscode.Position(0, 4));
+  const latestHelp = latestHover?.flatMap(item => item.contents)
+    .map(item => typeof item === 'string' ? item : item.value).join('\n') ?? '';
+  assert.match(latestHelp, /v0\.0\.7-alpha\.1/);
+  assert.match(latestHelp, /4,096/);
   const nonBuiltin = await vscode.workspace.openTextDocument({
     language: 'scarp', content: 'funcra top_p('
   });

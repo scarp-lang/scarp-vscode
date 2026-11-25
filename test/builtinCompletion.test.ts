@@ -4,7 +4,7 @@ import { scarpBuiltinCompletionAt } from '../src/builtinCompletion';
 import { PUBLISHED_SCARP_BUILTINS } from '../src/builtinHelp';
 
 test('all published builtins are discoverable with typed prefixes', () => {
-  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 90);
+  assert.equal(PUBLISHED_SCARP_BUILTINS.length, 93);
   for (const builtIn of PUBLISHED_SCARP_BUILTINS) {
     const line = 'bind result = ' + builtIn.name;
     const hint = scarpBuiltinCompletionAt(line, line.length);
@@ -141,9 +141,9 @@ test('alpha.16 completions expose the precise published groups without false pos
 
 test('published alpha.17 array access and Boolean prompt complete only in source expressions', () => {
   const arrays = scarpBuiltinCompletionAt('bind count = array_', 'bind count = array_'.length);
-  assert.deepEqual(arrays?.matches.map(item => item.name), ['array_len', 'array_get_or', 'array_set']);
+  assert.deepEqual(arrays?.matches.map(item => item.name), ['array_len', 'array_get_or', 'array_set', 'array_concat']);
   assert.deepEqual(arrays?.matches.map(item => item.introduced), [
-    'v0.0.6-alpha.17', 'v0.0.6-alpha.17', 'v0.0.6-alpha.18'
+    'v0.0.6-alpha.17', 'v0.0.6-alpha.17', 'v0.0.6-alpha.18', 'v0.0.7-alpha.1'
   ]);
   const prompt = scarpBuiltinCompletionAt('bind ok = input_bo', 'bind ok = input_bo'.length);
   assert.deepEqual(prompt?.matches.map(item => item.name), ['input_boolean']);
@@ -169,5 +169,21 @@ test('published alpha.18 persistent array update suggests only true call sites',
     'array_set_helper'
   ]) {
     assert.equal(scarpBuiltinCompletionAt(line, line.length), undefined, line);
+  }
+});
+
+test('new-series completions preserve exact introduction and variadic availability', () => {
+  for (const name of ['array_concat', 'integer_hcf', 'softplus']) {
+    const matches = scarpBuiltinCompletionAt(name, name.length)?.matches;
+    assert.equal(matches?.find(item => item.name === name)?.introduced, 'v0.0.7-alpha.1');
+    for (const source of ['module.' + name, '// ' + name, 'funcra ' + name,
+      'bind ' + name, 'print("' + name, name + '_custom']) {
+      assert.equal(scarpBuiltinCompletionAt(source, source.length), undefined, source);
+    }
+  }
+  for (const name of ['integer_gcd', 'integer_lcm']) {
+    const meta = scarpBuiltinCompletionAt(name, name.length)?.matches[0];
+    assert.equal(meta?.introduced, 'v0.0.6-alpha.16');
+    assert.equal(meta?.variadicSince, 'v0.0.7-alpha.1');
   }
 });

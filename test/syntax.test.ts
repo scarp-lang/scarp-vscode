@@ -474,3 +474,19 @@ test('published alpha.18 array_set has a builtin scope only at genuine calls', a
   assert.ok(hasScope(tokens('pure funcra array_set(values: integer) {', grammar),
     name, 'entity.name.function.definition.scarp'));
 });
+
+test('published 0.0.7-alpha.1 calls have builtin scopes without coloring declarations or text', async () => {
+  const grammar = await tokenizer();
+  for (const name of ['array_concat', 'integer_hcf', 'softplus']) {
+    assert.ok(hasScope(tokens('bind result = ' + name + '(x);', grammar),
+      name, 'support.function.builtin.scarp'));
+    for (const source of ['// ' + name + '(x)', 'print("' + name + '(x)");',
+      'bind result = ' + name + ';', 'bind result = ' + name + '_helper(x);']) {
+      assert.ok(!hasScope(tokens(source, grammar), name, 'support.function.builtin.scarp'), source);
+    }
+    assert.ok(!hasScope(tokens(name + '_helper(x);', grammar),
+      name + '_helper', 'support.function.builtin.scarp'));
+    assert.ok(hasScope(tokens('pure funcra ' + name + '(value: integer) {', grammar),
+      name, 'entity.name.function.definition.scarp'));
+  }
+});

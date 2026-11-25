@@ -92,7 +92,10 @@ const versions: Record<string, string> = {
   array_len: 'v0.0.6-alpha.17',
   array_get_or: 'v0.0.6-alpha.17',
   input_boolean: 'v0.0.6-alpha.17',
-  array_set: 'v0.0.6-alpha.18'
+  array_set: 'v0.0.6-alpha.18',
+  array_concat: 'v0.0.7-alpha.1',
+  integer_hcf: 'v0.0.7-alpha.1',
+  softplus: 'v0.0.7-alpha.1'
 };
 
 test('every shipped numerical built-in has a bounded and versioned hover signature', () => {
@@ -272,4 +275,26 @@ test('published alpha.18 persistent array_set hover preserves immutable semantic
   ]) {
     assert.equal(scarpBuiltinAt(line, line.indexOf('array_set') + 2), undefined, line);
   }
+});
+
+test('0.0.7-alpha.1 contracts distinguish new calls from expanded historical calls', () => {
+  for (const name of ['integer_gcd', 'integer_lcm', 'integer_hcf']) {
+    const help = scarpBuiltinAt(name + '(2, 4, 6)', 2)?.help;
+    assert.ok(help);
+    assert.equal(help.variadicSince, 'v0.0.7-alpha.1');
+    assert.match(help.signature, /\.\.\.more: integer/);
+    assert.match(help.constraints, /1,024/);
+    assert.equal(help.introduced, name === 'integer_hcf'
+      ? 'v0.0.7-alpha.1' : 'v0.0.6-alpha.16');
+  }
+  assert.match(scarpBuiltinAt('integer_lcm(2, 4, 0)', 2)!.help.constraints, /zero operand returns 0/);
+  const array = scarpBuiltinAt('array_concat(first, second)', 3)!.help;
+  assert.match(array.signature, /array<T, M \+ N>/);
+  assert.match(array.constraints, /identical element types/);
+  assert.match(array.constraints, /4,096/);
+  assert.match(array.constraints, /E0062/);
+  assert.match(array.constraints, /E0064/);
+  assert.match(array.constraints, /empty operand/);
+  assert.equal(scarpBuiltinAt('softplus(values)', 2)!.help.signature,
+    'softplus(values: vector) -> vector');
 });

@@ -9,6 +9,8 @@ export interface ScarpBuiltinHelp {
   readonly name: string;
   readonly signature: string;
   readonly introduced: string;
+  /** First release supporting the additional variadic operands, if applicable. */
+  readonly variadicSince?: string;
   readonly summary: string;
   readonly constraints: string;
 }
@@ -30,6 +32,7 @@ const alpha12 = 'v0.0.6-alpha.12';
 const alpha16 = 'v0.0.6-alpha.16';
 const alpha17 = 'v0.0.6-alpha.17';
 const alpha18 = 'v0.0.6-alpha.18';
+const alpha7Series1 = 'v0.0.7-alpha.1';
 
 const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   topk: {
@@ -622,17 +625,27 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
   },
   integer_gcd: {
     name: 'integer_gcd',
-    signature: 'integer_gcd(left: integer, right: integer) -> integer',
+    signature: 'integer_gcd(left: integer, right: integer, ...more: integer) -> integer',
     introduced: alpha16,
-    summary: 'Returns the greatest common divisor of two signed 64-bit integers.',
-    constraints: 'Uses nonnegative magnitudes; gcd(0, 0) = 0. A nonrepresentable positive result causes overflow.'
+    variadicSince: alpha7Series1,
+    summary: 'Returns the greatest common divisor of signed 64-bit integers.',
+    constraints: 'Binary calls require v0.0.6-alpha.16+; 2–1,024 operands require v0.0.7-alpha.1+ for more than two. Uses nonnegative magnitudes; gcd(0, 0) = 0. A nonrepresentable positive result causes overflow.'
+  },
+  integer_hcf: {
+    name: 'integer_hcf',
+    signature: 'integer_hcf(left: integer, right: integer, ...more: integer) -> integer',
+    introduced: alpha7Series1,
+    variadicSince: alpha7Series1,
+    summary: 'Alias for integer_gcd: returns the highest common factor of signed 64-bit integers.',
+    constraints: 'Requires 2–1,024 integer operands. Uses nonnegative magnitudes; all-zero operands return 0. A nonrepresentable positive result causes overflow.'
   },
   integer_lcm: {
     name: 'integer_lcm',
-    signature: 'integer_lcm(left: integer, right: integer) -> integer',
+    signature: 'integer_lcm(left: integer, right: integer, ...more: integer) -> integer',
     introduced: alpha16,
-    summary: 'Returns the nonnegative least common multiple of two integers.',
-    constraints: 'Returns 0 when either argument is 0; nonrepresentable positive results cause arithmetic overflow.'
+    variadicSince: alpha7Series1,
+    summary: 'Returns the nonnegative least common multiple of signed 64-bit integers.',
+    constraints: 'Binary calls require v0.0.6-alpha.16+; more than two operands require v0.0.7-alpha.1+ (maximum 1,024). Any zero operand returns 0, including when a nonzero prefix would overflow; otherwise a nonrepresentable positive result causes arithmetic overflow.'
   },
   array_len: {
     name: 'array_len',
@@ -654,6 +667,20 @@ const HELP: Readonly<Record<string, ScarpBuiltinHelp>> = {
     introduced: alpha18,
     summary: 'Returns a new fixed array with one element replaced, preserving the original and every existing alias.',
     constraints: 'Pure and persistent, not indexed assignment. Index must be nonnegative and within the array (E0063); replacement must match element type T. Arguments evaluate once in source order. Every successful update charges a new array allocation (E0064) against --max-array-bytes.'
+  },
+  array_concat: {
+    name: 'array_concat',
+    signature: 'array_concat(left: array<T, M>, right: array<T, N>) -> array<T, M + N>',
+    introduced: alpha7Series1,
+    summary: 'Pure, persistent concatenation of fixed arrays in source order; the resolver infers the combined length.',
+    constraints: 'Both operands must have identical element types; the result must satisfy the 4,096-element and nested shape limits (E0062). Arguments evaluate once in source order. An empty operand may share the other snapshot; two nonempty operands charge new backing storage (E0064) and linear work.'
+  },
+  softplus: {
+    name: 'softplus',
+    signature: 'softplus(values: vector) -> vector',
+    introduced: alpha7Series1,
+    summary: 'Applies the numerically stable natural logarithm of one plus the exponential to each vector element.',
+    constraints: 'Requires a vector, not a scalar. Preserves length and order, including empty vectors. Uses finite inputs and stable evaluation for large positive and negative values; ordinary vector allocation and work limits apply.'
   },
   input_boolean: {
     name: 'input_boolean',
