@@ -62,3 +62,16 @@ test('compatibility guidance does not claim version is proof of compiler capabil
   assert.match(compilerEditorCompatibility('0.0.6-alpha.99'), /capability probes/i);
   assert.match(compilerEditorCompatibility('malformed'), /Unknown version/);
 });
+
+test('new compiler series orders after all historical alpha revisions', () => {
+  const published = '0.0.7-alpha.1';
+  assert.equal(compareCompilerVersions('0.0.6-alpha.20', published), -1);
+  assert.equal(compareCompilerVersions('0.0.6-alpha.99', published), -1);
+  assert.equal(compareCompilerVersions('0.0.7-alpha.2', published), 1);
+  assert.equal(assessCompilerUpdate('0.0.6-alpha.20', published).state, 'update-available');
+  assert.equal(assessCompilerUpdate(published, published).state, 'current');
+  assert.equal(assessCompilerUpdate('0.0.7-alpha.2', published).state, 'ahead');
+  assert.match(compilerEditorCompatibility('0.0.6-alpha.20'), /Older than the v0\.0\.7-alpha\.1/);
+  assert.match(compilerEditorCompatibility(published), /At least v0\.0\.7-alpha\.1/);
+  assert.match(compilerEditorCompatibility(published), /capability probes/);
+});

@@ -96,12 +96,12 @@ export function assessCompilerUpdate(
 
 export function compilerEditorCompatibility(version: string | undefined): string {
   if (!version) { return 'Not checked (no validated compiler).'; }
-  const order = compareCompilerVersions(version, '0.0.6-alpha.17');
+  const order = compareCompilerVersions(version, '0.0.7-alpha.1');
   if (order === undefined) {
     return 'Unknown version; compiler support must be confirmed with actual CLI probes.';
   }
   if (order < 0) {
-    return 'Older than the alpha.17 editor reference. Some highlighted built-ins and snippets may not be supported.';
+    return 'Older than the v0.0.7-alpha.1 editor reference. Some highlighted built-ins, variadic calls and snippets may not be supported; actual support depends on CLI capability probes.';
   }
-  return 'At least alpha.17 by version; actual feature support still depends on CLI capability probes.';
+  return 'At least v0.0.7-alpha.1 by version; actual feature support still depends on CLI capability probes.';
 }

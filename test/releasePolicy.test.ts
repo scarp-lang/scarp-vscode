@@ -550,3 +550,18 @@ test('v0.1.6 manual release qualification pins published alpha.20 and its new ed
   assert.match(ci, /compiler-alpha20-editor-compatibility/);
   assert.doesNotMatch(publish, /ref: v0\.0\.6-alpha\.19/);
 });
+
+test('the new compiler series adds an immutable nonpublishing compatibility gate', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const start = ci.indexOf('  compiler-007-alpha1-editor-compatibility:');
+  const end = ci.indexOf('  compiler-alpha20-editor-compatibility:', start);
+  assert.ok(start >= 0 && end > start);
+  const gate = ci.slice(start, end);
+  assert.match(gate, /ref: v0\.0\.7-alpha\.1/);
+  assert.match(gate, /996bd5b83c8cb26e98637563729f67bdacc61cd4/);
+  assert.match(gate, /array_concat integer_reductions/);
+  assert.match(gate, /softplus_matches_reference_values_including_the_small_negative_tail/);
+  assert.match(gate, /verify-snippets\.cjs/);
+  assert.match(gate, /npm run test:integration/);
+  assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
+});
