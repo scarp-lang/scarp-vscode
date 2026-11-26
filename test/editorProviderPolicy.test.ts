@@ -42,7 +42,7 @@ test('commands have unique identifiers and no aliases that bypass trust', () => 
 });
 test('source structural providers do not spawn the compiler or a shell', () => {
   for (const file of [
-    'src/editorStructure.ts', 'src/editorFolding.ts',
+    'src/editorStructure.ts', 'src/sourceCompletion.ts', 'src/editorFolding.ts',
     'src/editorSelection.ts', 'src/editorStructureCache.ts',
     'src/editorWorkspaceReport.ts', 'src/editorProjectTree.ts',
     'src/editorProjectCatalog.ts', 'src/editorImportGraph.ts'

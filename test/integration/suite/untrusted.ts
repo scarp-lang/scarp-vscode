@@ -146,6 +146,15 @@ export async function run(): Promise<void> {
     assert.equal(fsSync.existsSync(marker), false,
       'Static completions must never execute the configured compiler');
 
+    const localDoc = await vscode.workspace.openTextDocument({
+      language: 'scarp', content: 'bind local_value = 1;\nprint(local_);'
+    });
+    const localItems = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider', localDoc.uri, new vscode.Position(1, 'print(local_'.length));
+    assert.ok(localItems?.items.some(item => item.label === 'local_value'));
+    assert.equal(fsSync.existsSync(marker), false,
+      'Unsaved current-document completion must never launch the compiler');
+
     // Published alpha.9 BigInt editor hints are entirely static metadata,
     // including in Restricted Mode; they must not probe the installed compiler.
     const bigIntDoc = await vscode.workspace.openTextDocument({
