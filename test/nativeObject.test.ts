@@ -212,3 +212,53 @@ test('bounded source reads preserve raw bytes and refuse files above the fronten
     await assert.rejects(readNativeSource(source), /1 MiB/);
   });
 });
+
+test('a caller cannot mutate the captured source while export awaits revalidation', async () => {
+  await fixture(async (root, options) => {
+    const original = Buffer.from(options.source);
+    const run = options.run!;
+    let checked = false;
+    options.stillCurrent = async () => {
+      if (!checked) { checked = true; options.source.fill(0x78); }
+      return true;
+    };
+    options.run = async (binary, args, processOptions) => {
+      assert.deepEqual(await fs.readFile(args[args.length - 3]), original);
+      // Restore only the fixture's expected bytes; the actual staged copy
+      // must already contain the unmodified source.
+      options.source = original;
+      return run(binary, args, processOptions);
+    };
+    await exportNativeObject(options);
+    assert.deepEqual(await fs.readdir(root), ['new object.o']);
+  });
+});
+
+test('a cancellation before staging launches no compiler and creates no files', async () => {
+  await fixture(async (root, options) => {
+    const controller = new AbortController();
+    controller.abort();
+    options.signal = controller.signal;
+    options.run = async () => { assert.fail('Cancelled export must not start a compiler'); };
+    await assert.rejects(exportNativeObject(options), /cancelled/);
+    assert.deepEqual(await fs.readdir(root), []);
+  });
+});
+
+test('a symlink destination is never followed or replaced', {
+  skip: process.platform === 'win32'
+}, async () => {
+  await fixture(async (root, options) => {
+    const target = path.join(root, 'protected.txt');
+    await fs.writeFile(target, 'protected');
+    await fs.symlink(target, options.destination);
+    options.run = async () => { assert.fail('Compiler should not run for symlink output'); };
+    await assert.rejects(exportNativeObject(options), /never overwritten/);
+    assert.equal(await fs.readFile(target, 'utf8'), 'protected');
+    assert.equal((await fs.lstat(options.destination)).isSymbolicLink(), true);
+    // Dangling symlinks also occupy their destination and must not be replaced.
+    await fs.unlink(target);
+    await assert.rejects(exportNativeObject(options), /never overwritten/);
+    assert.equal(await fs.readlink(options.destination), target);
+  });
+});
