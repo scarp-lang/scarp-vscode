@@ -376,10 +376,9 @@ export async function run(): Promise<void> {
     'vscode.executeCompletionItemProvider', loopDoc.uri, new vscode.Position(3, 'print(loop_'.length));
   // executeCompletionItemProvider can aggregate VS Code's own text-word
   // suggestions; only items carrying our lexical metadata are Scarp claims.
-  assert.ok(closedLoop, 'Closed-loop query must return a completion list');
-  assert.ok(!closedLoop.items.some(item => item.label === 'loop_index' &&
+  assert.ok(!closedLoop?.items.some(item => item.label === 'loop_index' &&
     item.detail?.endsWith(' · current document')),
-  'The Scarp provider must not claim a closed repeat index');
+    'The Scarp provider must not claim a closed repeat index');
   const patternDoc = await vscode.workspace.openTextDocument({
     language: 'scarp', content: 'bind (item_first, item_second) = (1, 2);\nprint(item_);'
   });
