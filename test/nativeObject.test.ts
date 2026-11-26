@@ -135,8 +135,10 @@ async function fixture(action: (root: string, options: NativeObjectOptions) => P
       assert.equal(args[args.length - 2], '-o');
       const source = args[args.length - 3];
       assert.deepEqual(await fs.readFile(source), options.source);
-      assert.equal(path.dirname(source), processOptions.cwd);
-      assert.equal(path.dirname(args[args.length - 1]), processOptions.cwd);
+      assert.equal(processOptions.cwd, undefined, 'Compiler lookup must retain the probe cwd');
+      assert.ok(path.isAbsolute(source));
+      assert.ok(path.isAbsolute(args[args.length - 1]));
+      assert.equal(path.dirname(source), path.dirname(args[args.length - 1]));
       await fs.writeFile(args[args.length - 1], objectHeader(), { flag: 'wx' });
       return { stdout: JSON.stringify(metadata(options.request)), stderr: '', exitCode: 0, signal: null };
     }
@@ -275,5 +277,31 @@ test('a compiler span splitting a UTF-8 scalar prevents object publication', asy
     };
     await assert.rejects(exportNativeObject(options), /splits a UTF-8/);
     assert.deepEqual(await fs.readdir(root), []);
+  });
+});
+
+test('invalid UTF-8 source is rejected before the compiler or filesystem staging', async () => {
+  await fixture(async (root, options) => {
+    options.source = Buffer.from([0xc0, 0xaf]);
+    options.run = async () => { assert.fail('Invalid UTF-8 must not start a compiler'); };
+    await assert.rejects(exportNativeObject(options), /valid UTF-8/);
+    assert.deepEqual(await fs.readdir(root), []);
+  });
+});
+
+test('a relative configured compiler keeps the same lookup context as its capability probe', async () => {
+  await fixture(async (root, options) => {
+    options.binary = path.join('.', 'toolchain', 'scarp');
+    const compiler = options.binary;
+    options.run = async (binary, args, processOptions) => {
+      assert.equal(binary, compiler);
+      assert.equal(processOptions.cwd, undefined);
+      assert.ok(path.isAbsolute(args[args.length - 3]));
+      assert.ok(path.isAbsolute(args[args.length - 1]));
+      await fs.writeFile(args[args.length - 1], objectHeader(), { flag: 'wx' });
+      return { stdout: JSON.stringify(metadata(options.request)), stderr: '', exitCode: 0, signal: null };
+    };
+    await exportNativeObject(options);
+    assert.deepEqual(await fs.readdir(root), ['new object.o']);
   });
 });
