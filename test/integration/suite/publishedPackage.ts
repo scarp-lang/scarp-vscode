@@ -17,7 +17,7 @@ export async function run(): Promise<void> {
   const binary = process.env.SCARP_TEST_BINARY;
   const installRoot = process.env.SCARP_PUBLISHED_INSTALL_ROOT;
   const publishedVersion = process.env.SCARP_PUBLISHED_VERSION;
-  assert.match(publishedVersion || '', /^(?:0\.0\.6-alpha\.(?:17|19)|0\.0\.7-alpha\.1)$/,
+  assert.match(publishedVersion || '', /^(?:0\.0\.6-alpha\.(?:17|19)|0\.0\.7-alpha\.[12])$/,
     'The native installer must export the exact independently pinned version');
   assert.ok(binary && path.isAbsolute(binary), 'Verified official compiler path is required');
   assert.ok(installRoot && path.isAbsolute(installRoot),
@@ -77,7 +77,7 @@ export async function run(): Promise<void> {
       item => item.source === 'Scarp' && item.severity === vscode.DiagnosticSeverity.Error
     ), 'Published compiler errors must appear as true Problems diagnostics');
 
-    if (publishedVersion === '0.0.7-alpha.1') {
+    if (publishedVersion === '0.0.7-alpha.1' || publishedVersion === '0.0.7-alpha.2') {
       const featureUri = vscode.Uri.file(path.join(tempRoot, 'new series features.srp'));
       const featureSource = [
         'bind joined = array_concat([array: 12, 18], [array: 24]);',
