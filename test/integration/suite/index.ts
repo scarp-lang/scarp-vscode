@@ -370,10 +370,16 @@ export async function run(): Promise<void> {
   const loopItems = await vscode.commands.executeCommand<vscode.CompletionList>(
     'vscode.executeCompletionItemProvider', loopDoc.uri, new vscode.Position(1, 'print(loop_'.length));
   assert.ok(loopItems?.items.some(item => item.label === 'loop_index' &&
-    item.kind === vscode.CompletionItemKind.Constant));
+    item.kind === vscode.CompletionItemKind.Constant &&
+    item.detail === 'Immutable integer repeat index · current document'));
   const closedLoop = await vscode.commands.executeCommand<vscode.CompletionList>(
     'vscode.executeCompletionItemProvider', loopDoc.uri, new vscode.Position(3, 'print(loop_'.length));
-  assert.ok(!closedLoop?.items.some(item => item.label === 'loop_index'));
+  // executeCompletionItemProvider can aggregate VS Code's own text-word
+  // suggestions; only items carrying our lexical metadata are Scarp claims.
+  assert.ok(closedLoop, 'Closed-loop query must return a completion list');
+  assert.ok(!closedLoop.items.some(item => item.label === 'loop_index' &&
+    item.detail?.endsWith(' · current document')),
+  'The Scarp provider must not claim a closed repeat index');
   const patternDoc = await vscode.workspace.openTextDocument({
     language: 'scarp', content: 'bind (item_first, item_second) = (1, 2);\nprint(item_);'
   });
