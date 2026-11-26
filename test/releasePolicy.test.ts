@@ -591,3 +591,29 @@ test('new-series native distribution qualification retains historic checks and p
   assert.match(script, /scarp\.project/);
   assert.match(repoFile('test/integration/runTest.ts'), /SCARP_PUBLISHED_VERSION/);
 });
+
+test('alpha.2 package qualification is independent, pinned and nonpublishing', () => {
+  const ci = repoFile('.github/workflows/ci.yml');
+  const begin = ci.indexOf('  published-native-007-alpha2-artifact:');
+  const end = ci.indexOf('  compiler-smoke:', begin);
+  assert.ok(begin > ci.indexOf('  published-native-007-artifact:') && end > begin);
+  const gate = ci.slice(begin, end);
+  assert.match(gate, /SCARP_NATIVE_PACKAGE_VERSION: 0\.0\.7-alpha\.2/);
+  assert.match(gate, /ubuntu-latest, windows-latest, macos-latest/);
+  assert.match(gate, /verify-published-compiler\.cjs/);
+  assert.match(gate, /SCARP_TEST_SUITE: published/);
+  assert.doesNotMatch(gate, /vsce publish|ovsx publish|gh release create/);
+  const script = repoFile('scripts/verify-published-compiler.cjs');
+  for (const hash of [
+    '5cddf9d831d6eb487b2142755b36b48f1cc598d8f6cfbca39332219fd2567849',
+    'da7b8f5522cf470af61d7d88175ef9e72ee28da99263cccae8927feb07e5f7af',
+    '8397f2f096fe9598cb6e37c54024afdb80634e97bded8e1777812ab0f38cf0dc',
+    '0eef068c84ed0fbb59f24081a1be5ce72bb562d34cc6c1e10fce554c4508555f',
+    '08aa0b3d0f4b8458a016abce9d403a5cfd1bf19255954c276c79c033932d1ffe',
+    'd338b5c0d534850f26b0d0ec1415fa9e4ff1d0ed80ef47361c7c904e4438838d'
+  ]) assert.ok(script.includes(hash), hash);
+  assert.match(script, /native-object/);
+  assert.match(script, /bounded-entry/);
+  assert.match(script, /ET_REL/);
+  assert.match(script, /Existing object must not change/);
+});
