@@ -130,7 +130,8 @@ In a trusted workspace, open a saved standalone `.srp` file and explicitly run
 - Enter the unsigned 32-bit work/stack allowances and entry name when requested.
 - Choose a new local `.o` destination with an existing parent directory and confirm.
 - The extension probes the installed compiler's actual `guide native-object` contract,
-  freezes the saved UTF-8 source, checks the published schema-v1 ABI report and ELF64
+  freezes the saved UTF-8 source, preserves the compiler lookup context used during
+  capability probing, checks the published schema-v1 ABI report and ELF64
   header, then publishes without overwriting any existing path.
 - ABI and failure-span metadata and the raw source SHA-256 are printed in the Scarp
   Output channel, including a preview of up to 64 spans translated to one-based
