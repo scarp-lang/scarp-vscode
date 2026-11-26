@@ -16,6 +16,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-007-alpha2-native-export:
+    name: Native object export core against published alpha.2 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: ""
+          - os: windows-latest
+            suffix: ".exe"
+          - os: macos-latest
+            suffix: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.7-alpha.2
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Verify exact published revision and build compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "638dc4c227f34f1c660be66834bcc0cbdb22dec8"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+      - name: Verify all three modes without executing emitted objects
+        env:
+          SCARP_NATIVE_EXPORT_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp${{ matrix.suffix }}
+        run: node --test dist/test/nativeObjectPublished.test.js
+
   compiler-007-alpha1-editor-compatibility:
     name: Published v0.0.7-alpha.1 editor contracts (Linux)
     runs-on: ubuntu-latest
