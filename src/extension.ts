@@ -35,6 +35,7 @@ import { scarpBuiltinCompletionAt } from './builtinCompletion';
 import { BUILTIN_CONTEXT_LIMIT } from './builtinLexicalContext';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
 import { registerScarpEditorProviders } from './editorProviders';
+import { registerNativeObjectExport } from './nativeObjectCommand';
 import { registerWorkspaceImportExplorer } from './editorWorkspaceExplorer';
 import { registerWorkspaceProjectExplorer } from './editorProjectExplorer';
 import {
@@ -1781,6 +1782,7 @@ export function activate(context: vscode.ExtensionContext): void {
         verifiedVersions.clear();
       }
     }),
+    registerNativeObjectExport(validateCompiler, output),
     vscode.commands.registerCommand('scarp.createProject',
       (): Promise<void> => safe(async () => createProject(output))),
     vscode.commands.registerCommand('scarp.initProject',
