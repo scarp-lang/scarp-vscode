@@ -193,6 +193,9 @@ export async function exportNativeObject(options: NativeObjectOptions): Promise<
   // Own the exact source bytes before the first await, even when an embedding
   // caller later mutates its Buffer. The report and staged file share this copy.
   const sourceBytes = Buffer.from(options.source);
+  if (!Buffer.from(sourceBytes.toString('utf8'), 'utf8').equals(sourceBytes)) {
+    throw new Error('Native object export requires valid UTF-8 source.');
+  }
   const ensureCurrent = async (): Promise<void> => {
     if (signal?.aborted || !await options.stillCurrent() || signal?.aborted) {
       throw new Error('Native object export cancelled or source/configuration changed.');
@@ -209,8 +212,12 @@ export async function exportNativeObject(options: NativeObjectOptions): Promise<
     await fs.writeFile(source, sourceBytes, { flag: 'wx', mode: 0o600 });
     const argv = nativeObjectArgv(request, source, object);
     await ensureCurrent();
+    // Preserve the same process cwd used by the compiler resolver and guide
+    // probe. Both CLI file arguments are already absolute. Changing cwd to
+    // staging could redirect a relative compiler path or relative PATH entry
+    // to a different executable after successful validation.
     const result = await (options.run ?? executeProcess)(binary, argv, {
-      cwd: staging, timeoutMs, maxOutputBytes: REPORT_LIMIT, signal
+      timeoutMs, maxOutputBytes: REPORT_LIMIT, signal
     });
     if (result.exitCode !== 0 || result.signal !== null || result.stderr.trim()) {
       options.onCompilerError?.(result.stderr);
