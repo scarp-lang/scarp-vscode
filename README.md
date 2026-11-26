@@ -130,7 +130,8 @@ In a trusted workspace, open a saved standalone `.srp` file and explicitly run
 - The extension probes the installed compiler's actual `guide native-object` contract,
   freezes the saved UTF-8 source, checks the published schema-v1 ABI report and ELF64
   header, then publishes without overwriting any existing path.
-- ABI and failure-span metadata are printed in the Scarp Output channel. Spans refer
+- ABI and failure-span metadata and the raw source SHA-256 are printed in the Scarp
+  Output channel. Spans refer
   to the original compiled source snapshot in UTF-8 bytes; keep that source unchanged
   if you use the report to diagnose native failures.
 
