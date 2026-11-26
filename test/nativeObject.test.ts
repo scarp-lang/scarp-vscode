@@ -262,3 +262,18 @@ test('a symlink destination is never followed or replaced', {
     assert.equal(await fs.readlink(options.destination), target);
   });
 });
+
+test('a compiler span splitting a UTF-8 scalar prevents object publication', async () => {
+  await fixture(async (root, options) => {
+    options.source = Buffer.from('aπ😀');
+    const run = options.run!;
+    options.run = async (...args) => {
+      const result = await run(...args);
+      return { ...result, stdout: JSON.stringify({
+        ...metadata(options.request), failure_spans: [[1, 2]]
+      }) };
+    };
+    await assert.rejects(exportNativeObject(options), /splits a UTF-8/);
+    assert.deepEqual(await fs.readdir(root), []);
+  });
+});
