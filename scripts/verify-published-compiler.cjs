@@ -19,7 +19,7 @@ const run = promisify(execFile);
 // Backward compatibility and the latest independently reviewed native assets.
 // Normal setup never reads this CI-only selector.
 const VERSION = process.env.SCARP_NATIVE_PACKAGE_VERSION || '0.0.6-alpha.17';
-if (!['0.0.6-alpha.17', '0.0.6-alpha.19', '0.0.7-alpha.1'].includes(VERSION)) {
+if (!['0.0.6-alpha.17', '0.0.6-alpha.19', '0.0.7-alpha.1', '0.0.7-alpha.2'].includes(VERSION)) {
   throw new Error('Unsupported CI native package version: ' + VERSION);
 }
 const TAG = 'v' + VERSION;
@@ -68,6 +68,20 @@ const PINNED_SHA256 = Object.freeze({
     'aarch64-apple-darwin': {
       archive: '63697cb53224cf0a22a38a28ae7887b8c694979d54ee780dc0639f1057409909',
       checksum: 'c44502f63d73e79ec0780d028d17f2477147b5f163796d35704da591d23728ca'
+    }
+  },
+  '0.0.7-alpha.2': {
+    'x86_64-pc-windows-msvc': {
+      archive: '5cddf9d831d6eb487b2142755b36b48f1cc598d8f6cfbca39332219fd2567849',
+      checksum: 'da7b8f5522cf470af61d7d88175ef9e72ee28da99263cccae8927feb07e5f7af'
+    },
+    'x86_64-unknown-linux-gnu': {
+      archive: '8397f2f096fe9598cb6e37c54024afdb80634e97bded8e1777812ab0f38cf0dc',
+      checksum: '0eef068c84ed0fbb59f24081a1be5ce72bb562d34cc6c1e10fce554c4508555f'
+    },
+    'aarch64-apple-darwin': {
+      archive: '08aa0b3d0f4b8458a016abce9d403a5cfd1bf19255954c276c79c033932d1ffe',
+      checksum: 'd338b5c0d534850f26b0d0ec1415fa9e4ff1d0ed80ef47361c7c904e4438838d'
     }
   }
 });
@@ -139,7 +153,7 @@ async function main() {
   assert.equal(execution.stdout, 'Hello from Scarp!\n');
   assert.equal(execution.stderr, '');
 
-  if (VERSION === '0.0.7-alpha.1') {
+  if (VERSION === '0.0.7-alpha.1' || VERSION === '0.0.7-alpha.2') {
     const workspace = await fs.mkdtemp(path.join(tempRoot, 'scarp-native-contract-'));
     try {
       const filename = path.join(workspace, 'new series.srp');
@@ -169,6 +183,46 @@ async function main() {
       const entry = await runCompiler(actualBinary, ['exec'], project);
       assert.equal(entry.stdout.replace(/\r\n/g, '\n'), 'Hello from Scarp!\n');
       assert.equal(entry.stderr, '');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }
+
+  // Alpha.2 ships a cross-host ELF64 emitter, not a native program runner.
+  // Test the published CLI with a new destination and reject overwrite.
+  if (VERSION === '0.0.7-alpha.2') {
+    const workspace = await fs.mkdtemp(path.join(tempRoot, 'scarp-native-object-'));
+    try {
+      const source = path.join(workspace, 'native calls.srp');
+      const output = path.join(workspace, 'native calls.o');
+      await fs.writeFile(source, [
+        'pure funcra evaluate(n: integer) -> integer { return twice(n) + 1; }',
+        'pure funcra twice(n: integer) -> integer { return n * 2; }',
+        ''
+      ].join('\n'), 'utf8');
+      const args = ['native-object', '--json', 'x86_64-none', 'bounded-entry',
+        'evaluate', '1000', '512', source, '-o', output];
+      const emitted = await runCompiler(actualBinary, args);
+      assert.equal(emitted.stderr, '');
+      const metadata = JSON.parse(emitted.stdout);
+      assert.equal(metadata.schema_version, 1);
+      assert.equal(metadata.target, 'x86_64-none');
+      assert.equal(metadata.mode, 'bounded-entry');
+      assert.equal(metadata.max_work, 1000);
+      assert.equal(metadata.max_stack_bytes, 512);
+      assert.equal(metadata.integer_arguments, 1);
+      assert.equal(metadata.span_encoding, 'utf-8-bytes');
+      assert.ok(Number.isSafeInteger(metadata.peak_stack_bytes) &&
+        metadata.peak_stack_bytes > 0 && metadata.peak_stack_bytes <= 512);
+      assert.equal(metadata.max_active_frames, 2);
+      const object = await fs.readFile(output);
+      assert.ok(object.length >= 64);
+      assert.deepEqual([...object.subarray(0, 7)], [0x7f, 0x45, 0x4c, 0x46, 2, 1, 1]);
+      assert.equal(object.readUInt16LE(16), 1, 'Expected ET_REL, not an executable');
+      assert.equal(object.readUInt16LE(18), 62, 'Expected EM_X86_64 on every package host');
+      await assert.rejects(runCompiler(actualBinary, args), error =>
+        error.code === 1 && error.stdout === '');
+      assert.deepEqual(await fs.readFile(output), object, 'Existing object must not change');
     } finally {
       await fs.rm(workspace, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
