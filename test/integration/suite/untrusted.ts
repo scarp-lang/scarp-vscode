@@ -216,7 +216,7 @@ export async function run(): Promise<void> {
       'scarp.launchProject', 'scarp.runWorkspaceEntry', 'scarp.launchProjectInteractive',
       'scarp.browseProjectModules', 'scarp.browseProjectSymbols',
       'scarp.testProject', 'scarp.testProjectFiltered', 'scarp.listProjectTests',
-      'scarp.setupCompiler', 'scarp.manageCompiler',
+      'scarp.setupCompiler', 'scarp.manageCompiler', 'scarp.exportNativeObject',
       'scarp.listFilteredProjectTests'
     ]) {
       await vscode.commands.executeCommand(command, vscode.Uri.file(workspace));
