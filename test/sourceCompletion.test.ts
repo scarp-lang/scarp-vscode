@@ -111,3 +111,14 @@ test('destructuring exposes only complete binding leaves, not field labels or di
     'bind [item_first,, item_second] = values; print('
   ]) assert.deepEqual(names(malformed, 'item_'), [], malformed);
 });
+
+// Reproduce the exact multiline Extension Host query, including the same
+// incomplete identifier in an earlier expression in the closed loop.
+test('repeat scope does not leak through previously typed references', () => {
+  const source = 'repeat 3 as loop_index {\nprint(loop_);\n}\nprint(';
+  assert.deepEqual(names(source, 'loop_'), []);
+  assert.deepEqual(names(source.replace(/\n/g, '\r\n'), 'loop_'), []);
+  const inside = 'repeat 3 as loop_index {\nprint(';
+  assert.equal(scarpSourceCompletions(inside, 'loop_')[0]?.detail,
+    'Immutable integer repeat index');
+});
