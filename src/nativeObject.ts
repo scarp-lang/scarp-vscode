@@ -189,6 +189,9 @@ export async function exportNativeObject(options: NativeObjectOptions): Promise<
       destination.includes('\0') || options.source.length > NATIVE_SOURCE_LIMIT) {
     throw new Error('Invalid native object output or source size.');
   }
+  // Own the exact source bytes before the first await, even when an embedding
+  // caller later mutates its Buffer. The report and staged file share this copy.
+  const sourceBytes = Buffer.from(options.source);
   const ensureCurrent = async (): Promise<void> => {
     if (signal?.aborted || !await options.stillCurrent() || signal?.aborted) {
       throw new Error('Native object export cancelled or source/configuration changed.');
@@ -202,7 +205,7 @@ export async function exportNativeObject(options: NativeObjectOptions): Promise<
   try {
     const source = path.join(staging, 'source.srp');
     const object = path.join(staging, 'result.o');
-    await fs.writeFile(source, options.source, { flag: 'wx', mode: 0o600 });
+    await fs.writeFile(source, sourceBytes, { flag: 'wx', mode: 0o600 });
     const argv = nativeObjectArgv(request, source, object);
     await ensureCurrent();
     const result = await (options.run ?? executeProcess)(binary, argv, {
@@ -212,7 +215,7 @@ export async function exportNativeObject(options: NativeObjectOptions): Promise<
       options.onCompilerError?.(result.stderr);
       throw new Error('Scarp native object compilation failed. See the Scarp output.');
     }
-    const report = parseNativeObjectReport(result.stdout, request, options.source.length);
+    const report = parseNativeObjectReport(result.stdout, request, sourceBytes.length);
     const stat = await fs.lstat(object);
     if (!stat.isFile() || stat.size < 64 || stat.size > OBJECT_LIMIT) {
       throw new Error('Scarp did not produce a bounded regular ELF object.');
