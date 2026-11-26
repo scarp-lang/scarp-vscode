@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { executeProcess } from '../src/cli';
 import { exportNativeObject, nativeObjectAdvertised, type NativeObjectRequest } from '../src/nativeObject';
+import { nativeSpanPositions } from '../src/nativeSourceSpans';
 
 // Ordinary unit tests are offline. A separate CI job sets this only after
 // checking out and building the exact published compiler revision.
@@ -21,7 +22,7 @@ test('published alpha.2 compiler exports all three modes via the extension core'
   assert.equal(guide.exitCode, 0);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'scarp-native-published-'));
   try {
-    const single = 'pure funcra evaluate(n: integer) -> integer { return n + 1; }\n';
+    const single = '\uFEFF// Unicode π 😀\r\npure funcra evaluate(n: integer) -> integer { return n + 1; }\r\n';
     const graph = [
       'pure funcra evaluate(n: integer) -> integer { return twice(n) + 1; }',
       'pure funcra twice(n: integer) -> integer { return n * 2; }', ''
@@ -45,6 +46,11 @@ test('published alpha.2 compiler exports all three modes via the extension core'
       assert.equal(report.target, 'x86_64-none');
       assert.equal(report.call_stack_alignment, 16);
       assert.equal(report.span_encoding, 'utf-8-bytes');
+      const mapped = nativeSpanPositions(options.source, report.failure_spans);
+      assert.ok(mapped.length > 0, 'Checked arithmetic must expose failure locations');
+      if (request.mode !== 'bounded-entry') {
+        assert.ok(mapped.some(span => span.start.line === 2), 'Unicode comment and BOM must not shift failure lines');
+      }
       if (request.mode === 'bounded-entry') {
         assert.equal(report.max_active_frames, 2);
         assert.equal(report.max_stack_bytes, 512);
