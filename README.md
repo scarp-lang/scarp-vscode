@@ -133,9 +133,9 @@ In a trusted workspace, open a saved standalone `.srp` file and explicitly run
   freezes the saved UTF-8 source, checks the published schema-v1 ABI report and ELF64
   header, then publishes without overwriting any existing path.
 - ABI and failure-span metadata and the raw source SHA-256 are printed in the Scarp
-  Output channel. Spans refer
-  to the original compiled source snapshot in UTF-8 bytes; keep that source unchanged
-  if you use the report to diagnose native failures.
+  Output channel, including a preview of up to 64 spans translated to one-based
+  editor lines and UTF-16 columns. The full JSON retains the original half-open
+  UTF-8 byte ranges; keep the source snapshot unchanged when diagnosing failures.
 
 This generates **x86-64 ELF64 relocatable objects only**, including when VS Code
 runs on Windows or macOS. It is not a native program runner, linker, executable,
