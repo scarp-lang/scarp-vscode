@@ -52,7 +52,8 @@
     "onCommand:scarp.runFileInteractive",
     "onCommand:scarp.launchProjectInteractive",
     "onCommand:scarp.browseWorkspaceImports",
-    "onCommand:scarp.browseWorkspaceProjects"
+    "onCommand:scarp.browseWorkspaceProjects",
+    "onCommand:scarp.exportNativeObject"
   ],
   "contributes": {
     "languages": [
@@ -197,6 +198,11 @@
         "command": "scarp.browseWorkspaceProjects",
         "title": "Scarp: Browse Nested Workspace Projects",
         "category": "Scarp"
+      },
+      {
+        "command": "scarp.exportNativeObject",
+        "title": "Scarp: Export Native Object (Experimental)",
+        "category": "Scarp"
       }
     ],
     "menus": {
@@ -299,6 +305,10 @@
         },
         {
           "command": "scarp.browseWorkspaceProjects",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "scarp.exportNativeObject",
           "when": "isWorkspaceTrusted"
         }
       ]
