@@ -118,6 +118,33 @@ print("Hello from Scarp!");
 
 The extension uses the workspace extension host. On Remote SSH, WSL or containers, compiler management, update checks, setup and installation target that environment, not the local client machine. CI separately tests the actual official published native compiler packages, not just source-built compiler compatibility. Downloads require your explicit confirmation and are limited to published GitHub Scarp release assets. The installed binary is kept in VS Code extension storage, not your source project, and no automatic compiler updates occur.
 
+## Experimental native object export (development)
+
+The published Scarp v0.0.7-alpha.2 compiler introduces the `native-object` CLI.
+In a trusted workspace, open a saved standalone `.srp` file and explicitly run
+**Scarp: Export Native Object (Experimental)** from the Command Palette.
+
+- Select a checked function, a bounded function, or a bounded nonrecursive call graph.
+- Enter the unsigned 32-bit work/stack allowances and entry name when requested.
+- Choose a new local `.o` destination with an existing parent directory and confirm.
+- The extension probes the installed compiler's actual `guide native-object` contract,
+  freezes the saved UTF-8 source, checks the published schema-v1 ABI report and ELF64
+  header, then publishes without overwriting any existing path.
+- ABI and failure-span metadata are printed in the Scarp Output channel. Spans refer
+  to the original compiled source snapshot in UTF-8 bytes; keep that source unchanged
+  if you use the report to diagnose native failures.
+
+This generates **x86-64 ELF64 relocatable objects only**, including when VS Code
+runs on Windows or macOS. It is not a native program runner, linker, executable,
+OS builder, C compiler, or replacement for the existing interpreter Run/Verify
+commands. Source is not automatically saved or changed. An unsupported compiler,
+invalid source, stale source/configuration, or cancellation before publication
+prevents the final output. The destination filesystem must support hard links;
+no unsafe overwrite or copy fallback is provided. The command is disabled in
+Restricted Mode and no background compilation is performed.
+
+See the [published compiler native object contract](https://github.com/scarp-lang/scarp/blob/v0.0.7-alpha.2/docs/native-object-output.md).
+
 ## Settings
 
 | Setting | Purpose |
