@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { nativeSpanPositions } from './nativeSourceSpans';
 import * as fs from 'node:fs/promises';
 import { executeProcess, type ProcessOptions, type ProcessResult } from './cli';
 
@@ -216,6 +217,9 @@ export async function exportNativeObject(options: NativeObjectOptions): Promise<
       throw new Error('Scarp native object compilation failed. See the Scarp output.');
     }
     const report = parseNativeObjectReport(result.stdout, request, sourceBytes.length);
+    // A numeric byte range alone is insufficient: reject offsets that split
+    // a UTF-8 scalar before any object becomes visible at the destination.
+    nativeSpanPositions(sourceBytes, report.failure_spans);
     const stat = await fs.lstat(object);
     if (!stat.isFile() || stat.size < 64 || stat.size > OBJECT_LIMIT) {
       throw new Error('Scarp did not produce a bounded regular ELF object.');
