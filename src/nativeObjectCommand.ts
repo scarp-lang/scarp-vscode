@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
+import { formatNativeSpanPreview, nativeSpanPositions } from './nativeSourceSpans';
 import * as vscode from 'vscode';
 import { executeProcess } from './cli';
 import { snapshotScarpSourceFile } from './projectDiskSnapshot';
@@ -174,6 +175,7 @@ export function registerNativeObjectExport(
           output.appendLine('Source snapshot: ' + sourcePath);
           output.appendLine('Source SHA-256 (raw UTF-8 bytes): ' +
             createHash('sha256').update(bytes).digest('hex'));
+          output.appendLine(formatNativeSpanPreview(nativeSpanPositions(bytes, report.failure_spans)));
           output.appendLine(JSON.stringify(report, null, 2));
           // The hard-link publication is the commit point; report success even
           // if cancellation arrives after that point rather than pretending the
