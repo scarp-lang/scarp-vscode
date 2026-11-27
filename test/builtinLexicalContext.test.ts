@@ -41,3 +41,14 @@ test('lexical grouping distinguishes expression parentheses from callable positi
     assert.equal(isGroupingParenthesis(token), false, source);
   }
 });
+
+test('alpha.3 raw and multiline literal contents never become builtin tokens', () => {
+  const source = 'r"backslash\\" integer_gcd("""\nprint(1), // not code\n""", 2)';
+  const tokens = scanBuiltinContext(source);
+  assert.ok(tokens);
+  assert.deepEqual(tokens.filter(t => t.kind === 'word').map(t => t.text), ['integer_gcd']);
+  assert.equal(tokens.filter(t => t.kind === 'string').length, 2);
+  assert.equal(tokens.filter(t => t.kind === 'comment').length, 0);
+  assert.equal(scanBuiltinContext('"""open\nprint("x"')?.[0].closed, false);
+  assert.equal(scanBuiltinContext('r"open\r\nprint')?.[1].text, 'print');
+});

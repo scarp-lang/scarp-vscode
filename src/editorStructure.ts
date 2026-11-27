@@ -1,3 +1,5 @@
+import { scanScarpString } from './stringLiteral';
+
 /**
  * Compiler-free bounded structural scan of a Scarp source document.
  *
@@ -152,7 +154,7 @@ function collectImports(tokens: readonly ScarpToken[]): ScarpImport[] {
         end.text !== ';' || as.depth !== 0 || alias.depth !== 0 || end.depth !== 0) {
       continue;
     }
-    if (!str.text.startsWith('"') || !str.text.endsWith('"') ||
+    if (!str.text.startsWith('"') || str.text.startsWith('"""') || !str.text.endsWith('"') ||
         str.text.length < 3 || str.text.includes('\\')) {
       // Escaped paths require compiler interpretation; a lexical link must
       // never guess how the compiler decodes an escape sequence.
@@ -223,30 +225,21 @@ export function scanScarpStructure(
       continue;
     }
 
-    if (ch === '"') {
-      const start = i++;
-      let terminated = false;
-      while (i < source.length) {
-        if (source[i] === '\r' || source[i] === '\n') { break; }
-        if (source[i] === '\\') {
-          // Single-line strings; an escape may consume only one following
-          // non-newline code unit. Bad escapes are for the compiler to report.
-          if (i + 1 < source.length &&
-              source[i + 1] !== '\r' && source[i + 1] !== '\n') {
-            i += 2;
-          } else { i++; }
-          continue;
-        }
-        if (source[i++] === '"') { terminated = true; break; }
+    const literal = scanScarpString(source, i);
+    if (literal) {
+      const start = i;
+      // Preserve physical line starts even when the literal spans many lines.
+      while (i < literal.end) {
+        if (source[i] === '\r' || source[i] === '\n') {
+          i = newlineAfter(source, i);
+          result.lines.push(i);
+        } else { i++; }
       }
       result.strings.push(makeSpan(start, i));
       if (!pushToken(result, {
         kind: 'string', text: source.slice(start, i),
         span: makeSpan(start, i), depth: stack.length
       }, maxTokens)) { return undefined; }
-      // An unfinished string should not consume subsequent source lines.
-      // collectImports checks the ending quote before constructing any link.
-      if (!terminated && i === source.length) { break; }
       continue;
     }
 

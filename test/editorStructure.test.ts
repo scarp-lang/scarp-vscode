@@ -115,3 +115,30 @@ test('large valid source remains bounded and stable', () => {
     assert.equal(x.pairs.filter(p => p.kind === '{').length, count);
   }
 });
+
+test('alpha.3 literals shield fake imports, regions and brackets and preserve CRLF offsets', () => {
+  const source = [
+    'bind raw = r"ends with a backslash\\"; var after = (1);',
+    'bind text = """',
+    '// #region fake',
+    'import "fake.srp" as fake; { [ (',
+    '😀',
+    '""";',
+    'import "real.srp" as real;'
+  ].join('\r\n');
+  const x = scan(source);
+  assert.equal(x.strings.length, 3);
+  assert.deepEqual(x.comments, []);
+  assert.deepEqual(x.regions, []);
+  assert.deepEqual(x.imports.map(item => item.path), ['real.srp']);
+  assert.equal(x.pairs.length, 1);
+  assert.deepEqual(x.lines, [0, ...Array.from(source.matchAll(/\r\n/g), m => m.index! + 2)]);
+});
+test('unfinished triple strings suppress structure to EOF; unfinished raw strings recover', () => {
+  const x = scan('bind x = """\nimport "fake.srp" as fake;\n{ }');
+  assert.equal(x.strings[0].end, x.length);
+  assert.deepEqual(x.imports, []);
+  assert.deepEqual(x.pairs, []);
+  assert.equal(scan('bind x = r"unfinished\nvar y = (1);').pairs.length, 1);
+  assert.deepEqual(scan('import """fake.srp""" as fake;').imports, []);
+});

@@ -1,3 +1,5 @@
+import { scanScarpString } from './stringLiteral';
+
 /**
  * Lightweight Scarp document symbols for Outline / Go to Symbol.
  *
@@ -41,13 +43,9 @@ function tokenize(source: string): Token[] {
       continue;
     }
     const start = i;
-    if (ch === '"') {
-      i++;
-      while (i < source.length) {
-        if (source[i] === '\r' || source[i] === '\n') { break; }
-        if (source[i] === '\\') { i = Math.min(i + 2, source.length); continue; }
-        if (source[i++] === '"') { break; }
-      }
+    const literal = scanScarpString(source, i);
+    if (literal) {
+      i = literal.end;
       result.push({ type: 'string', text: source.slice(start, i), start, end: i });
       continue;
     }

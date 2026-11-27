@@ -58,6 +58,16 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.quoted.triple.scarp",
+          "begin": "\"\"\"",
+          "end": "\"\"\""
+        },
+        {
+          "name": "string.quoted.raw.scarp",
+          "begin": "\\br\"",
+          "end": "\"|(?=$)"
+        },
+        {
           "name": "string.quoted.double.scarp",
           "begin": "\"",
           "end": "\"|(?=$)",

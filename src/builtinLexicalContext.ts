@@ -1,3 +1,5 @@
+import { scanScarpString } from './stringLiteral';
+
 /**
  * Small bounded lexical view shared by editor-only builtin providers.
  * Offsets are UTF-16 code units. This is not compiler semantic resolution.
@@ -35,24 +37,16 @@ export function scanBuiltinContext(source: string): readonly BuiltinToken[] | un
     const start = i++;
     let kind: BuiltinToken['kind'] = 'punctuation';
     let closed = true;
+    const literal = scanScarpString(source, start);
     if (ch === '/' && source[i] === '/') {
       kind = 'comment';
       i++;
       while (i < source.length && source[i] !== '\r' && source[i] !== '\n') i++;
       closed = i < source.length;
-    } else if (ch === '"') {
+    } else if (literal) {
       kind = 'string';
-      closed = false;
-      while (i < source.length && source[i] !== '\r' && source[i] !== '\n') {
-        if (source[i] === '"') { i++; closed = true; break; }
-        if (source[i] === '\\') {
-          i++;
-          // A backslash must never make the editor consume the next source line.
-          if (i < source.length && source[i] !== '\r' && source[i] !== '\n') i++;
-        } else {
-          i++;
-        }
-      }
+      i = literal.end;
+      closed = literal.closed;
     } else if (wordPart(ch)) {
       // Consume digit-leading malformed words as one nonidentifier, rather than
       // treating a builtin suffix as a standalone callable.
