@@ -71,3 +71,29 @@ test('comments do not create fake string or function selections', () => {
   assert.ok(selection.includes(source));
   assert.ok(!selection.includes('"fake"'));
 });
+
+test('raw literals expand through exact payload and the raw prefix', () => {
+  const source = 'print(r"literal\\n 😀");';
+  const ranges = values(source, source.indexOf('literal') + 2);
+  assert.equal(ranges[0], 'literal\\n 😀');
+  assert.equal(ranges[1], 'r"literal\\n 😀"');
+});
+test('multiline selection never includes any quote delimiter in the content', () => {
+  const content = 'first 😀\r\nmiddle text\r\nlast';
+  const literal = '"""' + content + '"""';
+  const source = 'bind message = ' + literal + ';';
+  for (const needle of ['first', 'middle', 'last']) {
+    const ranges = values(source, source.indexOf(needle) + 1);
+    assert.ok(ranges.includes(content), needle);
+    assert.ok(ranges.includes(literal), needle);
+    assert.ok(ranges.indexOf(content) < ranges.indexOf(literal), needle);
+  }
+});
+test('unterminated strings do not produce falsely closed payload ranges', () => {
+  for (const [source, fabricated] of [
+    ['print("tail\\"', 'tail\\'],
+    ['bind t = """first\nlast""', 'first\nlast']
+  ]) {
+    assert.ok(!values(source, source.indexOf(fabricated)).includes(fabricated));
+  }
+});

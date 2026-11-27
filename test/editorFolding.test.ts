@@ -61,3 +61,27 @@ test('repeated sections retain deterministic order and no duplicate intervals', 
   assert.equal(folds.filter(f => f.kind === 'region').length, 30);
   assert.equal(new Set(folds.map(f => f.start + ':' + f.end)).size, folds.length);
 });
+
+test('closed triple strings fold without interpreting their contents as source', () => {
+  const source = 'funcra f() {\r\n  bind text = """first\r\n// #region fake\r\n{ not source }\r\nlast""";\r\n}';
+  const folds = scarpFolds(source);
+  assert.deepEqual(folds.map(f => [f.kind, f.start, f.end]), [
+    ['structure', 0, 5], ['string', 1, 4]
+  ]);
+  const literal = folds[1];
+  assert.equal(source.slice(literal.startOffset, literal.endOffset),
+    '"""first\r\n// #region fake\r\n{ not source }\r\nlast"""');
+  assert.equal(scarpFolds(source, { foldStrings: false }).some(f => f.kind === 'string'), false);
+});
+test('one-line, raw and unterminated literals never fabricate multiline folds', () => {
+  for (const source of ['bind t = """one""";', 'bind t = r"raw";', 'bind t = """one\nunfinished']) {
+    assert.deepEqual(scarpFolds(source), [], source);
+  }
+});
+test('multiple triple string folds remain bounded and ordered', () => {
+  const source = Array.from({ length: 100 }, (_, i) =>
+    'bind v' + i + ' = """a\nb""";').join('\n');
+  const folds = scarpFolds(source, { maximumRanges: 20 });
+  assert.equal(folds.length, 20);
+  assert.ok(folds.every((f, i) => f.kind === 'string' && f.start === i * 2 && f.end === i * 2 + 1));
+});

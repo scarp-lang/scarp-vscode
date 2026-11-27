@@ -1,9 +1,10 @@
+import { scanScarpString } from './stringLiteral';
 import {
   scanScarpStructure, scarpLineAt, type ScarpPair,
   type ScarpSpan, type ScarpStructure
 } from './editorStructure';
 
-export type ScarpFoldKind = 'region' | 'comment' | 'imports' | 'structure';
+export type ScarpFoldKind = 'region' | 'comment' | 'imports' | 'structure' | 'string';
 export interface ScarpFold {
   readonly start: number;
   readonly end: number;
@@ -20,6 +21,7 @@ export interface ScarpFoldingOptions {
   readonly foldComments?: boolean;
   readonly foldRegions?: boolean;
   readonly foldImports?: boolean;
+  readonly foldStrings?: boolean;
 }
 const DEFAULT_RANGES = 5000;
 
@@ -95,8 +97,9 @@ function rank(kind: ScarpFoldKind): number {
   switch (kind) {
     case 'region': return 0;
     case 'structure': return 1;
-    case 'imports': return 2;
-    case 'comment': return 3;
+    case 'string': return 2;
+    case 'imports': return 3;
+    case 'comment': return 4;
   }
 }
 /**
@@ -128,6 +131,15 @@ export function scarpFoldsFromStructure(
         pair.kind === '[' && options.foldBrackets === false) { continue; }
     add(structuralRange(pair), 'structure');
     if (candidates.length > maximumRanges * 8) { return []; }
+  }
+  if (options.foldStrings !== false) {
+    for (const span of structure.strings) {
+      if (!text.startsWith('"""', span.start)) continue;
+      const literal = scanScarpString(text, span.start);
+      if (!literal?.closed || literal.end !== span.end) continue;
+      add(span, 'string');
+      if (candidates.length > maximumRanges * 8) { return []; }
+    }
   }
   if (options.foldComments !== false) {
     for (const span of commentRuns(text, structure)) { add(span, 'comment'); }
