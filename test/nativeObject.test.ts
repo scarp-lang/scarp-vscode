@@ -198,7 +198,7 @@ test('failed, stale, cancelled and malformed compilation never publishes an obje
         if (variant === 'bad-object') await fs.writeFile(args[1][args[1].length - 1], 'not ELF');
         return result;
       };
-      await assert.rejects(exportNativeObject(options), undefined, variant);
+      await assert.rejects(exportNativeObject(options), variant);
       assert.deepEqual(await fs.readdir(root), [], variant);
     });
   }
