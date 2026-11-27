@@ -1,0 +1,54 @@
+name: Published alpha.3 native export qualification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-alpha3-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  native-alpha3:
+    name: Published alpha.3 native generic and aggregate export (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: ""
+          - os: windows-latest
+            suffix: ".exe"
+          - os: macos-latest
+            suffix: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.7-alpha.3
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Verify exact published compiler and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "44a3bb0a91e67570e46ce058a3f6211f8e5db0f5"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+      - name: Compare real CLI and extension output without linking or executing native objects
+        env:
+          SCARP_NATIVE_ALPHA3_BINARY: ${{ github.workspace }}/compiler/target/release/scarp${{ matrix.suffix }}
+          SCARP_NATIVE_ALPHA3_AGGREGATE: ${{ github.workspace }}/compiler/examples/native_aggregate_locals.srp
+        run: node --test dist/test/nativeObjectAlpha3Published.test.js
