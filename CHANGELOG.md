@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Add opt-in experimental native object export for published Scarp v0.0.7-alpha.2, with checked, bounded and bounded-entry compilation modes, explicit consent, frozen UTF-8 source, validated ELF64 and ABI metadata, no-overwrite publication, source SHA-256 and a bounded Unicode-aware failure-span preview. Test the real published compiler on Windows, Linux and macOS; no native linking or execution, automatic saving, or extension publication.
+
 - Improve compiler distribution reliability: choose the highest eligible semantic version within the official bounded release catalogue; reject duplicate matching assets and duplicate selected tags. Preserve all historical native package checks and add a separately pinned v0.0.7-alpha.1 native installer and real VS Code Host gate for Windows x64, Linux x64 and Apple Silicon macOS, including modern project and interpreter contracts. No publication or automatic installation.
 
 - Add conservative, bounded current-document symbol completion for preceding simple bindings, mutable variables, typed parameters, functions, repeat indices, destructured binding leaves and module aliases; exclude closed block declarations, avoid inferred captures, reuse full-identifier replacement and preserve compiler-free Restricted Mode support. Include unit and genuine Extension Host regressions.

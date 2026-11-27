@@ -5,6 +5,8 @@ import * as fs from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import * as vscode from 'vscode';
+import { exportNativeObject } from '../../../src/nativeObject';
+import { nativeSpanPositions } from '../../../src/nativeSourceSpans';
 
 const runExecutable = promisify(execFile);
 
@@ -40,7 +42,7 @@ export async function run(): Promise<void> {
   const commands = await vscode.commands.getCommands(true);
   for (const command of [
     'scarp.runFile', 'scarp.checkFile', 'scarp.showVersion',
-    'scarp.setupCompiler', 'scarp.manageCompiler', 'scarp.stopProgram'
+    'scarp.setupCompiler', 'scarp.manageCompiler', 'scarp.stopProgram', 'scarp.exportNativeObject'
   ]) {
     assert.ok(commands.includes(command), 'Missing command: ' + command);
   }
@@ -126,6 +128,28 @@ export async function run(): Promise<void> {
       assert.ok(vscode.window.terminals.length <= initialTerminals,
         'Stop must dispose of extension-owned launch terminals');
     } finally { opened.dispose(); }
+
+    if (publishedVersion === '0.0.7-alpha.2') {
+      // Use the actual verified installed package inside the genuine host.
+      // This calls the export core directly, without automating modal consent.
+      const nativeSource = Buffer.from('\uFEFF// Unicode π 😀\r\n' +
+        'pure funcra evaluate(n: integer) -> integer { return n + 1; }\r\n');
+      const destination = path.join(tempRoot, 'host native object.o');
+      const before = vscode.window.terminals.length;
+      const report = await exportNativeObject({
+        binary, source: nativeSource, destination,
+        request: { mode: 'checked' }, timeoutMs: 30000,
+        stillCurrent: async () => vscode.workspace.isTrusted
+      });
+      assert.equal(report.symbol, 'scarp_checked_integer_function');
+      const spans = nativeSpanPositions(nativeSource, report.failure_spans);
+      assert.ok(spans.some(span => span.start.line === 2));
+      const object = await fs.readFile(destination);
+      assert.equal(object.readUInt16LE(16), 1);
+      assert.equal(vscode.window.terminals.length, before,
+        'Native object export never launches a program terminal');
+      assert.equal((await fs.readdir(tempRoot)).some(name => name.startsWith('.scarp-native-')), false);
+    }
 
     // View/Run/Verify must never start the explicit compiler installer.
     assert.deepEqual((await fs.readdir(path.join(installRoot, 'compilers'))).sort(),

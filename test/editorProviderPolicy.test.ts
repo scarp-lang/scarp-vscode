@@ -17,7 +17,8 @@ const pkg = JSON.parse(source('package.json')) as {
 };
 const commands = [
   'scarp.browseWorkspaceImports',
-  'scarp.browseWorkspaceProjects'
+  'scarp.browseWorkspaceProjects',
+  'scarp.exportNativeObject'
 ];
 test('on-demand Scarp workspace explorer commands are registered', () => {
   for (const name of commands) {
@@ -135,4 +136,23 @@ test('import report UI opens an in-memory Markdown document', () => {
   assert.match(content, /formatScarpWorkspaceReport\(graph, inventory\)/);
   assert.match(content, /language: 'markdown', content: report/);
   assert.doesNotMatch(content, /fs\.writeFile/);
+});
+
+test('native export is separate from runtime and requires trust, consent and capability checks', () => {
+  const command = source('src/nativeObjectCommand.ts');
+  const core = source('src/nativeObject.ts');
+  assert.match(command, /if \(!vscode\.workspace\.isTrusted\)/);
+  assert.ok(command.indexOf('if (!vscode.workspace.isTrusted)') <
+    command.indexOf('vscode.workspace.openTextDocument'));
+  assert.match(command, /document\.isDirty/);
+  assert.match(command, /modal: true/);
+  assert.match(command, /consent !== 'Export Object'/);
+  assert.match(command, /guide', 'native-object/);
+  assert.match(command, /nativeObjectAdvertised/);
+  assert.match(command, /registerNativeObjectExport/);
+  assert.match(core, /parseNativeObjectReport/);
+  assert.match(core, /validNativeObjectHeader/);
+  assert.match(core, /fs\.link\(object, output\)/);
+  assert.doesNotMatch(command + core, /createTerminal|sendText|installOfficialCompiler|shell:\s*true/);
+  assert.match(source('src/extension.ts'), /registerNativeObjectExport\(validateCompiler, output\)/);
 });
