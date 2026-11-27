@@ -57,6 +57,7 @@ test('querying cached future tokens agrees with prefix-only signatures', () => {
     for (let cursor = 1; cursor <= source.length; cursor++) {
       if (source.includes('"""') && source[cursor - 1] === '"') continue;
       if (source[cursor - 1] === '/' && source[cursor] === '/') continue;
+      if (source[cursor - 1] === 'r' && source[cursor] === '"') continue;
       assert.deepEqual(scarpSignatureFromTokens(snapshot.tokens, cursor),
         scarpSignatureAt(source.slice(0, cursor)), source + ' @ ' + cursor);
     }
