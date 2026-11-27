@@ -1,4 +1,4 @@
-import { BUILTIN_CONTEXT_LIMIT, blockedBuiltinName, previousCodeToken, scanBuiltinContext } from './builtinLexicalContext';
+import { BUILTIN_CONTEXT_LIMIT, blockedBuiltinName, builtinTokenLowerBound, previousCodeToken, scanBuiltinContext, type BuiltinToken } from './builtinLexicalContext';
 
 /**
  * Lightweight, editor-only help for published numerical, text, input and collection Scarp built-ins.
@@ -714,16 +714,25 @@ export function scarpBuiltinAt(
       character >= line.length || nextLine.length > BUILTIN_CONTEXT_LIMIT) return undefined;
   const tokens = scanBuiltinContext(preceding + line);
   if (!tokens) return undefined;
-  const cursor = preceding.length + character;
-  const index = tokens.findIndex(token => token.kind === 'word' &&
-    token.start >= preceding.length && token.start <= cursor && cursor < token.end);
-  if (index < 0) return undefined;
+  const source = preceding + line + '\n' + nextLine;
+  return scarpBuiltinFromTokens(tokens, source, preceding.length + character,
+    preceding.length, source.length);
+}
+
+/** Query cached full-prefix tokens, retaining the existing one-line lookahead. */
+export function scarpBuiltinFromTokens(
+  tokens: readonly BuiltinToken[], source: string, cursor: number,
+  lineStart: number, lookaheadEnd: number
+): ScarpBuiltinCall | undefined {
+  if (!Number.isSafeInteger(cursor) || !Number.isSafeInteger(lineStart) ||
+      !Number.isSafeInteger(lookaheadEnd) || lineStart < 0 || cursor < lineStart ||
+      cursor >= source.length || lookaheadEnd > source.length || lookaheadEnd <= cursor) return undefined;
+  const at = builtinTokenLowerBound(tokens, cursor);
+  const index = tokens[at]?.start === cursor ? at : at - 1;
   const token = tokens[index];
-  if (blockedBuiltinName(previousCodeToken(tokens, index))) return undefined;
+  if (!token || token.kind !== 'word' || token.start < lineStart || cursor >= token.end ||
+      blockedBuiltinName(previousCodeToken(tokens, index))) return undefined;
   const help = scarpBuiltinByName(token.text);
-  if (!help) return undefined;
-  const start = token.start - preceding.length;
-  const end = token.end - preceding.length;
-  if (!/^\s*\(/.test(line.slice(end) + '\n' + nextLine)) return undefined;
-  return { help, start, end };
+  if (!help || !/^\s*\(/.test(source.slice(token.end, lookaheadEnd))) return undefined;
+  return { help, start: token.start - lineStart, end: token.end - lineStart };
 }

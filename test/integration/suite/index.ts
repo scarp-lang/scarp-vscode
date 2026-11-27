@@ -347,6 +347,30 @@ export async function run(): Promise<void> {
     'vscode.executeSignatureHelpProvider', windowDoc.uri,
     new vscode.Position(windowLines.length - 1, windowLines[windowLines.length - 1].length), ',');
   assert.equal(windowHint?.activeParameter, 1);
+  // A long multiline literal contains a fake builtin on a later line.
+  // Genuine providers must resume after its closing delimiter, even when
+  // the query is beyond the former 16 KiB prefix cutoff.
+  const longLines = ['bind long_value = 7;', 'bind message = """',
+    'x'.repeat(20_000), 'integer_gcd(1, 2);', '""";',
+    'integer_gcd(12, 18);', 'print(long_);'];
+  const longDoc = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: longLines.join('\n')
+  });
+  const fakeLongHover = await vscode.commands.executeCommand<vscode.Hover[]>(
+    'vscode.executeHoverProvider', longDoc.uri, new vscode.Position(3, 3));
+  assert.ok(!fakeLongHover?.some(item => item.contents.some(value =>
+    String(typeof value === 'string' ? value : value.value).includes('Introduced in compiler'))));
+  const realLongHover = await vscode.commands.executeCommand<vscode.Hover[]>(
+    'vscode.executeHoverProvider', longDoc.uri, new vscode.Position(5, 3));
+  assert.ok(realLongHover?.some(item => item.contents.some(value =>
+    String(typeof value === 'string' ? value : value.value).includes('Introduced in compiler'))));
+  const realLongSignature = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+    'vscode.executeSignatureHelpProvider', longDoc.uri, new vscode.Position(5, 'integer_gcd(12, '.length), ',');
+  assert.equal(realLongSignature?.activeParameter, 1);
+  const longCompletion = await vscode.commands.executeCommand<vscode.CompletionList>(
+    'vscode.executeCompletionItemProvider', longDoc.uri, new vscode.Position(6, 'print(long_'.length));
+  assert.ok(longCompletion?.items.some(item => item.label === 'long_value' &&
+    item.detail?.includes('current document')));
   const localSource = 'bind local_value = 7;\nif true { bind local_hidden = 1; }\nprint(local_old);';
   const localDoc = await vscode.workspace.openTextDocument({ language: 'scarp', content: localSource });
   const localItems = await vscode.commands.executeCommand<vscode.CompletionList>(

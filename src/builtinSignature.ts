@@ -1,5 +1,5 @@
 import { scarpBuiltinByName, type ScarpBuiltinHelp } from './builtinHelp';
-import { blockedBuiltinName, isGroupingParenthesis, previousCodeToken, scanBuiltinContext } from './builtinLexicalContext';
+import { blockedBuiltinName, isGroupingParenthesis, previousCodeToken, scanBuiltinContext, builtinTokenLowerBound, type BuiltinToken } from './builtinLexicalContext';
 
 /**
  * Lightweight syntactic signature help for released Scarp built-ins.
@@ -55,12 +55,24 @@ export function scarpSignatureAt(
   if (!prefix.length) return undefined;
   const tokens = scanBuiltinContext(prefix);
   if (!tokens) return undefined;
-  const last = tokens[tokens.length - 1];
-  if (last && last.end === prefix.length && !last.closed) return undefined;
+  return scarpSignatureFromTokens(tokens, prefix.length, truncated);
+}
 
+/** Inspect only the tokens before the cursor, without looking into future code. */
+export function scarpSignatureFromTokens(
+  tokens: readonly BuiltinToken[], cursor: number, truncated = false
+): ScarpSignatureHint | undefined {
+  if (!Number.isSafeInteger(cursor) || cursor <= 0) return undefined;
+  const end = builtinTokenLowerBound(tokens, cursor);
+  const last = tokens[end - 1];
+  if (last && (last.kind === 'string' || last.kind === 'comment') &&
+      (cursor < last.end || (cursor === last.end && (last.kind === 'comment' || !last.closed)))) {
+    return undefined;
+  }
   const stack: Frame[] = [];
-  for (const [index, token] of tokens.entries()) {
-    if (token.kind !== 'punctuation') continue;
+  for (let index = 0; index < end; index++) {
+    const token = tokens[index];
+    if (token.end > cursor || token.kind !== 'punctuation') continue;
     const ch = token.text;
     if (ch === '(' || ch === '[' || ch === '{') {
       let nameIndex = index - 1;
