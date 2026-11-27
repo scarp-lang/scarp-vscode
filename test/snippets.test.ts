@@ -9,13 +9,13 @@ const snippets = JSON.parse(fs.readFileSync(
   path.join(root, 'snippets/scarp.code-snippets'), 'utf8'
 )) as Record<string, Snippet>;
 
-test('registers 31 bounded Scarp snippets with unique prefixes', () => {
+test('registers 38 bounded Scarp snippets with unique prefixes', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.deepEqual(pkg.contributes.snippets, [
     { language: 'scarp', path: './snippets/scarp.code-snippets' },
     { language: 'scarp-project', path: './snippets/scarp-project.code-snippets' }
   ]);
-  assert.equal(Object.keys(snippets).length, 31);
+  assert.equal(Object.keys(snippets).length, 38);
   const prefixes = new Set<string>();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(name.startsWith('Scarp: '));
@@ -204,3 +204,24 @@ test('new series snippets show fixed arrays, integer reductions and vector softp
   assert.match(softplus.body.join('\n'), /: vector = softplus\(/);
 });
 
+
+test('alpha.3 starters are explicitly versioned and cover actual generic and string syntax', () => {
+  const expected: Record<string, string[]> = {
+    sgeneric: ['<T>', '::<string>'],
+    sgenericnumeric: ['T: Numeric', 'value * value'],
+    sgenericlist: ['list<T>', '[list: <T>]', '::<integer>'],
+    sgenericoption: ['option<T>', '::Some(value)', 'case None'],
+    sgenericresult: ['result<T, string>', '::Ok(value)', 'case Err(message)'],
+    sstringops: [' += ', ' *= ', ': string = '],
+    sstringliterals: ['r"', '"""', 'Second line']
+  };
+  for (const [prefix, required] of Object.entries(expected)) {
+    const entry = Object.entries(snippets).find(([, snippet]) => snippet.prefix === prefix);
+    assert.ok(entry, prefix);
+    const [name, snippet] = entry;
+    assert.match(name, /\(v0\.0\.7-alpha\.3\)$/);
+    assert.match(snippet.description, /v0\.0\.7-alpha\.3\+/);
+    assert.match(snippet.description, /interpreter only/);
+    for (const token of required) assert.ok(snippet.body.join('\n').includes(token), prefix + ': ' + token);
+  }
+});

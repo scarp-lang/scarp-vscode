@@ -617,3 +617,22 @@ test('alpha.2 package qualification is independent, pinned and nonpublishing', (
   assert.match(script, /ET_REL/);
   assert.match(script, /Existing object must not change/);
 });
+
+test('next pre-release independently qualifies alpha.3 before packaging without granting publication', () => {
+  const publish = repoFile('.github/workflows/prerelease.yml');
+  const old = publish.indexOf('name: Gate release on real untrusted VS Code Restricted Mode');
+  const current = publish.indexOf('name: Gate release on published alpha.3 compiler and all starter snippets');
+  const host = publish.indexOf('name: Gate release on latest published compiler VS Code Extension Host');
+  const packageStep = publish.indexOf('name: Build verified pre-release package');
+  assert.ok(old >= 0 && current > old && host > current && packageStep > host);
+  const qualification = publish.slice(old, packageStep);
+  assert.match(qualification, /ref: v0\.0\.7-alpha\.3/);
+  assert.match(qualification, /44a3bb0a91e67570e46ce058a3f6211f8e5db0f5/);
+  assert.match(qualification, /verify-snippets\.cjs "\$binary" v0\.0\.7-alpha\.3/);
+  assert.match(qualification, /string_operators\.stdout/);
+  assert.match(qualification, /xvfb-run -a npm run test:integration/);
+  const snippets = repoFile('.github/workflows/alpha3-snippets.yml');
+  assert.match(snippets, /contents: read/);
+  assert.match(snippets, /44a3bb0a91e67570e46ce058a3f6211f8e5db0f5/);
+  assert.doesNotMatch(snippets, /vsce publish|ovsx.*publish|gh release/);
+});

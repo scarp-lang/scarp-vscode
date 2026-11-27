@@ -241,6 +241,30 @@ jobs:
       - name: Gate release on real untrusted VS Code Restricted Mode
         run: xvfb-run -a npm run test:untrusted
 
+      # Preserve the historical alpha.20 qualification above. Independently
+      # qualify the current published compiler before creating any VSIX.
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.7-alpha.3
+          path: compiler
+      - name: Gate release on published alpha.3 compiler and all starter snippets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "44a3bb0a91e67570e46ce058a3f6211f8e5db0f5"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -Fx 'scarp 0.0.7-alpha.3'
+          node scripts/verify-snippets.cjs "$binary" v0.0.7-alpha.3
+          "$binary" verify compiler/examples/string_operators.srp
+          "$binary" exec compiler/examples/string_operators.srp > "$RUNNER_TEMP/alpha3-string-operators.actual"
+          diff -u compiler/examples/string_operators.stdout "$RUNNER_TEMP/alpha3-string-operators.actual"
+      - name: Gate release on latest published compiler VS Code Extension Host
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
       - name: Validate version and release tag
         id: release
         shell: bash

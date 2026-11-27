@@ -34,13 +34,14 @@ test('legacy numeric cutoffs mean v0.0.6, never the new alpha series', () => {
 test('all historical snippet inventories stay unchanged after the series transition', () => {
   const counts: Record<string, number> = {
     '6': 13, '7': 14, '9': 15, '11': 17, '12': 24,
-    '17': 26, '20': 28, 'v0.0.6-alpha.20': 28, 'v0.0.7-alpha.1': 31
+    '17': 26, '20': 28, 'v0.0.6-alpha.20': 28, 'v0.0.7-alpha.1': 31,
+    'v0.0.7-alpha.2': 31, 'v0.0.7-alpha.3': 38
   };
   for (const [version, count] of Object.entries(counts)) {
     assert.equal(snippets.filter(name => snippetSupported(name, parseSnippetCutoff(version))).length,
       count, version);
   }
-  assert.equal(snippets.filter(name => snippetSupported(name, parseSnippetCutoff())).length, 31);
+  assert.equal(snippets.filter(name => snippetSupported(name, parseSnippetCutoff())).length, 38);
 });
 
 test('malformed version-like requirements fail closed', () => {
