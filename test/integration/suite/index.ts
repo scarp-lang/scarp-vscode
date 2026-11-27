@@ -82,7 +82,7 @@ export async function run(): Promise<void> {
   const literalSelections = await vscode.commands.executeCommand<vscode.SelectionRange[]>(
     'vscode.executeSelectionRangeProvider', literalDocument.uri, [new vscode.Position(1, 2)]);
   const literalAncestors: string[] = [];
-  for (let range = literalSelections?.[0]; range; range = range.parent) {
+  for (let range: vscode.SelectionRange | undefined = literalSelections?.[0]; range; range = range.parent) {
     literalAncestors.push(literalDocument.getText(range.range));
   }
   assert.ok(literalAncestors.includes('first\nmiddle\nlast'),
