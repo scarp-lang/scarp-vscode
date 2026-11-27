@@ -29,11 +29,12 @@ import { parseBrowsableProjectModules } from './projectModules';
 import { parseListedProjectTests } from './projectTestListing';
 import { registerCompilerNavigation } from './navigationProvider';
 import { browseProjectSymbols } from './projectSymbolBrowser';
-import { scarpBuiltinAt } from './builtinHelp';
-import { scarpSignatureAt } from './builtinSignature';
-import { scarpBuiltinCompletionAt, scarpCompletionPrefixAt } from './builtinCompletion';
+import { scarpBuiltinFromTokens } from './builtinHelp';
+import { scarpSignatureFromTokens } from './builtinSignature';
+import { scarpBuiltinMatches, scarpCompletionFromTokens } from './builtinCompletion';
 import { scarpSourceCompletions, SOURCE_COMPLETION_LIMIT, type SourceCompletionKind } from './sourceCompletion';
-import { BUILTIN_CONTEXT_LIMIT } from './builtinLexicalContext';
+import { BUILTIN_DOCUMENT_LIMIT } from './builtinLexicalContext';
+import { BuiltinEditorCache } from './builtinEditorCache';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
 import { registerScarpEditorProviders } from './editorProviders';
 import { registerNativeObjectExport } from './nativeObjectCommand';
@@ -1543,13 +1544,15 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     { label: 'Scarp declarations' }
   );
-  // Multiline literals may begin arbitrarily far above the current line.
-  // Never treat an arbitrary truncated suffix as code. Keep the existing
-  // hard context budget and omit lexical help if the prefix exceeds it.
-  function builtinPreceding(document: vscode.TextDocument, line: number): string | undefined {
-    const current = document.lineAt(line);
-    if (document.offsetAt(current.range.end) > BUILTIN_CONTEXT_LIMIT) return undefined;
-    return document.getText(new vscode.Range(new vscode.Position(0, 0), current.range.start));
+  // Scan the exact bounded document prefix once per version. Never start a
+  // window inside a multiline literal; never copy an unbounded document.
+  const builtinCache = new BuiltinEditorCache();
+  function builtinSnapshot(document: vscode.TextDocument) {
+    const last = document.lineAt(document.lineCount - 1).range.end;
+    const length = Math.min(document.offsetAt(last), BUILTIN_DOCUMENT_LIMIT);
+    const source = document.getText(new vscode.Range(new vscode.Position(0, 0),
+      document.positionAt(length)));
+    return builtinCache.get(document.uri.toString(), document.version, source);
   }
   // Static, read-only help remains available in Restricted Mode. No compiler
   // executable is launched by pointer movement or hover requests.
@@ -1558,14 +1561,18 @@ export function activate(context: vscode.ExtensionContext): void {
       if (token.isCancellationRequested || position.line >= document.lineCount) {
         return undefined;
       }
-      const preceding = builtinPreceding(document, position.line);
-      if (preceding === undefined) return undefined;
-      const line = document.lineAt(position.line).text;
+      const current = document.lineAt(position.line);
+      const lineStart = document.offsetAt(current.range.start);
+      const lineEnd = document.offsetAt(current.range.end);
+      const cursor = document.offsetAt(position);
+      if (lineEnd > BUILTIN_DOCUMENT_LIMIT) return undefined;
+      const snapshot = builtinSnapshot(document);
+      if (!snapshot) return undefined;
       const following = position.line + 1 < document.lineCount
         ? document.lineAt(position.line + 1) : undefined;
-      const nextLine = following && following.range.end.character <= BUILTIN_CONTEXT_LIMIT
-        ? following.text : '';
-      const call = scarpBuiltinAt(line, position.character, nextLine, preceding);
+      const nextEnd = following ? document.offsetAt(following.range.end) : lineEnd;
+      const lookaheadEnd = nextEnd <= snapshot.source.length ? nextEnd : lineEnd;
+      const call = scarpBuiltinFromTokens(snapshot.tokens, snapshot.source, cursor, lineStart, lookaheadEnd);
       if (!call) { return undefined; }
       const hover = new vscode.MarkdownString();
       hover.isTrusted = false;
@@ -1589,10 +1596,11 @@ export function activate(context: vscode.ExtensionContext): void {
         if (token.isCancellationRequested || position.line >= document.lineCount) {
           return undefined;
         }
-        // An arbitrary suffix may start inside a triple-quoted literal.
-        if (document.offsetAt(position) > BUILTIN_CONTEXT_LIMIT) return undefined;
-        const prefix = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
-        const hint = scarpSignatureAt(prefix);
+        const cursor = document.offsetAt(position);
+        if (cursor > BUILTIN_DOCUMENT_LIMIT) return undefined;
+        const snapshot = builtinSnapshot(document);
+        if (!snapshot || cursor > snapshot.source.length) return undefined;
+        const hint = scarpSignatureFromTokens(snapshot.tokens, cursor);
         if (!hint) { return undefined; }
         const signature = new vscode.SignatureInformation(hint.help.signature,
           hint.help.summary + '\n\n' + hint.help.constraints + '\n\nRequires ' + hint.help.introduced +
@@ -1623,14 +1631,16 @@ export function activate(context: vscode.ExtensionContext): void {
         if (token.isCancellationRequested || position.line >= document.lineCount) {
           return [];
         }
-        const preceding = builtinPreceding(document, position.line);
-        if (preceding === undefined) return [];
-        const line = document.lineAt(position.line).text;
-        const prefix = scarpCompletionPrefixAt(line, position.character, preceding);
+        const current = document.lineAt(position.line);
+        const lineStart = document.offsetAt(current.range.start);
+        const lineEnd = document.offsetAt(current.range.end);
+        if (lineEnd > BUILTIN_DOCUMENT_LIMIT) return [];
+        const snapshot = builtinSnapshot(document);
+        if (!snapshot) return [];
+        const prefix = scarpCompletionFromTokens(snapshot.tokens, document.offsetAt(position), lineStart);
         if (!prefix) return [];
         const range = new vscode.Range(position.line, prefix.start, position.line, prefix.end);
-        const suggestion = scarpBuiltinCompletionAt(line, position.character, preceding);
-        const items = (suggestion?.matches ?? []).map(meta => {
+        const items = scarpBuiltinMatches(prefix.prefix).map(meta => {
           const item = new vscode.CompletionItem(
             meta.name, vscode.CompletionItemKind.Function);
           item.detail = meta.signature + ' · Scarp ' + meta.introduced + '+' +
@@ -1719,6 +1729,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(output, diagnostics, saveVerifier, navigation,
     builtinHover, builtinSignatures, builtinCompletions, explainActions,
+    new vscode.Disposable(() => builtinCache.clear()),
     registerFileActionCodeLens(), ...registerScarpEditorProviders(),
     registerWorkspaceImportExplorer(output),
     registerWorkspaceProjectExplorer(output), projectMonitors,
@@ -1754,6 +1765,7 @@ export function activate(context: vscode.ExtensionContext): void {
       applyProblems(diagnostics, owners.invalidateChanged(event.document.uri.toString()));
     }),
     vscode.workspace.onDidCloseTextDocument(doc => {
+      builtinCache.invalidate(doc.uri.toString());
       activeFileCheckAborts.get(doc.uri.fsPath)?.abort();
       activeFileRunProbes.get(doc.uri.fsPath)?.abort();
       verifiedVersions.delete(doc.uri.fsPath);

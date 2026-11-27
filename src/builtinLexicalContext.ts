@@ -27,8 +27,14 @@ function wordPart(ch: string | undefined): boolean {
   return ch !== undefined && /[A-Za-z0-9_]/.test(ch);
 }
 
-export function scanBuiltinContext(source: string): readonly BuiltinToken[] | undefined {
-  if (source.length > BUILTIN_CONTEXT_LIMIT) return undefined;
+export const BUILTIN_DOCUMENT_LIMIT = 128_000;
+export const BUILTIN_DOCUMENT_TOKEN_LIMIT = 24_000;
+
+export function scanBuiltinContext(
+  source: string, documentMode = false
+): readonly BuiltinToken[] | undefined {
+  const limit = documentMode ? BUILTIN_DOCUMENT_LIMIT : BUILTIN_CONTEXT_LIMIT;
+  if (source.length > limit) return undefined;
   const tokens: BuiltinToken[] = [];
   let i = 0;
   while (i < source.length) {
@@ -55,6 +61,7 @@ export function scanBuiltinContext(source: string): readonly BuiltinToken[] | un
     } else if (ch === ':' && source[i] === ':') {
       i++;
     }
+    if (tokens.length >= BUILTIN_DOCUMENT_TOKEN_LIMIT) return undefined;
     tokens.push({ kind, text: source.slice(start, i), start, end: i, closed });
   }
   return tokens;
@@ -83,4 +90,16 @@ export function isGroupingParenthesis(previous: BuiltinToken | undefined): boole
   if (previous.kind === 'number' || previous.kind === 'string') return false;
   return previous.text !== ')' && previous.text !== ']' &&
     previous.text !== '.' && previous.text !== '::';
+}
+
+/** First token beginning at or after offset. Works on UTF-16 offsets. */
+export function builtinTokenLowerBound(tokens: readonly BuiltinToken[], offset: number): number {
+  let lo = 0;
+  let hi = tokens.length;
+  while (lo < hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (tokens[mid].start < offset) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }

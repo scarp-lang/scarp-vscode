@@ -245,3 +245,26 @@ test('signature help follows lexical qualification across comment and line bound
   assert.equal(scarpSignatureAt('integer_gcd(1, // unfinished'), undefined);
   assert.equal(scarpSignatureAt('"broken\\\ninteger_gcd(1, ')?.activeParameter, 1);
 });
+
+test('explicit generic type lists do not count as enclosing value arguments', () => {
+  for (const source of [
+    'integer_gcd(identity::<integer',
+    'integer_gcd(pair::<integer, string',
+    'integer_gcd(pair::<tuple<integer, string>, list<integer>>',
+    'integer_gcd(pair::<integer, string>(',
+    'integer_gcd(mod.pair::<integer, string>(1, ',
+    'integer_gcd(pair::<integer, string> // comment\n('
+  ]) assert.equal(scarpSignatureAt(source), undefined, source);
+  for (const source of [
+    'integer_gcd(pair::<integer, string>(1, "x"), ',
+    'integer_gcd(pair::<tuple<integer, string>, list<integer>>((1, "x"), values), ',
+    'integer_gcd(mod.identity::<integer>(1), ',
+    'integer_gcd(identity::<integer>(integer_abs(-1)), '
+  ]) {
+    const hint = scarpSignatureAt(source);
+    assert.equal(hint?.help.name, 'integer_gcd', source);
+    assert.equal(hint?.activeParameter, 1, source);
+  }
+  assert.equal(scarpSignatureAt('integer_gcd(if x < y { x } else { y }, ')?.activeParameter, 1);
+  assert.equal(scarpSignatureAt('integer_gcd(custom::<' + '<'.repeat(64)), undefined);
+});
