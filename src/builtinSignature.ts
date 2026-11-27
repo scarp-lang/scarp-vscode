@@ -70,16 +70,44 @@ export function scarpSignatureFromTokens(
     return undefined;
   }
   const stack: Frame[] = [];
+  let typeDepth = 0;
+  let typeTokens = 0;
+  let genericCallReady = false;
   for (let index = 0; index < end; index++) {
     const token = tokens[index];
-    if (token.end > cursor || token.kind !== 'punctuation') continue;
+    if (token.end > cursor || token.kind === 'comment') continue;
     const ch = token.text;
+    // Only the unambiguous published explicit-call marker ::< starts this
+    // context. Ordinary less-than/greater-than operators remain expressions.
+    if (typeDepth) {
+      if (++typeTokens > 512 || token.kind === 'string') return undefined;
+      if (token.kind === 'punctuation') {
+        if (ch === '<') {
+          if (++typeDepth > 64) return undefined;
+        } else if (ch === '>' && previousCodeToken(tokens, index)?.text !== '-') {
+          if (--typeDepth === 0) genericCallReady = true;
+        } else if (![',', ':', '.', '(', ')', '[', ']', '-', '>', '::'].includes(ch)) {
+          return undefined;
+        }
+      }
+      continue;
+    }
+    if (token.kind === 'punctuation' && ch === '<' &&
+        previousCodeToken(tokens, index)?.text === '::') {
+      typeDepth = 1;
+      typeTokens = 0;
+      genericCallReady = false;
+      continue;
+    }
+    const explicitCall = genericCallReady && token.kind === 'punctuation' && ch === '(';
+    genericCallReady = false;
+    if (token.kind !== 'punctuation') continue;
     if (ch === '(' || ch === '[' || ch === '{') {
       let nameIndex = index - 1;
       while (nameIndex >= 0 && tokens[nameIndex].kind === 'comment') nameIndex--;
       const previous = tokens[nameIndex];
-      const grouping = ch === '(' && isGroupingParenthesis(previous);
-      const help = ch === '(' && !grouping && previous?.kind === 'word' &&
+      const grouping = ch === '(' && !explicitCall && isGroupingParenthesis(previous);
+      const help = ch === '(' && !explicitCall && !grouping && previous?.kind === 'word' &&
         !blockedBuiltinName(previousCodeToken(tokens, nameIndex))
         ? scarpBuiltinByName(previous.text) : undefined;
       stack.push({ kind: ch, argument: 0, grouping, help });
@@ -97,6 +125,7 @@ export function scarpSignatureFromTokens(
     }
   }
 
+  if (typeDepth || genericCallReady) return undefined;
   for (let i = stack.length - 1; i >= 0; i--) {
     const frame = stack[i];
     if (frame.kind !== '(' || frame.grouping) continue;
