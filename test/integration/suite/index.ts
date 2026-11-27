@@ -72,6 +72,23 @@ export async function run(): Promise<void> {
   assert.equal(structuralLinks?.length ?? 0, 0,
     'In-memory Scarp documents cannot fabricate local file hyperlinks');
 
+  const literalDocument = await vscode.workspace.openTextDocument({
+    language: 'scarp', content: 'bind text = """first\nmiddle\nlast""";'
+  });
+  const literalFolds = await vscode.commands.executeCommand<vscode.FoldingRange[]>(
+    'vscode.executeFoldingRangeProvider', literalDocument.uri);
+  assert.ok(literalFolds?.some(fold => fold.start === 0 && fold.end === 2),
+    'Real folding provider must recognize complete multiline strings');
+  const literalSelections = await vscode.commands.executeCommand<vscode.SelectionRange[]>(
+    'vscode.executeSelectionRangeProvider', literalDocument.uri, [new vscode.Position(1, 2)]);
+  const literalAncestors: string[] = [];
+  for (let range = literalSelections?.[0]; range; range = range.parent) {
+    literalAncestors.push(literalDocument.getText(range.range));
+  }
+  assert.ok(literalAncestors.includes('first\nmiddle\nlast'),
+    'Real selection provider must preserve exact triple-string payload');
+  assert.ok(literalAncestors.includes('"""first\nmiddle\nlast"""'));
+
   const languages = await vscode.languages.getLanguages();
   assert.ok(languages.includes('scarp'), 'Scarp language registration is missing');
   assert.ok(languages.includes('scarp-project'), 'Scarp project manifest language missing');

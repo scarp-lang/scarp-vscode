@@ -1,3 +1,4 @@
+import { scanScarpString } from './stringLiteral';
 import {
   scanScarpStructure, scarpLineAt, type ScarpPair,
   type ScarpSpan, type ScarpStructure, type ScarpToken
@@ -72,9 +73,12 @@ function pairCandidates(
   return result;
 }
 function quotedContent(source: string, span: ScarpSpan): ScarpSpan | undefined {
-  if (source[span.start] !== '"' || source[span.end - 1] !== '"' ||
-      span.end - span.start < 2) { return undefined; }
-  return { start: span.start + 1, end: span.end - 1 };
+  const literal = scanScarpString(source, span.start);
+  if (!literal?.closed || literal.end !== span.end) return undefined;
+  const triple = source.startsWith('"""', span.start);
+  const raw = source.startsWith('r"', span.start);
+  return { start: span.start + (triple ? 3 : raw ? 2 : 1),
+    end: span.end - (triple ? 3 : 1) };
 }
 /**
  * Syntactic Expand Selection ranges, ordered from smallest to largest.
@@ -100,10 +104,17 @@ export function scarpSelectionRangesFromStructure(
   };
   const token = tokenRange(structure.tokens, cursor);
   if (token && options.includeToken !== false) { add(token); }
+  let activeString: ScarpSpan | undefined;
+  let activeContent: ScarpSpan | undefined;
   if (options.includeStringContent !== false) {
     for (const span of structure.strings) {
+      if (!contains(span, cursor)) continue;
       const inside = quotedContent(source, span);
-      if (inside && contains(inside, cursor)) { add(inside); }
+      if (inside && contains(inside, cursor)) {
+        activeString = span;
+        activeContent = inside;
+        add(inside);
+      }
     }
   }
   for (const pair of structure.pairs) {
@@ -116,7 +127,13 @@ export function scarpSelectionRangesFromStructure(
   for (const item of structure.comments) { add(item); }
   if (options.includeLine !== false) {
     const line = lineRange(source, structure, cursor);
-    if (contains(line, cursor)) { add(line); }
+    // Opening and closing lines of a multiline literal can intersect the
+    // literal without containing it. Such a line would displace the exact
+    // content range in the strict ancestor chain.
+    const crossesLiteral = activeString && activeContent &&
+      !(line.start >= activeContent.start && line.end <= activeContent.end) &&
+      !(line.start <= activeString.start && line.end >= activeString.end);
+    if (contains(line, cursor) && !crossesLiteral) { add(line); }
   }
   if (options.includeDocument !== false) {
     add({ start: 0, end: source.length });
