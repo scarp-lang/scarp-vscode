@@ -1,3 +1,4 @@
+import { scanScarpString } from './stringLiteral';
 import { scanScarpStructure, type ScarpToken } from './editorStructure';
 
 export type SourceCompletionKind = 'function' | 'constant' | 'variable' | 'parameter' | 'import';
@@ -194,7 +195,7 @@ export function scarpSourceCompletions(
   const lastComment = parsed.comments[parsed.comments.length - 1];
   if (lastComment?.end === preceding.length ||
       (final?.kind === 'string' && final.span.end === preceding.length &&
-        !final.text.endsWith('"'))) return [];
+        !scanScarpString(final.text, 0)?.closed)) return [];
 
   const frames: Scope[] = [scope('root')];
   const tokens = parsed.tokens;

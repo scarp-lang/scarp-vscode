@@ -490,3 +490,16 @@ test('published 0.0.7-alpha.1 calls have builtin scopes without coloring declara
       name, 'entity.name.function.definition.scarp'));
   }
 });
+
+test('alpha.3 TextMate state spans multiline literals and raw escapes are literal', async () => {
+  const grammar = await tokenizer();
+  const raw = tokens('r"backslash\\" print(1);', grammar);
+  assert.ok(hasScope(raw, 'backslash', 'string.quoted.raw.scarp'));
+  assert.ok(hasScope(raw, 'print', 'support.function.builtin.scarp'));
+  assert.ok(!raw.some(t => t.scopes.includes('constant.character.escape.scarp')));
+  const opening = grammar.tokenizeLine('bind x = """', null);
+  const middle = grammar.tokenizeLine('// print(1) { "quoted"', opening.ruleStack);
+  assert.ok(middle.tokens.every(t => t.scopes.includes('string.quoted.triple.scarp')));
+  const closing = grammar.tokenizeLine('"""; print(1);', middle.ruleStack);
+  assert.ok(closing.tokens.some(t => t.scopes.includes('support.function.builtin.scarp')));
+});
