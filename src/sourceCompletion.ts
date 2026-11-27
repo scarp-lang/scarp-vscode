@@ -1,3 +1,4 @@
+import { valueParameterStart } from './genericHeader';
 import { scanScarpString } from './stringLiteral';
 import { scanScarpStructure, type ScarpToken } from './editorStructure';
 
@@ -61,12 +62,15 @@ function isBlock(frame: Scope): boolean {
 function callableHeader(tokens: readonly ScarpToken[], start: number):
   { body: number; callable: SourceCompletion; parameters: SourceCompletion[] } | undefined {
   const name = tokens[start + 1];
-  if (!isName(name) || tokens[start + 2]?.text !== '(') return undefined;
+  if (!isName(name)) return undefined;
+  const open = valueParameterStart(tokens, start + 2);
+  if (open === undefined) return undefined;
+  const generic = open !== start + 2;
   const end = Math.min(tokens.length, start + MAX_HEADER_TOKENS);
   const parameters: SourceCompletion[] = [];
   let angle = 0;
   let nested = 0;
-  let segment = start + 3;
+  let segment = open + 1;
   let close = -1;
   function parameter(from: number, to: number): boolean {
     if (from === to) return true;
@@ -102,7 +106,9 @@ function callableHeader(tokens: readonly ScarpToken[], start: number):
   for (let i = close + 1; i < end; i++) {
     const t = tokens[i].text;
     if (t === '{') return {
-      body: i, callable: symbol(name, 'function', 'Function declared in this document'), parameters
+      body: i, callable: symbol(name, 'function', generic
+        ? 'Generic function declared in this document (Scarp 0.0.7-alpha.3+)'
+        : 'Function declared in this document'), parameters
     };
     if (t === ';' || t === '}' || t === 'funcra' || t === 'bind' ||
         t === 'var' || t === 'needs' || t === 'ensures' || t === '=') return undefined;
@@ -209,6 +215,8 @@ export function scarpSourceCompletions(
       if (tokens[declaration]?.text === 'pure') declaration++;
       const keyword = tokens[declaration]?.text;
       if (keyword === 'funcra') {
+        // Published generic functions are file-level declarations.
+        if (frame.kind !== 'root' && tokens[declaration + 2]?.text === '<') return [];
         const header = callableHeader(tokens, declaration);
         // Don't pretend a half-written declaration header is an expression.
         if (!header) return [];
