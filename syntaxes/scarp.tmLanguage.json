@@ -187,7 +187,7 @@
       "patterns": [
         {
           "name": "entity.name.function.call.scarp",
-          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:\\(|::\\s*<))"
         }
       ]
     },

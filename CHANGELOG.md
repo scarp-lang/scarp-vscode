@@ -2,6 +2,8 @@
 
 ## Unreleased — v0.1.6 development
 
+- Recognize published Scarp v0.0.7-alpha.3 raw and triple-quoted strings in TextMate and bounded editor scanners. Add declaration-only generic function Outline, scope-aware value parameter completion and explicit generic call highlighting. These remain lexical hints; the compiler resolves types and constraints. Add a pinned alpha.3 interpreter and Extension Host qualification job while retaining existing compatibility gates.
+
 - Add opt-in experimental native object export for published Scarp v0.0.7-alpha.2, with checked, bounded and bounded-entry compilation modes, explicit consent, frozen UTF-8 source, validated ELF64 and ABI metadata, no-overwrite publication, source SHA-256 and a bounded Unicode-aware failure-span preview. Test the real published compiler on Windows, Linux and macOS; no native linking or execution, automatic saving, or extension publication.
 
 - Improve compiler distribution reliability: choose the highest eligible semantic version within the official bounded release catalogue; reject duplicate matching assets and duplicate selected tags. Preserve all historical native package checks and add a separately pinned v0.0.7-alpha.1 native installer and real VS Code Host gate for Windows x64, Linux x64 and Apple Silicon macOS, including modern project and interpreter contracts. No publication or automatic installation.

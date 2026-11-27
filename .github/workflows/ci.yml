@@ -16,6 +16,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compiler-007-alpha3-editor-compatibility:
+    name: Published v0.0.7-alpha.3 editor contracts (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.7-alpha.3
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Qualify exact compiler revision, generics and string literals
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "44a3bb0a91e67570e46ce058a3f6211f8e5db0f5"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -Fx 'scarp 0.0.7-alpha.3'
+          cargo test --locked --manifest-path compiler/Cargo.toml --test generic_functions --test generic_variant_payloads --test string_operators
+          "$binary" verify compiler/examples/string_operators.srp
+          "$binary" exec compiler/examples/string_operators.srp | diff - compiler/examples/string_operators.stdout
+          "$binary" verify test/fixtures/alpha3-generics.srp
+          "$binary" exec test/fixtures/alpha3-generics.srp | diff - test/fixtures/alpha3-generics.stdout
+      - name: Exercise genuine VS Code Extension Host against published v0.0.7-alpha.3
+        env:
+          SCARP_TEST_BINARY: ${{ github.workspace }}/compiler/target/release/scarp
+        run: xvfb-run -a npm run test:integration
+
   compiler-007-alpha2-native-export:
     name: Native object export core against published alpha.2 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

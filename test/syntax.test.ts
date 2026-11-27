@@ -503,3 +503,15 @@ test('alpha.3 TextMate state spans multiline literals and raw escapes are litera
   const closing = grammar.tokenizeLine('"""; print(1);', middle.ruleStack);
   assert.ok(closing.tokens.some(t => t.scopes.includes('support.function.builtin.scarp')));
 });
+
+test('alpha.3 explicit generic calls highlight names without mislabeling comparisons', async () => {
+  const grammar = await tokenizer();
+  for (const source of ['identity::<integer>(42);', 'mod.identity::<list<integer>>(values);']) {
+    assert.ok(hasScope(tokens(source, grammar), 'identity', 'entity.name.function.call.scarp'), source);
+  }
+  assert.ok(hasScope(tokens('pure funcra identity<T>(value: T) -> T {', grammar),
+    'identity', 'entity.name.function.definition.scarp'));
+  for (const source of ['identity < limit;', '// identity::<integer>(42);', 'r"identity::<integer>(42)"']) {
+    assert.ok(!hasScope(tokens(source, grammar), 'identity', 'entity.name.function.call.scarp'), source);
+  }
+});

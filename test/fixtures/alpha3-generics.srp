@@ -1,0 +1,11 @@
+pure funcra identity<T>(value: T) -> T {
+    return value;
+}
+
+pure funcra square<T: Numeric>(value: T) -> T {
+    return value * value;
+}
+
+print(identity::<integer>(42));
+print(square(6));
+print(identity("Scarp"));

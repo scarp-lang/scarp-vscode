@@ -122,3 +122,17 @@ test('repeat scope does not leak through previously typed references', () => {
   assert.equal(scarpSourceCompletions(inside, 'loop_')[0]?.detail,
     'Immutable integer repeat index');
 });
+
+test('alpha.3 generic functions and typed value parameters respect lexical scope', () => {
+  const source = 'pure funcra generic_pair<A, B: Comparable>(item_first: A, item_second: list<B>) -> A { print(';
+  assert.deepEqual(names(source, 'item_'), ['item_first', 'item_second']);
+  const local = scarpSourceCompletions(source, 'generic_');
+  assert.equal(local[0]?.name, 'generic_pair');
+  assert.match(local[0]?.detail ?? '', /0\.0\.7-alpha\.3/);
+  const after = source + '1); return item_first; } print(';
+  assert.deepEqual(names(after, 'item_'), []);
+  assert.deepEqual(names(after, 'generic_'), ['generic_pair']);
+  for (const header of ['<T, T>', '<T: Unknown>', '<>', '<T']) {
+    assert.deepEqual(names('funcra generic_broken' + header + '(item_value: T) { print(', 'item_'), []);
+  }
+});

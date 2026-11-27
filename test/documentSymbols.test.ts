@@ -239,3 +239,21 @@ test('incomplete, duplicate and malformed destructuring never fabricates symbols
     '// bind (commented, names) = (3, 4);'
   ].join('\n')).map(x => x.name), ['ok', 'value', 'tail']);
 });
+
+test('alpha.3 generic functions retain signature and selection ranges in Outline', () => {
+  const source = [
+    'bind text = """', 'funcra fake<T>(x: T) -> T { return x; }', '""";',
+    'pure funcra pair<A, B>(first: A, second: B) -> tuple<A, B> {',
+    '  return (first, second);', '}',
+    'pure funcra square<T: Numeric>(value: T) -> T { return value * value; }',
+    'bind answer = square::<integer>(6);'
+  ].join('\r\n');
+  const result = scanScarpSymbols(source);
+  assert.deepEqual(result.map(s => s.name), ['text', 'pair', 'square', 'answer']);
+  assert.match(result[1].detail, /<A, B>\(first: A, second: B\)/);
+  assert.match(result[2].detail, /<T: Numeric>/);
+  for (const s of result) assert.equal(source.slice(s.selectionStart, s.selectionEnd), s.name);
+  for (const header of ['<T, T>', '<T: Unknown>', '<>', '<T']) {
+    assert.deepEqual(scanScarpSymbols('funcra broken' + header + '(x: T) -> T { return x; }'), []);
+  }
+});

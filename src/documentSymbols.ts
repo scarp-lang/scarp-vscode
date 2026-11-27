@@ -1,3 +1,4 @@
+import { valueParameterStart } from './genericHeader';
 import { scanScarpString } from './stringLiteral';
 
 /**
@@ -232,8 +233,10 @@ function declaration(source: string, tokens: readonly Token[], startIndex: numbe
   }
   if (keyword === 'funcra') {
     const name = tokens[i + 1];
-    if (name?.type !== 'identifier' || tokens[i + 2]?.text !== '(') { return undefined; }
-    const closeParen = matching(tokens, i + 2, '(', ')');
+    if (name?.type !== 'identifier') return undefined;
+    const openParen = valueParameterStart(tokens, i + 2);
+    if (openParen === undefined) return undefined;
+    const closeParen = matching(tokens, openParen, '(', ')');
     if (closeParen < 0) { return undefined; }
     // Contracts can follow the signature; locate its next top-level body.
     let brace = -1;
