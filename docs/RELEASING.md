@@ -115,3 +115,10 @@ The optional static documentation page is deployed from `site/` on meaningful up
 The manual release workflow now builds the immutable published `v0.0.6-alpha.20` compiler (`b1a9347f93540fdf95b0ddecba4adc55a3b4bb98`) instead of relying only on its ordinary-CI compatibility job. It validates exact lowercase `d` literal output, persistent mutable tuple replacement and a rejected implicit decimal/integer mix; also checks modern lowercase `scarp.project` initialization and all **28** source snippets. The historical alpha.19 native package and backwards-compatibility matrix stays independent in CI. The workflow continues to rerun trusted and Restricted Mode VS Code Extension Host suites before packaging.
 
 **Safe qualification:** Actions → Publish experimental pre-release → Run workflow, on `main`, with all three publishing inputs **false**. The resulting `scarp-0.1.6.vsix` is a seven-day qualification artifact, not a public GitHub Release or registry upload. The action must be deliberately dispatched; an ordinary merge does not invoke it.
+
+
+## Next pre-release candidate: independent alpha.3 gate
+
+Keep the historical v0.0.6-alpha.20 gate and its 28 compatible snippets unchanged. Before packaging the next candidate, the publishing workflow also checks out published v0.0.7-alpha.3 at `44a3bb0a91e67570e46ce058a3f6211f8e5db0f5`, statically verifies all 38 source snippets (including 7 new generic and string starters), compares the official string-operator example output and reruns the trusted Extension Host against that compiler. A separate read-only snippet workflow exercises the same pinned compiler on relevant changes.
+
+These changes do not bump the extension version or authorize a tag, public release, GitHub asset upload or registry upload. A qualification-only dispatch remains opt-in with all publishing inputs false; review its exact source revision before approving any future pre-release.

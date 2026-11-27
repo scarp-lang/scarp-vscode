@@ -331,5 +331,96 @@
       "$0"
     ],
     "description": "Scarp v0.0.7-alpha.1+: stable elementwise vector softplus for finite inputs, preserving length; interpreter only."
+  },
+  "Scarp: Generic identity (v0.0.7-alpha.3)": {
+    "prefix": "sgeneric",
+    "body": [
+      "pure funcra ${1:identity}<T>(value: T) -> T {",
+      "    return value;",
+      "}",
+      "print(${1}(${2:42}));",
+      "print(${1}::<string>(\"${3:Scarp}\"));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: infer a generic function type or select it explicitly with ::<string>; interpreter only."
+  },
+  "Scarp: Constrained generic numeric function (v0.0.7-alpha.3)": {
+    "prefix": "sgenericnumeric",
+    "body": [
+      "pure funcra ${1:square}<T: Numeric>(value: T) -> T {",
+      "    return value * value;",
+      "}",
+      "print(${1}(${2:6}));",
+      "print(${1}(${3:0.5}d));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: use the Numeric constraint without silently converting exact decimal or integer values; interpreter only."
+  },
+  "Scarp: Contextual generic collection (v0.0.7-alpha.3)": {
+    "prefix": "sgenericlist",
+    "body": [
+      "pure funcra ${1:empty}<T>() -> list<T> {",
+      "    return [list: <T>];",
+      "}",
+      "bind ${2:names}: list<string> = ${1}();",
+      "bind ${3:counts} = ${1}::<integer>();",
+      "print(list_len(${2}), list_len(${3}));",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: infer a return-only type from a declared binding or supply an explicit type argument; interpreter only."
+  },
+  "Scarp: Generic Option construction (v0.0.7-alpha.3)": {
+    "prefix": "sgenericoption",
+    "body": [
+      "pure funcra ${1:present}<T>(value: T) -> option<T> {",
+      "    return new option<T>::Some(value);",
+      "}",
+      "bind ${2:maybe} = ${1}(${3:42});",
+      "match on ${2} {",
+      "    case Some(item) { print(item); }",
+      "    case None { print(\"missing\"); }",
+      "}",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: construct a generic Option payload and handle the specialized concrete value with exhaustive matching; interpreter only."
+  },
+  "Scarp: Generic Result construction (v0.0.7-alpha.3)": {
+    "prefix": "sgenericresult",
+    "body": [
+      "pure funcra ${1:success}<T>(value: T) -> result<T, string> {",
+      "    return new result<T, string>::Ok(value);",
+      "}",
+      "bind ${2:outcome} = ${1}(${3:42});",
+      "match on ${2} {",
+      "    case Ok(item) { print(item); }",
+      "    case Err(message) { print(message); }",
+      "}",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: construct a generic Result payload with a fixed string error type and exhaustive matching; interpreter only."
+  },
+  "Scarp: Bounded string operators (v0.0.7-alpha.3)": {
+    "prefix": "sstringops",
+    "body": [
+      "bind ${1:label}: string = \"${2:Scarp}\" + \"${3: Lang}\";",
+      "var ${4:message}: string = ${1};",
+      "${4} += \"!\";",
+      "${4} *= ${5:2};",
+      "print(${4});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: concatenate and repeat strings under compiler resource limits, including compound assignments; interpreter only."
+  },
+  "Scarp: Raw and multiline string literals (v0.0.7-alpha.3)": {
+    "prefix": "sstringliterals",
+    "body": [
+      "bind ${1:raw}: string = r\"${2:literal text}\";",
+      "bind ${3:message}: string = \"\"\"${4:First line}",
+      "${5:Second line}\"\"\";",
+      "print(${1});",
+      "print(${3});",
+      "$0"
+    ],
+    "description": "Scarp v0.0.7-alpha.3+: use raw and triple-quoted strings without escape decoding or interpolation; interpreter only."
   }
 }

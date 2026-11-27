@@ -1,0 +1,50 @@
+name: Published alpha.3 snippet qualification
+
+on:
+  pull_request:
+    paths:
+      - 'snippets/**'
+      - 'scripts/verify-snippets.cjs'
+      - 'scripts/snippet-compatibility.cjs'
+      - 'test/snippet*.test.ts'
+      - '.github/workflows/alpha3-snippets.yml'
+      - '.github/workflows/prerelease.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'snippets/**'
+      - 'scripts/verify-snippets.cjs'
+      - 'scripts/snippet-compatibility.cjs'
+      - 'test/snippet*.test.ts'
+      - '.github/workflows/alpha3-snippets.yml'
+      - '.github/workflows/prerelease.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alpha3-snippets:
+    name: Verify all starter snippets against exact alpha.3 compiler
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scarp-lang/scarp
+          ref: v0.0.7-alpha.3
+          path: compiler
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Qualify published compiler and statically verify snippets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C compiler rev-parse HEAD)" = "44a3bb0a91e67570e46ce058a3f6211f8e5db0f5"
+          cargo build --locked --release --manifest-path compiler/Cargo.toml
+          binary="$PWD/compiler/target/release/scarp"
+          "$binary" --version | grep -Fx 'scarp 0.0.7-alpha.3'
+          node scripts/verify-snippets.cjs "$binary" v0.0.7-alpha.3
