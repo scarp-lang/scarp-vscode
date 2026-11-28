@@ -37,6 +37,7 @@ import { BUILTIN_DOCUMENT_LIMIT } from './builtinLexicalContext';
 import { BuiltinEditorCache } from './builtinEditorCache';
 import { registerFileActionCodeLens } from './fileActionCodeLens';
 import { registerScarpEditorProviders } from './editorProviders';
+import { registerScarpAdvancedEditorProviders } from './editorAdvancedProviders';
 import { registerNativeObjectExport } from './nativeObjectCommand';
 import { registerWorkspaceImportExplorer } from './editorWorkspaceExplorer';
 import { registerWorkspaceProjectExplorer } from './editorProjectExplorer';
@@ -1731,6 +1732,7 @@ export function activate(context: vscode.ExtensionContext): void {
     builtinHover, builtinSignatures, builtinCompletions, explainActions,
     new vscode.Disposable(() => builtinCache.clear()),
     registerFileActionCodeLens(), ...registerScarpEditorProviders(),
+    ...registerScarpAdvancedEditorProviders(vscode),
     registerWorkspaceImportExplorer(output),
     registerWorkspaceProjectExplorer(output), projectMonitors,
     ...registerCompilerNavigation(output),
