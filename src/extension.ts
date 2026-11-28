@@ -11,7 +11,8 @@ import {
   fetchCurrentCompilerPackage, installOfficialCompiler, OFFICIAL_RELEASES_URL
 } from './compilerInstall';
 import { setupRecoveryFor, type CompilerRecoveryAction } from './compilerSetupRecovery';
-import { parseDiagnostics, utf16OffsetForScalarColumn } from './diagnostics';
+import { parseDiagnostics } from './diagnostics';
+import { scarpSpanToEditorRange } from './diagnosticPresentation';
 import { diagnosticExplanationArgs, explainableDiagnosticCode } from './diagnosticExplanation';
 import { BUDGET_SETTINGS, BudgetSettings, budgetArguments } from './settings';
 import { DiagnosticOwners } from './problemOwners';
@@ -181,38 +182,66 @@ function applyProblems(
   }
 }
 
+interface CompilerDiagnosticSpan {
+  readonly filename: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
+}
+
+/** Resolve one compiler range and reuse opened buffers across related notes. */
+async function compilerDiagnosticLocation(
+  entry: CompilerDiagnosticSpan, baseDirectory: string,
+  opened: Map<string, vscode.TextDocument | undefined>
+): Promise<vscode.Location | undefined> {
+  const resolved = path.isAbsolute(entry.filename)
+    ? entry.filename : path.resolve(baseDirectory, entry.filename);
+  const uri = vscode.Uri.file(resolved);
+  const key = uri.toString();
+  let source = opened.get(key);
+  if (!source) {
+    if (opened.has(key)) { return undefined; }
+    try { source = await vscode.workspace.openTextDocument(uri); }
+    catch { opened.set(key, undefined); return undefined; }
+    opened.set(key, source);
+  }
+  const mapped = scarpSpanToEditorRange(source, entry);
+  if (!mapped) { return undefined; }
+  return new vscode.Location(uri, new vscode.Range(
+    new vscode.Position(mapped.start.line, mapped.start.character),
+    new vscode.Position(mapped.end.line, mapped.end.character)
+  ));
+}
+
 async function showProblems(
   doc: vscode.TextDocument, stderr: string, collection: vscode.DiagnosticCollection,
   owners: DiagnosticOwners<vscode.Diagnostic>, expectedVersion: number,
   isCurrent: () => boolean | Promise<boolean> = () => true
 ): Promise<number | undefined> {
   const groups = new Map<string, vscode.Diagnostic[]>();
+  const opened = new Map<string, vscode.TextDocument | undefined>();
+  const directory = path.dirname(doc.uri.fsPath);
   for (const entry of parseDiagnostics(stderr)) {
-    const resolved = path.isAbsolute(entry.filename)
-      ? entry.filename : path.resolve(path.dirname(doc.uri.fsPath), entry.filename);
-    const uri = vscode.Uri.file(resolved);
-    let source: vscode.TextDocument;
-    try { source = await vscode.workspace.openTextDocument(uri); }
-    catch { continue; }
-    const line = Math.min(entry.line - 1, Math.max(source.lineCount - 1, 0));
-    const text = source.lineAt(line).text;
-    const column = Math.min(utf16OffsetForScalarColumn(text, entry.column), text.length);
-    const endLine = Math.min((entry.endLine ?? entry.line) - 1, Math.max(source.lineCount - 1, 0));
-    const endText = source.lineAt(endLine).text;
-    const endColumn = entry.endColumn === undefined
-      ? Math.min(column + 1, text.length)
-      : Math.min(utf16OffsetForScalarColumn(endText, entry.endColumn), endText.length);
-    const end = endLine > line || (endLine === line && endColumn > column)
-      ? new vscode.Position(endLine, endColumn)
-      : new vscode.Position(line, Math.min(column + 1, text.length));
-    const range = new vscode.Range(new vscode.Position(line, column), end);
+    const primary = await compilerDiagnosticLocation(entry, directory, opened);
+    if (!primary) { continue; }
     const severity = entry.severity === 'warning'
       ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
-    const diagnostic = new vscode.Diagnostic(range,
+    const diagnostic = new vscode.Diagnostic(primary.range,
       entry.help ? entry.message + '\nHelp: ' + entry.help : entry.message, severity);
     diagnostic.source = 'Scarp';
     if (entry.code) { diagnostic.code = entry.code; }
-    const key = uri.toString();
+    if (entry.related?.length) {
+      const notes: vscode.DiagnosticRelatedInformation[] = [];
+      for (const related of entry.related) {
+        const location = await compilerDiagnosticLocation(related, directory, opened);
+        if (location) {
+          notes.push(new vscode.DiagnosticRelatedInformation(location, related.message));
+        }
+      }
+      if (notes.length) { diagnostic.relatedInformation = notes; }
+    }
+    const key = primary.uri.toString();
     groups.set(key, [...(groups.get(key) ?? []), diagnostic]);
   }
   // The source may have changed while the external compiler was checking it.

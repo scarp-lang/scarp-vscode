@@ -41,25 +41,31 @@ export class ProjectWatchRegistry implements WatchDisposable {
     snapshot: ProjectDiskSnapshot
   ): void {
     const key = path.resolve(root);
-    this.stopRoot(key);
-
-    if (this.tracked.size >= this.maxProjects) {
-      const [oldRoot, old] = this.tracked.entries().next().value as
-        [string, TrackedProject];
-      this.stopRoot(oldRoot);
-      this.onEvicted(oldRoot, old.owner);
-    }
-
+    // Stage the complete replacement before touching an existing verified
+    // watch. A temporary native/VS Code watcher failure must not silently
+    // discard the previous verification baseline or evict another project.
+    const baseline = new Map(snapshot);
     const watchers: WatchDisposable[] = [];
     try {
       watchers.push(this.factory(key, '**/*.srp', changed));
       watchers.push(this.factory(key, projectManifestGlob, changed));
     } catch (error) {
-      watchers.forEach(watcher => watcher.dispose());
+      for (const watcher of watchers) {
+        try { watcher.dispose(); }
+        catch { /* Preserve the original setup failure. */ }
+      }
       throw error;
     }
-    // Make our own copy so callers cannot change the verification baseline.
-    this.tracked.set(key, { owner, snapshot: new Map(snapshot), watchers });
+
+    if (this.tracked.has(key)) {
+      this.stopRoot(key);
+    } else if (this.tracked.size >= this.maxProjects) {
+      const [oldRoot, old] = this.tracked.entries().next().value as
+        [string, TrackedProject];
+      this.stopRoot(oldRoot);
+      this.onEvicted(oldRoot, old.owner);
+    }
+    this.tracked.set(key, { owner, snapshot: baseline, watchers });
   }
 
   /**
