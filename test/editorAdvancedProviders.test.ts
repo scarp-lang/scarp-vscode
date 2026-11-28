@@ -57,13 +57,56 @@ class Disposable {
   constructor(readonly callback: () => void) {}
   dispose() { this.disposed = true; this.callback(); }
 }
+interface Cancellation { isCancellationRequested: boolean }
+interface Formatting { tabSize: number; insertSpaces: boolean }
+interface EditorEdit { range: RangeValue; newText: string }
+interface ReportedProblem {
+  source?: string;
+  code?: string | { value: string };
+  message: string;
+  range: RangeValue;
+}
 interface Providers {
-  formatting: any;
-  rangeFormatting: any;
-  quickFixes: any;
-  highlights: any;
-  rename: any;
-  hierarchy: any;
+  formatting: {
+    provideDocumentFormattingEdits(
+      document: Document, options: Formatting, token: Cancellation
+    ): EditorEdit[];
+  };
+  rangeFormatting: {
+    provideDocumentRangeFormattingEdits(
+      document: Document, range: RangeValue, options: Formatting, token: Cancellation
+    ): EditorEdit[];
+  };
+  quickFixes: {
+    provideCodeActions(
+      document: Document, range: RangeValue,
+      context: { diagnostics: ReportedProblem[] }, token: Cancellation
+    ): CodeAction[];
+  };
+  highlights: {
+    provideDocumentHighlights(
+      document: Document, position: Point, token: Cancellation
+    ): DocumentHighlight[];
+  };
+  rename: {
+    prepareRename(
+      document: Document, position: Point, token: Cancellation
+    ): { range: RangeValue; placeholder: string } | undefined;
+    provideRenameEdits(
+      document: Document, position: Point, newName: string, token: Cancellation
+    ): WorkspaceEdit | undefined;
+  };
+  hierarchy: {
+    prepareCallHierarchy(
+      document: Document, position: Point, token: Cancellation
+    ): CallHierarchyItem[];
+    provideCallHierarchyIncomingCalls(
+      item: CallHierarchyItem, token: Cancellation
+    ): Promise<CallHierarchyIncomingCall[]>;
+    provideCallHierarchyOutgoingCalls(
+      item: CallHierarchyItem, token: Cancellation
+    ): Promise<CallHierarchyOutgoingCall[]>;
+  };
 }
 function setup(text = 'funcra f() {\nprint(1);\n}\n', scheme = 'file') {
   const uri = { scheme, toString: () => `${scheme}:///sample.srp` };
@@ -85,7 +128,7 @@ function setup(text = 'funcra f() {\nprint(1);\n}\n', scheme = 'file') {
     }
   };
   const registration = (which: keyof Providers) => (_selector: unknown, provider: unknown) => {
-    providers[which] = provider;
+    providers[which] = provider as never;
     const entry = new Disposable(() => {});
     subscriptions.push(entry);
     return entry;
@@ -185,7 +228,7 @@ test('compiler diagnostic quick fixes appear only in trusted workspaces', () => 
   const found = s.providers.quickFixes.provideCodeActions(s.doc,
     offsetRange(s.doc, 0), context, s.cancel);
   assert.equal(found.length, 1);
-  assert.equal(found[0].edit.edits[0].value, 'bind');
+  assert.equal(found[0].edit?.edits[0].value, 'bind');
   s.workspace.isTrusted = false;
   assert.deepEqual(s.providers.quickFixes.provideCodeActions(s.doc,
     offsetRange(s.doc, 0), context, s.cancel), []);
